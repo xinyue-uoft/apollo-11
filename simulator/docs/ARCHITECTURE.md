@@ -262,7 +262,13 @@ agc.program                      // current program object
 agc.erasable                     // { [name]: value } displayed quantities
 agc.nav                          // AGC's navigated state (may differ from truth)
 agc.flags                        // { LRBYPASS, ... } named flagbits
-agc.key(key) / agc.keys(script)  // forward to pinball
+agc.key(key, { source }) / agc.keys(script, { source, gapMs })   // forward to pinball;
+                                 // source 'user' | 'crew' (scenario keystrokes) — emits 'key'
+agc.crewInput(name, value)       // crew-station controls (§11.3)
+agc.t                            // current GET (s) as of the last step
+agc.workload                     // Workload (§6.7)
+agc.freshStart()                 // V36: SLAP1 — clears alarms, lights, jobs, goes to P00
+agc.hardwareRestart(cause)       // GOJAM path (e.g. V69 TC trap): RESTART light + GOPROG
 agc.step(t, dt)                  // programs + pinball + executive + workload
 agc.snapshot()
 ```
@@ -399,7 +405,15 @@ Bus events emitted (the UI listens): `'narrate'`, `'say'`, `'chapter'`,
 `'source:show' {anchors}`, `'focus' {panel}`, `'spotlight' {target}`,
 `'hold' {seconds}`, `'director:state'`, `'alarm'`, `'restart'`, `'mode'`.
 
-## 10. Source anchors (`js/data/anchors.js`)
+## 10. Source anchors (`js/data/anchors/*.js`)
+
+Anchors are split by owner to avoid edit conflicts; `js/data/anchors/index.js`
+merges them into `ANCHORS` and throws on duplicate ids:
+`exec.js` (Executive, Waitlist, alarms, restarts), `pinball.js` (keys,
+verbs, nouns, lights), `programs.js` (BURNBABY, SERVICER, P63–P68, guidance,
+throttle, LR), `cm.js` (Comanche055), `scenarios.js` (anything else a
+scenario needs). Id prefixes: `exec. alarm. restart. waitlist. pinball. verb.
+noun. dsky. burn. servicer. p63. p64. p65. p66. p68. guid. throttle. lr. cm.`
 
 ```js
 export const ANCHORS = {
@@ -407,6 +421,8 @@ export const ANCHORS = {
                        start: 160, end: 208, title: 'Find a core set — or 1202' },
 };
 ```
+
+`import { ANCHORS, getAnchor } from './data/anchors/index.js'`.
 
 Rules (enforced by `test/anchors.test.mjs`): the file exists; `1 ≤ start ≤
 end ≤ lines`; if `label` is given it appears at the start of line `start`
