@@ -1493,7 +1493,7 @@ export function mountTrajectory(root, ctx) {
     g.fillStyle = theme.faint;
     g.textBaseline = 'bottom';
     g.textAlign = 'left';
-    for (const yv of yT) if (yv > 0) g.fillText(`${fmtInt(yv)} ft`, plot.x + 3, sy(yv) - 2);
+    for (const yv of yT) if (yv > 0 && sy(yv) > plot.y + 12) g.fillText(`${fmtInt(yv)} ft`, plot.x + 3, sy(yv) - 2);
     g.textAlign = 'center';
     g.fillStyle = theme.dim;
     for (const xv of xT) {

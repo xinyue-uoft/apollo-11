@@ -51,9 +51,10 @@ export class RestartModel {
 
   // ------------------------------------------------------------ phases
 
-  // PHASCHNG: group `group` (1-6) is now at `phase` (e.g. '5.3'); on a
-  // restart call `reenter(t, { group, phase, hardware })`. meta:
-  // { label, anchor } for the UI.
+  // PHASCHNG: group `group` (1-6) is now at `phase` — a string as written in
+  // the listings ('5.3', '4.21') or a number; on a restart call
+  // `reenter(t, { group, phase, hardware })`. meta (optional):
+  // { label, anchor } for the UI, `owner` for clearIfOwner().
   protect(group, phase, reenter, meta = {}) {
     const g = this.groups.get(group);
     if (!g) throw new Error(`Restart group ${group} does not exist (1-6)`);
@@ -217,7 +218,7 @@ export class RestartModel {
       for (const g of [...GROUPS].reverse()) {
         const grp = this.groups.get(g);
         if (!grp.active) continue;
-        reentered.push({ group: g, phase: grp.phase });
+        reentered.push({ group: g, phase: grp.phase, label: grp.label || '', owner: grp.owner || null });
         if (grp.reenter) {
           try {
             grp.reenter(t, { group: g, phase: grp.phase, hardware });
