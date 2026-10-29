@@ -98,6 +98,15 @@ Please read [CONTRIBUTING.md][7] before opening a pull request.
 If you are interested in compiling the original source code, check
 out [Virtual AGC][8].
 
+## Simulator
+
+The [`simulator/`](simulator/README.md) directory contains a browser-based
+DSKY and AGC simulator built around this source code. It replays the
+Apollo 11 landing — the ignition, P63, the 1202 alarms, P64 and P66 —
+with explanations and the matching source lines highlighted, and lets you
+key the DSKY and fly the descent yourself. Run `npm run sim` and open
+<http://localhost:8011/simulator/>.
+
 ## Attribution
 
 &nbsp;         | &nbsp;

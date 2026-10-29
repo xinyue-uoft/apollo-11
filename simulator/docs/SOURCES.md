@@ -15,7 +15,7 @@ repository.
 ### Primary records of the flight
 
 | Key | Source |
-|---|---|
+| --- | --- |
 | **MR** | *Apollo 11 Mission Report*, MSC-00171, NASA Manned Spacecraft Center, November 1969. Table 5-I "Lunar descent event times", §4.10.3, §5.2–5.4, §9.6.4, §9.8, §9.11, §9.13.1, §13.1, §16.2.5 "Computer alarms during descent", Table 9.6-V, Table A-I. <https://www.nasa.gov/wp-content/uploads/static/apollo50th/pdf/A11_MissionReport.pdf> (mirror: <https://apollojournals.org/alsj/a11/A11_MissionReport.pdf>) |
 | **ALSJ** | Eric M. Jones (ed.), *Apollo Lunar Surface Journal*, "The First Lunar Landing" (rev. 10 May 2018) and "Post-landing Activities" — the corrected transcript, which merges the air-to-ground tape and the LM onboard tape, with commentary by Jones, Ken Glover, Paul Fjeld, Frank O'Brien and others. <https://www.apollojournals.org/alsj/a11/a11.landing.html>, <https://www.apollojournals.org/alsj/a11/a11.postland.html> |
 | **TEC** | *Apollo 11 Technical Air-to-Ground Voice Transcription* (GOSS Net 1), July 1969, pp. 310–317. <https://www.apollojournals.org/afj/ap11fj/pdf/a11-transcript-technical.pdf> |
@@ -28,7 +28,7 @@ repository.
 ### Engineering documents
 
 | Key | Source |
-|---|---|
+| --- | --- |
 | **CHERRY** | G. W. Cherry (MIT Instrumentation Laboratory, Luminary project director), letter AG# 370-69, 4 August 1969, "Exegesis of the 1201 and 1202 Alarms Which Occurred During the Mission G Lunar Landing" — includes the job table and a DSKY event log in seconds from ignition. <http://www.ibiblio.org/apollo/Documents/CherryApollo11Exegesis.pdf> |
 | **TILLMAN** | C. Tillman (Grumman), memo LAV-500-940, 31 July 1969, "Program Alarms in Powered Descent – Apollo 11", from MSFN downlink data. <http://www.ibiblio.org/apollo/Documents/Memo-Tillman690731_text.pdf> |
 | **COPPS** | E. M. Copps, "Recovery from Transient Failures of the AGC", MIT/IL E-2307, August 1968. <http://klabs.org/history/history_docs/mit_docs/1033.pdf> |
@@ -44,7 +44,7 @@ repository.
 ### Accounts and oral histories
 
 | Key | Source |
-|---|---|
+| --- | --- |
 | **EYLES** | Don Eyles, "Tales from the Lunar Module Guidance Computer", AAS 04-064 (2004). <https://www.doneyles.com/LM/Tales.html> (a klabs copy exists; where they differ — "Verb 90 Noun 50" vs "Verb 5 Noun 9" — the doneyles.com text, V05N09, is used) |
 | **GARMAN OH** | J. Garman, NASA JSC Oral History, 27 March 2001. |
 | **KRANZ OH** | E. Kranz, NASA JSC Oral History, 8 January 1999. |
@@ -437,7 +437,7 @@ P68; the V16 monitor, V57 and the crew responses to flashing displays.
 ## 5. Apollo 11 numbers used on screen (quick reference)
 
 | Item | Value | Source |
-|---|---|---|
+| --- | --- | --- |
 | PDI ignition | 102:33:05.01 | MR Table 9.6-V |
 | Ullage start | 102:32:58 | MR Table 5-I |
 | Fixed throttle position | 102:33:31 | MR Table 5-I |
