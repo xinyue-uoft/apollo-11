@@ -378,13 +378,17 @@ function splitName(name) {
 }
 
 // Look up one erasable word by listing name (see the header for the rules).
-export function readErasable(agc, name, { dp = false } = {}) {
+// A vector stored as an array under NAME serves NAME (element 0) and
+// NAME+k (element k, or k/2 for double-precision words); scalars stored
+// under 'NAME+k' keys work too. { whole: true } returns a stored array as
+// is (N64's two-integer FUNNYDSP).
+export function readErasable(agc, name, { dp = false, whole = false } = {}) {
   const e = agc && agc.erasable;
   if (!e) return null;
   const tryKey = (key) => {
     if (Object.prototype.hasOwnProperty.call(e, key)) {
       const v = e[key];
-      if (v !== undefined) return v;
+      if (v !== undefined && v !== null) return v;
     }
     return undefined;
   };
@@ -392,12 +396,12 @@ export function readErasable(agc, name, { dp = false } = {}) {
   if (v === undefined && CONSECUTIVE[name]) v = tryKey(CONSECUTIVE[name]);
   if (v === undefined) {
     const { base, off } = splitName(name);
-    const arr = tryKey(base);
-    if (Array.isArray(arr)) {
-      const idx = dp ? off / 2 : off;
-      if (Number.isInteger(idx)) v = arr[idx];
-    } else if (off === 0 && arr !== undefined) {
-      v = arr;
+    if (off > 0) {
+      const arr = tryKey(base);
+      if (Array.isArray(arr)) {
+        const idx = dp ? off / 2 : off;
+        if (Number.isInteger(idx)) v = arr[idx];
+      }
     }
   }
   if (v === undefined) {
@@ -406,7 +410,7 @@ export function readErasable(agc, name, { dp = false } = {}) {
       if (v !== undefined) break;
     }
   }
-  if (Array.isArray(v)) return v;
+  if (Array.isArray(v)) return whole ? v : num(v[0]);
   return num(v);
 }
 
@@ -474,7 +478,7 @@ function makeReader(software, noun, name, routine, k, dp) {
     // TREDES in D1D2, LOOKANGL in D4D5 (FUNNYDSP = DELTAH +2, TREDES =
     // FUNNYDSP, LOOKANGL = FUNNYDSP +1).
     return (agc) => {
-      const arr = readErasable(agc, 'FUNNYDSP');
+      const arr = readErasable(agc, 'FUNNYDSP', { whole: true });
       if (Array.isArray(arr)) return arr;
       const t = readErasable(agc, 'LPDTIME') ?? readErasable(agc, 'TREDES');
       const a = readErasable(agc, 'LPDANGLE') ?? readErasable(agc, 'LOOKANGL');

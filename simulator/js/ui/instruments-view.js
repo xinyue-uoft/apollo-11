@@ -136,7 +136,7 @@ export function pgnsModeLabel(mode) {
 // "hyperbolic · peri 61.5" before orbit insertion.
 export function orbitText(orbit) {
   if (!orbit || !Number.isFinite(orbit.peri)) return '—';
-  const nmi = (m) => fmtNum(m / NMI, 1);
+  const nmi = (m) => fmtNum(m / NMI, Math.abs(m / NMI) >= 1000 ? 0 : 1);
   if (!Number.isFinite(orbit.apo)) return `hyperbolic · peri ${nmi(orbit.peri)}`;
   return `${nmi(orbit.apo)} × ${nmi(orbit.peri)}`;
 }
@@ -414,10 +414,16 @@ export function mountInstruments(root, ctx) {
     set('range', rg.v);
     const rgA = Number.isFinite(nav.range) ? (rg.u === 'nmi' ? fmtNum(nav.range / NMI, Math.abs(nav.range / NMI) >= 100 ? 0 : 1) : fmtNum(toFt(nav.range))) : '—';
     set('rangeAgc', rgA);
-    // ΔH: the erasable DELTAH (display units, ft) when the program keeps it;
-    // otherwise LR altitude − AGC altitude while the radar has data.
-    let dh = pick(er, ['DELTAH']);
-    if (dh === null && v.lr?.altValid && Number.isFinite(v.lr.alt) && Number.isFinite(nav.alt)) dh = toFt(v.lr.alt - nav.alt);
+    // ΔH (LR − AGC altitude, N68 R3): meaningful only while the radar has
+    // altitude data. The erasable DELTAH (display units, ft) when the program
+    // keeps it (a saturated 99999-style value means "none"); otherwise
+    // computed from the radar reading.
+    let dh = null;
+    if (v.lr?.altValid) {
+      dh = pick(er, ['DELTAH']);
+      if (dh !== null && Math.abs(dh) >= 99999) dh = null;
+      if (dh === null && Number.isFinite(v.lr.alt) && Number.isFinite(nav.alt)) dh = toFt(v.lr.alt - nav.alt);
+    }
     set('dh', dh === null ? '— (no LR data)' : fmtSigned(dh));
 
     // Tapes.

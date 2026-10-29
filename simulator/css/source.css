@@ -243,7 +243,7 @@
 
 .src-code {
   position: relative;
-  height: clamp(280px, 56vh, 660px);
+  height: clamp(280px, 50vh, 640px);
   overflow: auto;
   overscroll-behavior: contain;
   background: var(--src-bg);

@@ -145,6 +145,7 @@ export const DEFAULT_PARAMS = Object.freeze({
     lastbiasMs: 8,
     higateWorkMs: [3, 25],
     higateSleepMs: 5000,  // until the antenna reaches position 2 (102:41:32 -> :37, MR)
+    lrSettleS: 4,         // "JUST GOOD -- MUST WAIT 4 SECONDS" 
     charinMs: 5,          // per keystroke (for callers that want a default)
   },
   // Per-phase configuration. navMs/guidMs: the two parts of one SERVICER
@@ -162,8 +163,8 @@ export const DEFAULT_PARAMS = Object.freeze({
       lrAlt: true, lrVel: 'auto', lrConvMs: 46, lrIncorpMs: 3, interrupts: LM_POWERED,
     },
     P64: {
-      avgG: true, navMs: 520, guidMs: 760, display: true, flashable: true, r10: true, gyro: true,
-      lrAlt: true, lrVel: true, lrConvMs: 46, lrIncorpMs: 3, lpdMs: 10, attHoldSavingMs: 80,
+      avgG: true, navMs: 520, guidMs: 763, display: true, flashable: true, r10: true, gyro: true,
+      lrAlt: true, lrVel: true, lrConvMs: 46, lrIncorpMs: 3, lpdMs: 2, attHoldSavingMs: 20,
       higate: true, interrupts: LM_POWERED,
     },
     P66: {
@@ -201,6 +202,7 @@ export class Workload {
     this.flashJob = null;
     this.higateDone = false;
     this.lrInhibited = false;      // LR antenna repositioning (HIGATJOB)
+    this.lrDataAfter = -Infinity;  // LR data used again from this GET
     this.g5 = null;                // { phase, servicer }
     this.g3 = false;
     this.copies = new Set();       // live SERVICER/GUIDANCE jobs created here
@@ -408,7 +410,7 @@ export class Workload {
     const j = this.params.jobs;
     const steps = [];
     if (!guidanceOnly) {
-      const lr = this._lrOn();
+      const lr = this._lrOn() && exec.now() >= this.lrDataAfter;
       const fullNav = (cfg.navMs || 0) + (lr ? cfg.lrConvMs || 0 : 0) + (lr && this._lrIncorporating() ? cfg.lrIncorpMs || 0 : 0);
       steps.push({
         workMs: navLeftMs === null ? fullNav : Math.min(fullNav, navLeftMs),
@@ -608,7 +610,10 @@ export class Workload {
         { sleepMs: j.higateSleepMs },
         { workMs: j.higateWorkMs[1], onStart: (t, jb) => { jb.prio = 0o23; } },
       ],
-      onDone: () => { this.lrInhibited = false; },
+      // After the move the radar's data-good discretes come back "just
+      // good": the read jobs wait 4 s before using them (STILBADH/STILBADV,
+      // SERVICER.agc:1485-1486, :1538-1539).
+      onDone: (t) => { this.lrInhibited = false; this.lrDataAfter = t + j.lrSettleS; },
     });
     if (!job) this.lrInhibited = false;
   }

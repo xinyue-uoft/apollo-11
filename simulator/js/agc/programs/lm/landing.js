@@ -255,6 +255,9 @@ export class LunarLanding extends LmProgram {
     this.agc.erasable.TIG = tig;
     this.agc.erasable.OUTOFPLN = 0;
     this.agc.erasable.DELTAH = 99999;
+    // A start after the time Apollo 11 keyed V57 (TIG + 340 s) assumes the
+    // crew did the same: LR updates permitted, the estimate converged.
+    if (t >= tig + (A.v57 - A.tig)) this.agc.flags.LRINH = true;
     const incorporated = !!this.agc.flags.LRINH;
     this.nav.reset();
     this.nav.arm({ tig, at: t, incorporated });
@@ -270,7 +273,10 @@ export class LunarLanding extends LmProgram {
     this.cmd.ullage = this.burn.flags.ULLAGE;
     if (t < tig + BURN_TIMING.ZOOMTIME) {
       this.mode = 63;
+      this.stage = 'trim';
       this.setPhase(this.lrLocked() ? 'P63-LR' : 'P63-preLR');
+      this.nav.refresh(t);
+      this.show(6, 63, { source: 'p63.disps' });
       return;
     }
     this.connected = true;
@@ -283,24 +289,19 @@ export class LunarLanding extends LmProgram {
       if (this.guidance) this.guidance.start({ t, phase: 'braking' });
     } else if (mode === 64 || mode === 65) {
       this.phaseName = mode === 64 ? 'approach' : 'vertical';
-      this.tP64 = this.kind === 'replay' && t >= A.p64 ? A.p64 : t;
+      this.tP64 = this.kind === 'replay' && t >= this.historical('p64') ? this.historical('p64') : t;
       this.redFlag = this.kind === 'replay' && t >= A.p64Proceed;
       this.agc.flags.REDFLAG = this.redFlag;
       this.setPhase('P64');
       if (this.guidance) {
-        this.guidance.start({ t, phase: mode === 64 ? 'approach' : 'vertical', ttfGuess: -BRAKING_TARGETS.tend });
-        if (mode === 64) {
-          // As if STARTP64 had run: the first pass must not start P64 again.
-          this.guidance.s.ttf += APPROACH_TARGETS.deltaTtf;
-          this.guidance.s.flPass0 = 1;
-          this.guidance.s.program = 64;
-          this.guidance.s.redFlag = this.redFlag;
-        }
+        // `entered`: as if STARTP64 / P65START had already run.
+        this.guidance.start({ t, phase: mode === 64 ? 'approach' : 'vertical', entered: true });
+        this.guidance.s.redFlag = this.redFlag;
       }
     } else if (mode === 66) {
       this.phaseName = 'rod';
       this.tP66 = t;
-      this.tP64 = this.kind === 'replay' ? A.p64 : null;
+      this.tP64 = this.kind === 'replay' ? this.historical('p64') : null;
       if (this.crew.pgnsMode !== 'attHold') this.crew.pgnsMode = 'attHold';
       this.setPhase('P66');
       this.nav.servicerPass(t);
@@ -309,6 +310,35 @@ export class LunarLanding extends LmProgram {
       this.cmd.throttle = this.hoverThrottle();
     }
     this.mode = mode;
+    this.restoreDisplay(t);
+  }
+
+  // The display the computer had up at a mid-flight start (the next pass
+  // would put it up anyway).
+  restoreDisplay(t) {
+    this.nav.refresh(t);
+    if (this.mode === 66) {
+      this.show(6, 60, { source: 'p66.vertdisp' });
+      return;
+    }
+    if (this.physics) {
+      if (this.mode === 63) this.show(6, 63, { source: 'p63.disps' });
+      else if (this.mode === 64) {
+        this.tredes = tredes((this.guidance?.s?.ttf) ?? -172);
+        this.p64Disps();
+      } else this.show(6, 60, { source: 'p66.vertdisp' });
+      return;
+    }
+    this.guideReplay(t);
+    this.dispexit();
+  }
+
+  // A historical event time: the replayed track's own value when it has
+  // one (data/apollo11-descent.js p64GET ...), else APOLLO11_LANDING.
+  historical(name) {
+    const track = this.agc.vehicle?.opts?.track || this.agc.vehicle?.model?.track;
+    const v = track?.[`${name}GET`];
+    return Number.isFinite(v) ? v : APOLLO11_LANDING[name];
   }
 
   lrLocked() {
@@ -362,7 +392,7 @@ export class LunarLanding extends LmProgram {
     this.cmd.ullage = this.burn.flags.ULLAGE;
     if (this.agc.crew.engineStop && !this.engineStopped) this.engineStopped = true;
     // Replay: high gate at its historical time (MR Table 5-I).
-    if (this.kind === 'replay' && this.mode === 63 && this.connected && t >= APOLLO11_LANDING.p64) this.startP64(t);
+    if (this.kind === 'replay' && this.mode === 63 && this.connected && t >= this.historical('p64')) this.startP64(t);
     if (s.landed && this.landedAt === null) this.landedAt = t;
     if (this.physics) {
       // Stand-ins for the commander (not AGC code; ARCHITECTURE §11.3 has no
@@ -462,7 +492,7 @@ export class LunarLanding extends LmProgram {
   guideReplay(t) {
     const A = APOLLO11_LANDING;
     const tig = this.burn.tigNominal ?? A.tig;
-    const tP64 = this.tP64 ?? (this.kind === 'replay' ? A.p64 : tig + (A.p64 - A.tig));
+    const tP64 = this.tP64 ?? (this.kind === 'replay' ? this.historical('p64') : tig + (A.p64 - A.tig));
     if (this.mode === 63) {
       // P63 ends when TTF > −TENDBRAK (EXTLOGIC, LLGE:692-709).
       this.ttf = (t - tP64) - BRAKING_TARGETS.tend;

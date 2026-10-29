@@ -235,7 +235,8 @@ export function mountTranscript(root, ctx) {
           h('span', { class: 'tr-who' }, 'AGC'),
           h('span', { class: 'tr-text' }, h('strong', {}, 'SOFTWARE RESTART'),
             entry.reason ? ` — ${entry.reason}` : '',
-            Number.isFinite(entry.code) ? ` (${formatOctal(entry.code)})` : ''));
+            Number.isFinite(entry.code) && !String(entry.reason || '').includes(formatOctal(entry.code))
+              ? ` (${formatOctal(entry.code)})` : ''));
       case 'mode': {
         const label = h('span', { class: 'tr-prog' }, programLabel(entry, software));
         entry.el = label;

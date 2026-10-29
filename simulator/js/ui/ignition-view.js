@@ -375,6 +375,14 @@ export function mountIgnition(root, ctx) {
   let view = { key: null, scale: null, events: [], schedule: null, markers: [], items: [] };
 
   const resetRun = () => { lastBurn = null; trace = []; view.key = null; };
+  // Re-layout the marker rows when the width changes a lot (tab shown,
+  // window resized) — observed, so render never forces a layout.
+  const win = doc.defaultView;
+  const ro = win.ResizeObserver ? new win.ResizeObserver((entries) => {
+    const w = entries[0]?.contentRect?.width || 0;
+    if (w > 0 && view.evW && Math.abs(w - view.evW) > 40) view.key = null;
+  }) : null;
+  ro?.observe(el.events);
   const offs = [bus.on('sim:reset', resetRun), bus.on('app:mode', resetRun)];
 
   function render(snap) {
@@ -449,7 +457,9 @@ export function mountIgnition(root, ctx) {
         const last = trace[trace.length - 1];
         if (!last || rel - last.rel >= 0.25 || rel < last.rel) {
           if (last && rel < last.rel) trace = [];
-          trace.push({ rel, thr: v.engineOn ? Math.max(0, Math.min(1, v.throttle || 0)) : 0 });
+          // A jump (seek, fast-forward) leaves a gap rather than a fake ramp.
+          const gap = !!last && rel - last.rel > 2;
+          trace.push({ rel, gap, thr: v.engineOn ? Math.max(0, Math.min(1, v.throttle || 0)) : 0 });
           updateTrace();
         }
       }
@@ -520,7 +530,7 @@ export function mountIgnition(root, ctx) {
     laneHtml.push(`<div class="ign-row"><span class="ign-lane-label">${view.schedule.throttleLabel}</span><div class="ign-lane ign-lane-thr" data-lane="thr">
       <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
         <polyline class="ign-thr-plan" points="${pts.join(' ')}" vector-effect="non-scaling-stroke"/>
-        <polyline class="ign-thr-act" data-role="trace" points="" vector-effect="non-scaling-stroke"/>
+        <path class="ign-thr-act" data-role="trace" d="" vector-effect="non-scaling-stroke"/>
       </svg>${thrLabels}</div></div>`);
     el.lanes.innerHTML = laneHtml.join('');
     view.traceEl = el.lanes.querySelector('[data-role="trace"]');
@@ -532,7 +542,10 @@ export function mountIgnition(root, ctx) {
 
     // Event markers (rows so neighbours never overlap) and the list.
     const order = events.map((e, i) => ({ e, i, x: sc(e.rel) })).sort((p, r) => p.x - r.x);
-    const rows = assignRows(order.map((o) => o.x));
+    // A marker pill is ~62 px wide: convert to a fraction of the row width.
+    const evW = el.events.getBoundingClientRect().width || 420;
+    view.evW = evW;
+    const rows = assignRows(order.map((o) => o.x), Math.min(0.3, 62 / evW));
     const nRows = Math.max(1, ...rows.map((r) => r + 1));
     el.events.style.setProperty('--rows', String(nRows));
     view.markers = [];
@@ -575,14 +588,15 @@ export function mountIgnition(root, ctx) {
   function updateTrace() {
     if (!view.traceEl || !view.scale) return;
     const sc = view.scale;
-    const pts = trace.map((p) => `${(sc(p.rel) * 1000).toFixed(1)},${(100 - p.thr * 88).toFixed(1)}`).join(' ');
-    view.traceEl.setAttribute('points', pts);
+    const d = trace.map((p, i) => `${i === 0 || p.gap ? 'M' : 'L'}${(sc(p.rel) * 1000).toFixed(1)} ${(100 - p.thr * 88).toFixed(1)}`).join('');
+    view.traceEl.setAttribute('d', d);
   }
 
   return {
     render,
     destroy() {
       for (const off of offs) off();
+      ro?.disconnect();
       root.removeEventListener('click', onClick);
       root.innerHTML = '';
     },

@@ -85,7 +85,7 @@
   font-weight: 700;
 }
 
-@media (max-width: 1360px) {
+@media (max-width: 1599px) {
   .ctl-label-long {
     display: none;
   }
@@ -95,7 +95,7 @@
   }
 
   .ctl-scenario {
-    width: 210px;
+    width: 220px;
   }
 }
 

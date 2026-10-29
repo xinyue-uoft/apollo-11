@@ -189,7 +189,7 @@ lights OPR ERR exactly as PINBALL would.
 NOUNS_LUMINARY099[n] = {
   name: 'ALTITUDE RATE, ...',
   components: [ { label, unit, format, read: (agc) => number|null } ... ],  // 1-3
-  anchor: 'noun.63',                       // anchor id (data/anchors.js)
+  anchor: 'noun.63',                       // anchor id (data/anchors/index.js)
 }
 ```
 

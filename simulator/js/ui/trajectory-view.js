@@ -115,7 +115,7 @@ export function niceTicks(min, max, maxTicks = 6) {
 export function niceCeil(v) {
   if (!(v > 0)) return 0;
   const mag = 10 ** Math.floor(Math.log10(v));
-  for (const m of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * mag >= v - 1e-9) return m * mag;
+  for (const m of [1, 1.2, 1.4, 1.5, 1.6, 1.8, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8, 9, 10]) if (m * mag >= v - 1e-9) return m * mag;
   return 10 * mag;
 }
 
@@ -646,8 +646,8 @@ function siteFlag(g, x, y, color, label, font) {
   if (label) {
     g.font = font;
     g.textAlign = 'center';
-    g.textBaseline = 'top';
-    g.fillText(label, x, y + 3);
+    g.textBaseline = 'bottom';
+    g.fillText(label, x + 3, y - 19);
   }
   g.restore();
 }
@@ -1027,10 +1027,11 @@ export function mountTrajectory(root, ctx) {
     if (replay?.key === key) return replay;
     const milestones = historicalMilestones(track);
     const transitions = modeTransitions(milestones, 63);
-    // Replay: show the whole descent even when the scenario starts late.
-    // Sandbox: the reference starts where the preset starts. Either way not
-    // more than 30 s before PDI (the coast would only squash the axes).
-    const t0 = Math.max(kind === 'replay' ? Math.min(start, PDI_GET) : start, PDI_GET - 30);
+    // Replay: from the scenario start, or from PDI when the scenario starts
+    // later (the whole descent is shown). Sandbox: the reference starts where
+    // the preset starts. Never more than 2 min before PDI (a long coast would
+    // only squash the axes).
+    const t0 = Math.max(kind === 'replay' ? Math.min(start, PDI_GET) : start, PDI_GET - 120);
     const t1 = Math.max(TOUCHDOWN_GET + 8, (milestones[milestones.length - 1]?.t ?? 0) + 5);
     let pts = [];
     try {
@@ -1189,8 +1190,10 @@ export function mountTrajectory(root, ctx) {
     }
 
     model.growDomain(v.range, v.alt);
-    const domR = Math.max(model.domain.r, hist ? rp.domain.r : 0);
-    const domH = Math.max(model.domain.h, hist ? rp.domain.h : 0);
+    // Replay: the sampled flight (+ the live point) sets the axes; live
+    // points from before the sampled start would only squash them.
+    const domR = isReplay ? Math.max(rp.domain.r, v.range) : Math.max(model.domain.r, hist ? rp.domain.r : 0);
+    const domH = isReplay ? Math.max(rp.domain.h, v.alt) : Math.max(model.domain.h, hist ? rp.domain.h : 0);
     const rMax = Math.max(niceCeil(domR * 1.02), 2000);
     const hMax = Math.max(niceCeil(toFt(domH) * 1.08), 1000);
 
@@ -1526,6 +1529,7 @@ export function mountTrajectory(root, ctx) {
     let lmPos = null;
     let sitePos = null;
     let landedBox = null;
+    let siteBox = null;
     g.save();
     g.beginPath();
     g.rect(plot.x, plot.y - 4, plot.w, plot.h + 8);
@@ -1544,6 +1548,7 @@ export function mountTrajectory(root, ctx) {
     if (siteX >= plot.x - 2 && siteX <= plot.x + plot.w + 2) {
       siteFlag(g, siteX, gy, theme.white, 'aim point', s.fontSmall);
       sitePos = [siteX, gy - 8];
+      siteBox = { x: siteX - 26, y: gy - 32, w: 56, h: 34 };
     }
     // The planned site in map coordinates (track annotation, feet): the PDI
     // navigation error moved the whole trajectory — the computer never knew.
@@ -1568,10 +1573,11 @@ export function mountTrajectory(root, ctx) {
         g.font = s.fontSmall;
         g.fillStyle = theme.faint;
         g.textAlign = 'center';
-        g.textBaseline = 'top';
-        g.fillText('planned site (map)', px, gy + 3);
+        g.textBaseline = 'bottom';
+        g.fillText('planned site (map)', px + 3, gy - 19);
         g.restore();
-        plannedBox = { x: px - 6, y: gy - 20, w: 16, h: 22 };
+        const pw = textW('planned site (map)', s.fontSmall);
+        plannedBox = { x: px + 3 - pw / 2, y: gy - 32, w: pw, h: 34 };
       }
     }
     if (s.landed) {
@@ -1671,7 +1677,7 @@ export function mountTrajectory(root, ctx) {
     }
     const obstacles = [];
     if (lmPos) obstacles.push({ x: lmPos[0] - 20, y: lmPos[1] - 20, w: 40, h: 36 });
-    if (sitePos) obstacles.push({ x: sitePos[0] - 4, y: sitePos[1] - 12, w: 16, h: 30 });
+    if (siteBox) obstacles.push(siteBox);
     if (landedBox) obstacles.push(landedBox);
     if (plannedBox) obstacles.push(plannedBox);
     drawMilestones(items, { x: plot.x + 2, y: plot.y + 2, w: plot.w - 4, h: plot.h - 4 }, s.font, obstacles);

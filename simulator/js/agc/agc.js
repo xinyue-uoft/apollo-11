@@ -44,6 +44,7 @@ const FRESH_FLAGS = Object.freeze({
   MUNFLAG: false,   // lunar Average-G (set by P63, FLAGORGY)
   REDFLAG: false,   // LPD redesignation permitted (P64 after PRO)
   NOTHROTL: false,
+  NODOFLAG: false,  // FLAGWRD2 b1: V37 not permitted
   XOVINFLG: false,  // X-axis override inhibited (below 30,000 ft)
   SURFFLAG: false,  // on the lunar surface (P68)
   APSFLAG: false,
@@ -164,6 +165,16 @@ export class Agc {
   // program starts. Returns true when accepted.
   changeProgram(n) {
     const num = Number(n);
+    // NODOFLAG ("V37 NOT PERMITTED", e.g. set by the CM's P62): anything but
+    // P00 (and the LM's P70/P71) gets alarm 01520 and the old display back
+    // (CANTROD / V37BAD, Luminary099/FRESH_START_AND_RESTART.agc:748-770;
+    // CANTR00, Comanche055/FRESH_START_AND_RESTART.agc:863-872). Not an OPR
+    // ERR: the return value is null, not false.
+    const special = num === 0 || (this.software === 'Luminary099' && (num === 70 || num === 71));
+    if (this.flags.NODOFLAG && !special) {
+      this.alarm(0o1520);
+      return null;
+    }
     if (!Number.isInteger(num) || !v37Table(this.software).includes(num)) {
       if (typeof this.pinball.operatorError === 'function') this.pinball.operatorError('V37: no such program');
       else {
@@ -287,7 +298,8 @@ export class Agc {
       this.landing = null;
     }
     this.restart.freshStart();
-    if (typeof this.pinball.onRestart === 'function') this.pinball.onRestart({ hardware: true, fresh: true });
+    if (typeof this.pinball.onFreshStart === 'function') this.pinball.onFreshStart();
+    else if (typeof this.pinball.onRestart === 'function') this.pinball.onRestart({ hardware: true });
     const keep = { gimbalLock: this.dsky.lights.gimbalLock, noAtt: this.dsky.lights.noAtt };
     this.dsky.clearAll();
     this.dsky.setLights(keep);
@@ -328,7 +340,7 @@ export class Agc {
     this._started = true;
     this._drainKeys(t);
     this.program?.step?.(t, dt);
-    this.pinball.step(dt);
+    this.pinball.step(dt, t);
     this.workload.step(t, dt);
     this.exec.step(dt, t);
   }
