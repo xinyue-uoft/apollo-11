@@ -344,8 +344,12 @@ export function mountInstruments(root, ctx) {
   };
 
   // Live per-run state (physics runs detect the low-level light themselves;
-  // CM burns need the ignition time and the VG at ignition).
+  // CM burns need the ignition time and the VG at ignition). The user's
+  // flight keeps its run while a replay plays: back from the Demo to the
+  // same preset the app resumes that sim ('app:mode' resumed).
   let run = freshRun();
+  let savedRun = null;
+  let runMode = app?.mode ?? null;
   function freshRun() {
     return {
       lowLevelT: null, prevFuel: null, prevLow: null, ignitionT: null, cutoffT: undefined,
@@ -354,7 +358,13 @@ export function mountInstruments(root, ctx) {
   }
   const offs = [
     bus.on('sim:reset', () => { run = freshRun(); }),
-    bus.on('app:mode', () => { run = freshRun(); }),
+    bus.on('app:mode', (p) => {
+      const next = p?.mode ?? app?.mode ?? null;
+      if (runMode === 'interactive' && next !== 'interactive') savedRun = run;
+      run = next === 'interactive' && p?.resumed && savedRun ? savedRun : freshRun();
+      if (next === 'interactive') savedRun = null;
+      runMode = next;
+    }),
   ];
 
   function simVehicleKind() {

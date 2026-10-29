@@ -14,7 +14,7 @@ import {
   normalizeMilestones, modeTransitions, modeAt, lastIndexAtOrBefore, pointAtTime,
   PathRecorder, computeZoomWindow, layoutLabels, TrajectoryModel, mergeAlarms,
   clusterLabel, curvatureFlattening, summarizeTrajectory, sampleReplayPath,
-  screenDecimate, ProjectedPath, selectMajor,
+  screenDecimate, ProjectedPath, selectMajor, cmTrajectoryNote,
   FALLBACK_MILESTONES, PDI_GET, TOUCHDOWN_GET,
 } from '../js/ui/trajectory-view.js';
 import {
@@ -334,6 +334,24 @@ test('text alternative', () => {
   assert.match(landed(null), /\. Landed\.$/);
 });
 
+test('Command Module trajectory placeholder follows mode and program', () => {
+  const cm = (mode, vehicle = {}) => ({ software: 'Comanche055', vehicle, agc: { mode } });
+  // Demo: the CM chapter is the LOI burn.
+  assert.match(cmTrajectoryNote(cm(40), 'demo'), /Command Module chapter, follow the SPS burn on the Ignition tab/);
+  // Interactive: no "chapter"; P40 / P00 → the burn, entry → the Executive.
+  for (const mode of [0, 40, null]) {
+    const t = cmTrajectoryNote(cm(mode), 'interactive');
+    assert.match(t, /no landing trajectory to plot — follow the burn on the Ignition tab/);
+    assert.doesNotMatch(t, /chapter/);
+  }
+  for (const mode of [61, 62, 63, 64, 65, 67]) {
+    assert.match(cmTrajectoryNote(cm(mode), 'interactive'), /no landing trajectory to plot — see the Executive tab/);
+  }
+  // The scripted entry vehicle after P67 (GOTOPOOH → P00) is still entry.
+  assert.match(cmTrajectoryNote(cm(0, { entry: { v: 1000 } }), 'interactive'), /Executive tab/);
+  assert.doesNotMatch(summarizeTrajectory(cm(61, { alt: 0 })), /chapter/);
+});
+
 test('replay sampling steps the provider in order', () => {
   const calls = [];
   const fake = (kind, opts) => {
@@ -455,7 +473,12 @@ test('crew hints: landing outcome, ENGINE STOP, P65, ATT HOLD', () => {
   assert.match(crewHint(td('crash', 281.7)), /^Crashed: the LM hit the surface at 281\.7 ft\/s down, 2\.0 ft\/s across/);
   assert.match(crewHint(td('hard', 12)), /^Hard landing: 12\.0 ft\/s down/);
   assert.match(crewHint(td('safe', 1.7)), /^Landed: 1\.7 ft\/s down/);
-  assert.match(crewHint(lm({ landed: true })), /^On the surface/);   // replay: no evaluation
+  assert.match(crewHint(lm({ landed: true })), /^On the surface/);   // no evaluation
+  // Replays: ReplayVehicle reports a touchdown too (forward speed only,
+  // verdict 'safe'), but the sandbox limits are not applied to Apollo 11.
+  const replay = crewModel({ software: 'Luminary099', vehicle: { landed: true, touchdown: { verdict: 'safe', vVert: -1.7 * FPS, vHoriz: 0 } }, agc: {} }, 'demo', 'replay');
+  assert.equal(replay.touchdown, null);
+  assert.match(crewHint(replay), /^On the surface/);
   // ENGINE STOP is a toggle: the hint says how to release it.
   const stopped = lm({}, { mode: 64, crew: { engineStop: true } });
   assert.equal(stopped.engineStop, true);
@@ -476,9 +499,18 @@ test('crew view: DSKY-only vehicle and the CM ΔV THRUST switch', () => {
   assert.match(crewHint({ ...stat, readOnly: false }), /^This starting point drives the DSKY only/);
   assert.equal(crewModel({ software: 'Luminary099', vehicle: {}, agc: {} }, 'demo', 'physics').visible, 'lm');
   const cm = crewModel({ software: 'Comanche055', vehicle: { engineOn: true }, agc: { mode: 40, crew: { engineStop: false } } }, 'interactive');
-  assert.deepEqual(cm, { visible: 'cm', readOnly: false, mode: 40, engineOn: true, engineStop: false });
+  assert.deepEqual(cm, { visible: 'cm', readOnly: false, mode: 40, engineOn: true, engineStop: false, v97: false });
   assert.match(crewHint(cm), /OFF during the burn.*V97N40/);
   assert.match(crewHint({ ...cm, engineStop: true }), /^ΔV THRUST OFF: .*V97N40.*NORMAL again, then PRO/);
+  // Switch back at NORMAL while V97N40 still flashes: the next step is a
+  // DSKY response, not the switch again.
+  const v97 = (verb, flash) => crewModel({ software: 'Comanche055', vehicle: { engineOn: true }, agc: { mode: 40, crew: { engineStop: false }, dsky: { verb, noun: '40', flashVerbNoun: flash } } }, 'interactive');
+  assert.equal(v97('97', true).v97, true);
+  assert.equal(v97('97', false).v97, false);
+  assert.equal(v97('06', false).v97, false);
+  assert.equal(crewHint(v97('97', true)), 'V97N40 flashing: PRO continues the burn, ENTR re-ignites through V99, V34 ends it.');
+  assert.match(crewHint({ ...v97('97', true), engineStop: true }), /^ΔV THRUST OFF: .*set NORMAL again/);
+  assert.match(crewHint(v97('06', false)), /OFF during the burn/);
   assert.equal(crewHint({ ...cm, mode: 0 }), '');
   assert.equal(crewHint({ ...cm, readOnly: true }), '');   // replay: the switch is the crew's
   // The V97 responses quoted in the hint: FAILDSP (Comanche055 P40-P47.agc).

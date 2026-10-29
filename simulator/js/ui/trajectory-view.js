@@ -550,7 +550,7 @@ export function clusterLabel(shorts, maxLen = 48) {
 export function summarizeTrajectory(snap, passed = []) {
   if (!snap?.vehicle) return 'Trajectory: no simulation running.';
   const v = snap.vehicle;
-  if (snap.software === 'Comanche055') return 'Trajectory: the Command Module chapter has no landing trajectory.';
+  if (snap.software === 'Comanche055') return 'Trajectory: the Command Module has no landing trajectory to plot.';
   const parts = [];
   parts.push(`${programTitle(snap.agc?.mode, snap.agc?.programName)}.`);
   if (v.landed) parts.push(`${landingWord(v.touchdown?.verdict)}.`);
@@ -867,6 +867,21 @@ function drawScreenDashed(g, sp, color, width) {
   g.restore();
 }
 
+// Placeholder for the Command Module, which has no descent to plot. The
+// replay's CM chapter is the LOI burn; an interactive starting point points
+// to the tab that shows its program (the entry programs P61–P67 fire no
+// engine; the scripted entry vehicle reports `entry`).
+export function cmTrajectoryNote(snap, appMode) {
+  if (appMode !== 'interactive') {
+    return 'The trajectory view shows the Lunar Module’s powered descent. In the Command Module chapter, follow the SPS burn on the Ignition tab and the instruments.';
+  }
+  const mode = snap?.agc?.mode;
+  const entry = !!snap?.vehicle?.entry || (Number.isFinite(mode) && mode >= 61 && mode <= 67);
+  return entry
+    ? 'The Command Module has no landing trajectory to plot — see the Executive tab and the instruments.'
+    : 'The Command Module has no landing trajectory to plot — follow the burn on the Ignition tab and the instruments.';
+}
+
 // ---------- mount ----------
 
 export function mountTrajectory(root, ctx) {
@@ -910,7 +925,12 @@ export function mountTrajectory(root, ctx) {
     legend: root.querySelector('[data-role="legend"]'),
   };
   const g = el.canvas.getContext('2d');
-  const model = new TrajectoryModel();
+  let model = new TrajectoryModel();
+  // The user's flight is kept aside while a replay plays: coming back from
+  // the Demo to the same preset resumes that sim ('app:mode' resumed), so its
+  // flown trail and markers come back with it.
+  let savedModel = null;
+  let viewMode = app?.mode ?? null;
   const reduceMotion = win.matchMedia ? win.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
   let theme = readTheme(el.wrap);
@@ -952,7 +972,22 @@ export function mountTrajectory(root, ctx) {
 
   const offs = [
     bus.on('sim:reset', () => { model.reset(); zoom = null; dirty = true; }),
-    bus.on('app:mode', () => { model.reset(); replay = null; zoom = null; dirty = true; }),
+    bus.on('app:mode', (p) => {
+      const next = p?.mode ?? app?.mode ?? null;
+      if (viewMode === 'interactive' && next !== 'interactive') {
+        savedModel = model;
+        model = new TrajectoryModel();
+      } else if (next === 'interactive' && p?.resumed && savedModel) {
+        model = savedModel;
+      } else {
+        model.reset();
+      }
+      if (next === 'interactive') savedModel = null;
+      viewMode = next;
+      replay = null;
+      zoom = null;
+      dirty = true;
+    }),
   ];
 
   const ro = new win.ResizeObserver(() => resize());
@@ -1166,7 +1201,7 @@ export function mountTrajectory(root, ctx) {
     }
     if (snap.software === 'Comanche055') {
       setChrome(false);
-      setEmpty('The trajectory view shows the Lunar Module’s powered descent. In the Command Module chapter, follow the SPS burn on the Ignition tab and the instruments on the left.');
+      setEmpty(cmTrajectoryNote(snap, ui?.mode ?? app?.mode));
       setText(el.phase, 'phase', programTitle(snap.agc?.mode, snap.agc?.programName));
       placeSpot(el.spotLm, 'spotLm', NaN, NaN);
       placeSpot(el.spotSite, 'spotSite', NaN, NaN);

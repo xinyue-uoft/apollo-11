@@ -587,6 +587,103 @@ test('reading holds: none without auto-pause; paused time and Continue count as 
   }
 });
 
+test('reading holds: time paused during the hold counts; Space/Play then continues at once', () => {
+  {
+    // Paused longer than the card needs: Play shows the next card on the
+    // next frame (no second countdown).
+    const { d, emitted } = makeDirector();
+    d.load(readScenario());
+    d.setSpeed(4);
+    d.play();
+    d.frame(2.5); // the reading hold at +10: 3.8 s left of Alpha's 6.3 s
+    assert.equal(d.state.holding?.reason, 'reading');
+    d.pause();
+    d.frame(1);
+    assert.ok(Math.abs(d.state.holding.remaining - 2.8) < 1e-9, `countdown runs while paused (${d.state.holding.remaining})`);
+    d.frame(10);
+    assert.equal(d.state.holding.remaining, 0, 'read in full while paused');
+    assert.equal(d.state.t, at(10), 'paused: the clock stays');
+    assert.equal(ofType(emitted, 'narrate').length, 1, 'paused: the next card waits for Play');
+    d.play();
+    d.frame(1 / 60);
+    assert.equal(d.state.holding, null);
+    assert.deepEqual(ofType(emitted, 'narrate').map((n) => n.title), ['Alpha', 'Beta']);
+  }
+  {
+    // toggle() (Space, the Play button): while playing it pauses the
+    // countdown; paused during the hold it continues at once, card read.
+    const { d, emitted } = makeDirector();
+    d.load(readScenario());
+    d.setSpeed(4);
+    d.play();
+    d.frame(2.5);
+    d.toggle();
+    assert.equal(d.state.playing, false, 'the first press pauses');
+    assert.equal(d.state.holding?.reason, 'reading', 'still holding');
+    d.frame(1);
+    d.toggle();
+    assert.equal(d.state.playing, true);
+    assert.equal(d.state.holding, null, 'the second press continues (as Continue)');
+    d.frame(1 / 60);
+    assert.deepEqual(ofType(emitted, 'narrate').map((n) => n.title), ['Alpha', 'Beta']);
+    assert.ok(Math.abs(d.state.t - (at(10) + 4 / 60)) < 1e-9, 'and the clock runs on');
+    // Not holding: toggle() is plain pause / play.
+    d.toggle();
+    assert.equal(d.state.playing, false);
+    d.toggle();
+    assert.equal(d.state.playing, true);
+  }
+  {
+    // A script hold keeps its minimum length while paused (unchanged).
+    const { d } = makeDirector();
+    d.load(tinyScenario());
+    d.play();
+    d.frame(10);
+    assert.equal(d.state.holding?.reason, 'script');
+    d.pause();
+    d.frame(5);
+    assert.ok(Math.abs(d.state.holding.remaining - 3) < 1e-9);
+  }
+});
+
+test('next chapter during a reading hold at a chapter start goes to that chapter', () => {
+  // readScenario: the hold at +10 stops the clock before chapter Two (the
+  // last one) and Beta, both at +10; chapter One is still on screen.
+  const { d, emitted } = makeDirector();
+  d.load(readScenario());
+  d.setSpeed(4);
+  d.play();
+  d.frame(2.5);
+  assert.equal(d.state.holding?.reason, 'reading');
+  assert.equal(d.state.chapterIndex, 0);
+  assert.equal(d.state.hasNextChapter, true, 'Next stays enabled');
+  d.nextChapter();
+  assert.equal(d.state.t, at(10));
+  assert.equal(d.state.chapterIndex, 1, 'the upcoming chapter, not the one after it (or none)');
+  assert.equal(d.state.holding, null, 'its opening plays live');
+  const narr = ofType(emitted, 'narrate').at(-1);
+  assert.equal(narr.title, 'Beta');
+  assert.equal(narr.t, at(10));
+  assert.equal(d.state.hasNextChapter, false);
+  d.nextChapter(); // no further chapter: stays
+  assert.equal(d.state.t, at(10));
+  assert.equal(d.state.chapterIndex, 1);
+
+  // With a chapter after it, Next steps one chapter at a time.
+  const s = readScenario();
+  s.events.push({ at: g(35), chapter: 'Three' });
+  const r = makeDirector();
+  r.d.load(s);
+  r.d.setSpeed(4);
+  r.d.play();
+  r.d.frame(2.5);
+  r.d.nextChapter();
+  assert.equal(r.d.state.chapterIndex, 1);
+  r.d.nextChapter();
+  assert.equal(r.d.state.chapterIndex, 2);
+  assert.equal(r.d.state.t, at(35));
+});
+
 test('reading holds do not change what is simulated, nor depend on the frame size', () => {
   const run = (autoPause, dt) => {
     const { d, journal, emitted, sims } = makeDirector({ autoPause });

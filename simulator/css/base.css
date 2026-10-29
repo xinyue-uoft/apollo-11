@@ -280,10 +280,22 @@ select {
 
 /* ---------- Layout ---------- */
 
+/* The panels are in reading order in the page (index.html): DSKY,
+   explanation, visualisation, transcript, instruments, crew station,
+   source. They are placed with the grid, never with `order`, so that Tab
+   and screen-reader order follow the page at every width.
+
+   Three columns: the DSKY over the instruments and crew station | the
+   visualisation over the transcript | the explanation over the source.
+   Row 1 hugs the DSKY. The explanation and the source share the right
+   column's whole height; the source sits one gap under the explanation,
+   whose rendered height app.js publishes as --narration-h, so that each
+   column stacks on its own as if it were a column of its own. */
 .layout {
   flex: 1;
   display: grid;
   grid-template-columns: minmax(340px, 400px) minmax(0, 1fr) minmax(360px, 480px);
+  grid-template-rows: auto 1fr;
   gap: var(--gap);
   padding: var(--gap);
   align-items: start;
@@ -294,6 +306,36 @@ select {
   flex-direction: column;
   gap: var(--gap);
   min-width: 0;
+}
+
+.col-main {
+  display: contents;
+}
+
+#dsky-root {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.col-tools {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.col-center {
+  grid-column: 2;
+  grid-row: 1 / -1;
+}
+
+#narration-root {
+  grid-column: 3;
+  grid-row: 1 / -1;
+}
+
+#source-root {
+  grid-column: 3;
+  grid-row: 1 / -1;
+  margin-top: calc(var(--narration-h, 0px) + var(--gap));
 }
 
 .panel {
@@ -407,43 +449,32 @@ select {
 
 /* ---------- Responsive ---------- */
 
-/* Two columns: the explanation goes beside the DSKY, above the
-   visualisation (it is what makes the replay readable); the source listing
-   gets the full width below. */
+/* Two columns: the DSKY over the instruments and crew station | the
+   explanation (it is what makes the replay readable) over the
+   visualisation and the transcript; the source listing gets the full width
+   below. The tall left column's extra height goes under the visualisation,
+   not between it and the explanation. */
 @media (max-width: 1280px) {
   .layout {
     grid-template-columns: minmax(330px, 380px) minmax(0, 1fr);
-    /* the tall left column's extra height goes under the visualisation,
-       not between it and the explanation */
     grid-template-rows: auto 1fr auto;
   }
 
-  .col-right {
-    display: contents;
-  }
-
-  .col-left {
-    grid-column: 1;
+  .col-main {
+    display: flex;
+    grid-column: 2;
     grid-row: 1 / span 2;
-  }
-
-  #narration-root {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .col-center {
-    grid-column: 2;
-    grid-row: 2;
   }
 
   #source-root {
     grid-column: 1 / -1;
     grid-row: 3;
+    margin-top: 0;
   }
 }
 
-/* One column: DSKY, explanation, visualisation, transcript, then the rest. */
+/* One column, in page order: DSKY, explanation, visualisation, transcript,
+   instruments, crew station, source. */
 @media (max-width: 860px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
@@ -451,22 +482,15 @@ select {
     padding: 10px;
   }
 
-  .col {
+  .col,
+  .col-main {
     display: contents;
   }
 
-  #main > .col > .panel {
+  #main .panel {
     grid-column: 1;
     grid-row: auto;
   }
-
-  #dsky-root { order: 1; }
-  #narration-root { order: 2; }
-  .panel-viz { order: 3; }
-  #transcript-root { order: 4; }
-  #instruments-root { order: 5; }
-  #crew-root { order: 6; }
-  #source-root { order: 7; }
 
   html {
     scroll-padding-top: 12px; /* the top bar is not sticky here */

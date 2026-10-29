@@ -104,6 +104,7 @@ export class App {
     this.bindBus();
     this.bindSkipLink();
     this.observeStickyBars();
+    this.observeNarration();
 
     this.applyRoute(this.doc.defaultView.location.hash);
     this.doc.defaultView.addEventListener('hashchange', () => {
@@ -172,6 +173,7 @@ export class App {
     if (resume && this.mode !== 'interactive' && this.interactive.sim && this.preset?.id === preset.id) {
       this.mode = 'interactive';
       this.bus.emit('app:mode', { mode: 'interactive', preset, resumed: true });
+      this.selectPresetTab(preset);
       this.updateSoftwareLabel(preset.software);
       this.updateModeSwitch();
       if (route) this.setRoute();
@@ -195,11 +197,18 @@ export class App {
     });
     this.bus.emit('app:mode', { mode: 'interactive', preset });
     if (typeof preset.setup === 'function') preset.setup(this.interactive.sim);
-    // The Command Module has no descent to plot: start on its SPS burn.
-    if (preset.software === 'Comanche055' && this.tab === 'trajectory') this.selectTab('ignition');
+    this.selectPresetTab(preset);
     this.updateSoftwareLabel(preset.software);
     this.updateModeSwitch();
     if (route) this.setRoute();
+  }
+
+  // The visualisation tab a starting point opens on (also when the user
+  // comes back to it from a replay): the preset's own `tab`, else, for the
+  // Command Module, which has no descent to plot, its SPS burn.
+  selectPresetTab(preset) {
+    if (preset.tab) this.selectTab(preset.tab);
+    else if (preset.software === 'Comanche055' && this.tab === 'trajectory') this.selectTab('ignition');
   }
 
   restartInteractive() {
@@ -458,6 +467,20 @@ export class App {
       for (const el of [top, bottom]) if (el) ro.observe(el);
     }
     win.addEventListener('resize', update);
+  }
+
+  // The three-column layout (base.css) stacks the source listing one gap
+  // under the explanation by the explanation's rendered height, published
+  // as --narration-h: the two share their column's grid rows with the DSKY
+  // column, which must not move with every new explanation card.
+  observeNarration() {
+    const win = this.doc.defaultView;
+    const main = this.doc.getElementById('main');
+    const narration = this.doc.getElementById('narration-root');
+    if (!main || !narration) return;
+    const update = () => main.style.setProperty('--narration-h', `${narration.getBoundingClientRect().height}px`);
+    update();
+    if (typeof win.ResizeObserver === 'function') new win.ResizeObserver(update).observe(narration);
   }
 }
 

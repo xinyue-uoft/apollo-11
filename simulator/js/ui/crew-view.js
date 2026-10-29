@@ -67,6 +67,8 @@ export function crewModel(snap, appMode, vehicleKind = null) {
       mode: snap.agc?.mode ?? null,
       engineOn: !!snap.vehicle?.engineOn,
       engineStop: crew.engineStop === true,
+      // P40's engine-fail display (FAILDSP) is up: V97N40 flashing.
+      v97: snap.agc?.dsky?.verb === '97' && !!snap.agc?.dsky?.flashVerbNoun,
     };
   }
   if (vehicleKind === 'static') return { visible: 'static', readOnly };
@@ -89,8 +91,11 @@ export function crewModel(snap, appMode, vehicleKind = null) {
     engineOn: !!snap.vehicle?.engineOn,
     engineStop: crew.engineStop === true,
     landed: !!snap.vehicle?.landed,
-    // LmPhysics' touchdown evaluation (null in replays and before contact).
-    touchdown: td && td.verdict ? {
+    // LmPhysics' touchdown evaluation, for the user's own flight only: the
+    // replay vehicle also reports a touchdown (forward speed only, verdict
+    // 'safe'), but the sandbox's scoring limits do not apply to the real
+    // landing, whose speeds the narration quotes from the Mission Report.
+    touchdown: !readOnly && td && td.verdict ? {
       verdict: td.verdict,
       vVert: Number.isFinite(td.vVert) ? Math.abs(toFps(td.vVert)) : null,
       vHoriz: Number.isFinite(td.vHoriz) ? Math.abs(toFps(td.vHoriz)) : null,
@@ -112,7 +117,9 @@ function landedHint(td) {
 // ATT HOLD freezes the attitude: this simulator has no hand controller.
 const ATT_FROZEN = 'the attitude is frozen (this simulator has no hand controller)';
 
-// One-line context hint for the crew controls, per program and mode.
+// One-line context hint for the crew controls, per program and mode. It is
+// not a live region: the landing outcome is announced once (the shell's
+// toast) and program changes by the computer log; the hint is read on demand.
 export function crewHint(model) {
   if (model.visible === 'static') {
     return `This ${model.readOnly ? 'scenario' : 'starting point'} drives the DSKY only — no vehicle is simulated, so there is nothing to fly.`;
@@ -122,6 +129,7 @@ export function crewHint(model) {
     if (model.engineStop) {
       return 'ΔV THRUST OFF: the SPS cannot fire. In a P40 burn the computer sees the thrust fail and flashes V97N40 — set NORMAL again, then PRO continues the burn (ENTR re-ignites through V99, V34 ends it).';
     }
+    if (model.v97) return 'V97N40 flashing: PRO continues the burn, ENTR re-ignites through V99, V34 ends it.';
     return model.mode === 40
       ? 'Set ΔV THRUST to OFF during the burn to see P40’s engine-fail logic (flashing V97N40).'
       : '';
@@ -219,7 +227,7 @@ export function mountCrew(root, ctx) {
           </div>
           <p class="crew-help" id="crew-rr-help">${RR_HELP}</p>
         </section>
-        <p class="crew-hint" data-k="hint" aria-live="polite"></p>
+        <p class="crew-hint" data-k="hint"></p>
         <details class="crew-more">
           <summary>How the controls work</summary>
           <ul>
@@ -243,7 +251,7 @@ export function mountCrew(root, ctx) {
           </div>
           <p class="crew-help" id="crew-dv-help">The SPS thrust-enable switches (ΔV THRUST A/B). OFF keeps the engine from firing; during a P40 burn the computer then sees the thrust fail and flashes V97N40.</p>
         </section>
-        <p class="crew-hint" data-k="cmHint" aria-live="polite"></p>
+        <p class="crew-hint" data-k="cmHint"></p>
         <p class="crew-cm">The Command Module’s other crew-station controls are not modelled. Fly the CM chapter from the DSKY: the P40 burn needs only <kbd>PRO</kbd> on the flashing V99.</p>
       </div>
     </div>`;

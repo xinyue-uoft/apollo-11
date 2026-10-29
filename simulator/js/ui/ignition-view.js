@@ -279,7 +279,7 @@ export const P63TABLE_ROWS = Object.freeze([
 
 export function mountIgnition(root, ctx) {
   const doc = root.ownerDocument;
-  const { bus } = ctx;
+  const { bus, app } = ctx;
 
   root.innerHTML = `
     <div class="ign" data-spot="ignition">
@@ -377,6 +377,23 @@ export function mountIgnition(root, ctx) {
   let view = { key: null, scale: null, events: [], schedule: null, markers: [], items: [] };
 
   const resetRun = () => { lastBurn = null; trace = []; view.key = null; };
+  // The user's flight keeps its burn and throttle trace while a replay
+  // plays: back from the Demo to the same preset the app resumes that sim
+  // ('app:mode' resumed).
+  let saved = null;
+  let runMode = app?.mode ?? null;
+  const onMode = (p) => {
+    const next = p?.mode ?? app?.mode ?? null;
+    if (runMode === 'interactive' && next !== 'interactive') saved = { lastBurn, trace };
+    const back = next === 'interactive' && p?.resumed ? saved : null;
+    resetRun();
+    if (back) {
+      lastBurn = back.lastBurn;
+      trace = back.trace;
+    }
+    if (next === 'interactive') saved = null;
+    runMode = next;
+  };
   // Re-layout the marker rows when the width changes a lot (tab shown,
   // window resized) — observed, so render never forces a layout.
   const win = doc.defaultView;
@@ -385,7 +402,7 @@ export function mountIgnition(root, ctx) {
     if (w > 0 && view.evW && Math.abs(w - view.evW) > 40) view.key = null;
   }) : null;
   ro?.observe(el.events);
-  const offs = [bus.on('sim:reset', resetRun), bus.on('app:mode', resetRun)];
+  const offs = [bus.on('sim:reset', resetRun), bus.on('app:mode', onMode)];
 
   function render(snap) {
     const burn = snap?.agc?.burn || null;

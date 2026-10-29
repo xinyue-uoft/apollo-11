@@ -6,6 +6,11 @@
 // ended (once it has), what the DSKY shows (the verb and noun decoded from
 // the listing's tables) and what the computer model is doing (program,
 // ignition sequence, guidance phase).
+//
+// Where the panel sits above the visualisation (≤1280 px, base.css) it
+// keeps the cockpit panels from jumping: the hold bar keeps its place
+// between holds (demo.css), and the preset description folds away after
+// the user's first DSKY key or crew control in a run (it can be reopened).
 
 import { formatGET, formatMinSec } from '../util/time.js';
 import { getNoun } from '../agc/nouns.js';
@@ -145,7 +150,8 @@ export function mountNarration(root, ctx) {
   // ---------- demo ----------
   const chapterEl = h('p', { class: 'nar-chapter' });
   const cardGet = h('span', { class: 'nar-get' });
-  const cardTitle = h('h3', { class: 'nar-title' });
+  // Focus lands here when the hold's Continue goes away under it.
+  const cardTitle = h('h3', { class: 'nar-title', tabindex: '-1' });
   const cardText = h('div', { class: 'nar-text' });
   const cardChips = h('div', { class: 'nar-anchors', role: 'group', aria: { label: 'Source code for this explanation' } });
   const card = h('article', { class: 'nar-card', aria: { live: 'polite', atomic: 'true' } },
@@ -180,11 +186,13 @@ export function mountNarration(root, ctx) {
   const presetTitle = h('h3', { class: 'nar-title' });
   const presetText = h('div', { class: 'nar-text' });
   const tipsList = h('ul', { class: 'nar-tips' });
+  const presetBox = h('details', { class: 'nar-preset', open: true },
+    h('summary', {}, presetTitle), presetText, tipsList);
   const liveOutcome = h('p', { class: 'nar-live-outcome', hidden: true });
   const liveProgram = h('p', { class: 'nar-live-prog' });
   const liveDetail = h('ul', { class: 'nar-live-list' });
   const interactiveBox = h('div', { class: 'panel-body nar-interactive', hidden: true },
-    h('article', { class: 'nar-card' }, presetTitle, presetText, tipsList),
+    h('article', { class: 'nar-card' }, presetBox),
     h('section', { class: 'nar-live', aria: { label: 'What the computer is doing' } },
       h('h3', { class: 'nar-live-head' }, 'What the computer is doing'), liveOutcome, liveProgram, liveDetail),
     h('p', { class: 'nar-honesty' },
@@ -202,6 +210,18 @@ export function mountNarration(root, ctx) {
   let lastMode = null;
   let lastPreset = null;
   let lastScenario = null;
+  let presetFolded = false; // the description folded once in this run
+  const reflowed = typeof root.ownerDocument.defaultView?.matchMedia === 'function'
+    ? root.ownerDocument.defaultView.matchMedia('(max-width: 1280px)') : null;
+
+  // The user's first DSKY key or crew control of a run: they have read the
+  // instructions; fold them so the visualisation and the cockpit panels
+  // come up (only where the panel sits above them).
+  function foldPreset() {
+    if (app.mode !== 'interactive' || presetFolded) return;
+    presetFolded = true;
+    if (reflowed?.matches) presetBox.open = false;
+  }
 
   function nextScenario() {
     const list = app.uiState?.().scenarios || [];
@@ -259,9 +279,18 @@ export function mountNarration(root, ctx) {
       shownEarlier = -1;
       dirty = true;
     }),
-    bus.on('app:mode', () => {
+    bus.on('app:mode', (p) => {
       dirty = true;
+      // A new run (not a return to the same flight) starts unfolded.
+      if (p?.mode === 'interactive' && !p.resumed) {
+        presetFolded = false;
+        presetBox.open = true;
+      }
     }),
+    bus.on('key', (p) => {
+      if (p?.source !== 'crew') foldPreset();
+    }),
+    bus.on('crew', () => foldPreset()),
   ];
   anchorsReady.then(() => {
     shownEarlier = -1; // re-label every chip with the anchor names
@@ -317,6 +346,11 @@ export function mountNarration(root, ctx) {
     setText(counter, chapters.length ? `Chapter ${Math.max(1, d.chapterIndex + 1)} of ${chapters.length}` : '');
 
     const holding = d.holding;
+    // Continue going away under keyboard focus: to the card's heading (the
+    // next card's, after Continue), not to <body>.
+    if (!holding && !hold.hidden && hold.contains(root.ownerDocument.activeElement)) {
+      cardTitle.focus({ preventScroll: true });
+    }
     setHidden(hold, !holding);
     if (holding) {
       const secs = Math.max(0, Math.ceil(holding.remaining - 1e-6));

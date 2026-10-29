@@ -29,35 +29,39 @@
     <div class="controls" id="controls-root"></div>
   </header>
 
-  <!-- The columns are plain wrappers (at narrow widths they are display:
-       contents and the panels reflow); each panel is its own region. -->
+  <!-- The panels are in reading order: DSKY, explanation, visualisation,
+       transcript, instruments, crew station, source. The wrappers group
+       what stacks together; base.css places them in three columns, two
+       columns, or (narrow) one, where the wrappers are display: contents.
+       Each panel is its own region; the views mount by id. -->
   <main class="layout" id="main" tabindex="-1">
-    <div class="col col-left">
-      <div class="panel panel-dsky" id="dsky-root" role="region" aria-label="DSKY"></div>
+    <div class="panel panel-dsky" id="dsky-root" role="region" aria-label="DSKY"></div>
+
+    <div class="col col-main">
+      <div class="panel panel-narration" id="narration-root" role="region" aria-label="Explanation"></div>
+      <div class="col col-center">
+        <div class="panel panel-viz" role="region" aria-label="Visualisation">
+          <div class="tabs" role="tablist" id="viz-tabs">
+            <button role="tab" id="tab-trajectory" aria-controls="trajectory-root" aria-selected="true" data-tab="trajectory">Trajectory</button>
+            <button role="tab" id="tab-exec" aria-controls="exec-root" aria-selected="false" data-tab="exec">Executive</button>
+            <button role="tab" id="tab-ignition" aria-controls="ignition-root" aria-selected="false" data-tab="ignition">Ignition</button>
+          </div>
+          <div class="tab-panels">
+            <div role="tabpanel" id="trajectory-root" aria-labelledby="tab-trajectory"></div>
+            <div role="tabpanel" id="exec-root" aria-labelledby="tab-exec" hidden></div>
+            <div role="tabpanel" id="ignition-root" aria-labelledby="tab-ignition" hidden></div>
+          </div>
+        </div>
+        <div class="panel panel-transcript" id="transcript-root" role="region" aria-label="Transcript"></div>
+      </div>
+    </div>
+
+    <div class="col col-tools">
       <div class="panel" id="instruments-root" role="region" aria-label="Instruments"></div>
       <div class="panel" id="crew-root" role="region" aria-label="Crew station"></div>
     </div>
 
-    <div class="col col-center">
-      <div class="panel panel-viz" role="region" aria-label="Visualisation">
-        <div class="tabs" role="tablist" id="viz-tabs">
-          <button role="tab" id="tab-trajectory" aria-controls="trajectory-root" aria-selected="true" data-tab="trajectory">Trajectory</button>
-          <button role="tab" id="tab-exec" aria-controls="exec-root" aria-selected="false" data-tab="exec">Executive</button>
-          <button role="tab" id="tab-ignition" aria-controls="ignition-root" aria-selected="false" data-tab="ignition">Ignition</button>
-        </div>
-        <div class="tab-panels">
-          <div role="tabpanel" id="trajectory-root" aria-labelledby="tab-trajectory"></div>
-          <div role="tabpanel" id="exec-root" aria-labelledby="tab-exec" hidden></div>
-          <div role="tabpanel" id="ignition-root" aria-labelledby="tab-ignition" hidden></div>
-        </div>
-      </div>
-      <div class="panel panel-transcript" id="transcript-root" role="region" aria-label="Transcript"></div>
-    </div>
-
-    <div class="col col-right">
-      <div class="panel panel-narration" id="narration-root" role="region" aria-label="Explanation"></div>
-      <div class="panel panel-source" id="source-root" role="region" aria-label="Source code"></div>
-    </div>
+    <div class="panel panel-source" id="source-root" role="region" aria-label="Source code"></div>
   </main>
 
   <footer class="timeline" id="timeline-root"></footer>

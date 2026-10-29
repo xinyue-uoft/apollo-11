@@ -5,8 +5,9 @@
 //                "Pause on explanations" · GET clock + program
 //   Interactive: preset picker · play/pause · speed · restart · GET + program
 //
-// Shortcuts (ignored while typing in a form control): Space = play/pause,
-// ←/→ = previous/next chapter (demo), [ / ] = slower/faster. Space and the
+// Shortcuts (ignored while typing in a form control): Space = play/pause
+// (paused during a reading hold: continue), ←/→ = previous/next chapter
+// (demo), [ / ] = slower/faster. Space and the
 // arrows are left alone inside a focused scrollable region (the source
 // listing, the transcript), where they scroll.
 
@@ -290,12 +291,12 @@ export function mountControls(root, ctx) {
 
       const ended = !!d.ended;
       const playing = !!d.playing && !ended;
-      setPlayButton(demoPlay, demoPlayLabel, playing, ended ? 'Replay' : playing ? 'Pause' : 'Play');
+      // Paused during a hold, Play continues at once (Director.toggle).
+      setPlayButton(demoPlay, demoPlayLabel, playing,
+        ended ? 'Replay' : playing ? 'Pause' : d.holding ? 'Continue' : 'Play');
       setAttr(autoBtn, 'aria-pressed', String(!!d.autoPause));
-      const chapters = d.chapters || [];
-      const ref = d.seeking ? d.seeking.target : d.t;
       prevBtn.disabled = !d.loaded;
-      nextBtn.disabled = !d.loaded || !chapters.some((c) => c.t > ref + 1e-6);
+      nextBtn.disabled = !d.loaded || !d.hasNextChapter;
       demoRestart.disabled = !d.loaded;
       demoPlay.disabled = !d.loaded;
       if (d.loaded) get = d.seeking ? d.seeking.target : d.t;

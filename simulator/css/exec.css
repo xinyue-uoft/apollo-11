@@ -140,7 +140,8 @@
 }
 
 .ex-row-title,
-.ex-strip-title {
+.ex-strip-title,
+.ex-row-head {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -150,6 +151,14 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+/* A section title with a live counter or hint beside it: only the label is
+   the h4 (it names the section via aria-labelledby, so heading navigation
+   does not read changing numbers); the counter is a sibling in this row. */
+.ex-row-head > .ex-row-title,
+.ex-row-head > .ex-strip-title {
+  margin: 0;
 }
 
 .ex-count {

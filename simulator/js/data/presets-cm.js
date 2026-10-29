@@ -4,6 +4,8 @@
 // the Moon and the LOI-1 maneuver PAD read up at 072:51:24 GET (see
 // js/agc/programs/cm/p40.js, LOI1_PAD); the entry preset uses its scripted
 // entry mode and the Entry PAD (js/agc/programs/cm/entry.js, ENTRY_PAD).
+// Optional `tab`: the visualisation tab the preset opens on ('trajectory',
+// 'exec', 'ignition'); without it a CM preset opens on Ignition (app.js).
 
 import { formatGET, parseGET } from '../util/time.js';
 import { LOI1_PAD, loadExternalDeltaV } from '../agc/programs/cm/p40.js';
@@ -98,6 +100,7 @@ export const PRESETS_CM = [
     startGET: '194:44:00',
     initialProgram: null,
     vehicleOptions: { initial: 'entry' },
+    tab: 'exec', // no burn in entry: the Executive tab, not Ignition
     setup: (sim) => setupEntry(sim, { stage: 61 }),
   },
 ];

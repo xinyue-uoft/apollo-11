@@ -184,6 +184,7 @@ export class Director {
       chapterIndex: this.chapterIndex,
       chapters: this.chapters,
       chapter: this.chapters[this.chapterIndex] ?? null,
+      hasNextChapter: !!this._upcomingChapter(),
       holding: this.holding
         ? { remaining: this.holding.remaining, total: this.holding.total, reason: this.holding.reason } : null,
       seeking: this.seeking ? { target: this.seeking.target, progress: this.seeking.progress } : null,
@@ -302,8 +303,11 @@ export class Director {
     }
   }
 
+  // Space / the Play button. Paused during a hold, it continues at once
+  // (as Continue does): a reader who paused to read longer is done reading.
   toggle() {
-    if (this.playing && !this.ended) this.pause();
+    if (!this.playing && this.holding) this.resume();
+    else if (this.playing && !this.ended) this.pause();
     else this.play();
   }
 
@@ -357,9 +361,17 @@ export class Director {
   }
 
   nextChapter() {
-    const ref = this.seeking ? this.seeking.target : this._t;
-    const next = this.chapters.find((c) => c.t > ref + EPS);
+    const next = this._upcomingChapter();
     return next ? this.seek(next.t) : Promise.resolve(false);
+  }
+
+  // The chapter after the one on screen. A reading hold stops the clock
+  // just before a chapter that starts at that instant, so step from the
+  // chapter shown, not from the clock; a seek in flight shows the chapter
+  // at its target when it lands.
+  _upcomingChapter() {
+    if (this.seeking) return this.chapters.find((c) => c.t > this.seeking.target + EPS) ?? null;
+    return this.chapters.find((c, k) => k > this.chapterIndex && c.t >= this._t - EPS) ?? null;
   }
 
   // Like a media player's "previous": back to the start of the current
@@ -383,8 +395,14 @@ export class Director {
     if (!this.sim || this.seeking) return;
     let real = Number.isFinite(realDt) && realDt > 0 ? realDt : 0;
     if (!this.playing) {
-      // Paused, the card is still on screen: that is reading time too.
-      if (this._reading) this._reading.shown += real;
+      // Paused, the card is still on screen: that is reading time too, and
+      // a reading hold waits only for what is left of it.
+      if (this._reading) {
+        this._reading.shown += real;
+        if (this.holding?.reason === 'reading') {
+          this.holding.remaining = Math.max(0, this._reading.need - this._reading.shown);
+        }
+      }
       return;
     }
 

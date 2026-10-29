@@ -10,7 +10,12 @@
 // visit to Demo when the app resumes the same sim ('app:mode' resumed).
 //
 // A voice line's source tag is a button that shows the provenance (ALSJ /
-// onboard tape, notes, other records) under the line.
+// onboard tape, notes, other records) under the line. The tags are one Tab
+// stop (roving tabindex): the newest tag until the user has focused one,
+// then the last one used; ↑/↓, Home and End move between them.
+//
+// The landing-outcome lines ('vehicle') are not read out: the toast the app
+// shows for the same event is the announcement.
 //
 // Newest line at the bottom; the feed follows new lines unless the user has
 // scrolled up, in which case a "new lines" button appears. Lines are queued
@@ -121,6 +126,8 @@ export function mountTranscript(root, ctx) {
   let busyFrames = 0;    // aria-busy after a history rebuild
   let savedLog = null;   // the interactive log, kept while a replay plays
   let srcSeq = 0;        // ids for the source-detail disclosures
+  let tabTag = null;     // the source tag that is the log's Tab stop
+  let tagUsed = false;   // the user has focused a tag: it keeps the stop
   const hidden = { voice: false, sys: false };
 
   function toggleFilter(which, btn) {
@@ -136,6 +143,34 @@ export function mountTranscript(root, ctx) {
     feed.scrollTop = feed.scrollHeight;
     unseen = 0;
   }
+  // Source tags: one Tab stop for all of them.
+  function setTabTag(btn) {
+    if (btn === tabTag) return;
+    if (tabTag) tabTag.tabIndex = -1;
+    tabTag = btn;
+    if (btn) btn.tabIndex = 0;
+  }
+  const visibleTags = () => [...list.querySelectorAll('.tr-src')].filter((b) => b.offsetParent !== null);
+  list.addEventListener('focusin', (e) => {
+    const btn = e.target.closest?.('.tr-src');
+    if (!btn) return;
+    tagUsed = true;
+    setTabTag(btn);
+  });
+  list.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || !e.target.closest?.('.tr-src')) return;
+    const tags = visibleTags();
+    const i = tags.indexOf(e.target);
+    let j;
+    if (e.key === 'ArrowUp') j = Math.max(0, i - 1);
+    else if (e.key === 'ArrowDown') j = Math.min(tags.length - 1, i + 1);
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = tags.length - 1;
+    else return;
+    e.preventDefault();
+    if (j >= 0 && tags[j]) tags[j].focus(); // scrolls the feed to it
+  });
+
   // Source tags: show / hide the provenance line under the quote.
   list.addEventListener('click', (e) => {
     const btn = e.target.closest?.('.tr-src');
@@ -161,6 +196,8 @@ export function mountTranscript(root, ctx) {
     userKeys = null;
     unseen = 0;
     stick = true;
+    tabTag = null;
+    tagUsed = false;
   }
 
   const push = (entry) => pending.push(entry);
@@ -233,6 +270,7 @@ export function mountTranscript(root, ctx) {
           tag ? h('button', {
             type: 'button',
             class: 'tr-src',
+            tabindex: '-1',
             title: srcTitle || null,
             aria: { expanded: 'false', controls: detailId, label: `Source: ${tag}` },
           }, tag) : null,
@@ -308,7 +346,7 @@ export function mountTranscript(root, ctx) {
               : entry.verdict === 'hard'
                 ? ['HARD LANDING', speeds, 'hard']
                 : ['TOUCHDOWN', speeds, 'safe'];
-        return h('li', { class: `tr-line tr-sys tr-vehicle tr-vehicle-${cls}` },
+        return h('li', { class: `tr-line tr-sys tr-vehicle tr-vehicle-${cls}`, aria: { hidden: 'true' } },
           time,
           h('span', { class: 'tr-who' }, 'LM'),
           h('span', { class: 'tr-text' }, h('strong', {}, label), ` — ${detail}`));
@@ -325,10 +363,12 @@ export function mountTranscript(root, ctx) {
 
   function append(entries, software) {
     const frag = document.createDocumentFragment();
+    let newest = null;
     for (const entry of entries) {
       const li = lineFor(entry, software);
       if (!li) continue;
       lines.push(entry);
+      newest = li.querySelector('.tr-src') || newest;
       frag.append(li);
     }
     list.append(frag);
@@ -336,6 +376,14 @@ export function mountTranscript(root, ctx) {
       list.firstElementChild.remove();
       lines.shift();
     }
+    // The Tab stop follows the newest tag until the user has used one (or
+    // the one they used has scrolled out of the log).
+    if (tabTag && !tabTag.isConnected) {
+      tabTag = null;
+      tagUsed = false;
+    }
+    if (newest && !tagUsed) setTabTag(newest);
+    else if (!tabTag) setTabTag([...list.querySelectorAll('.tr-src')].at(-1) ?? null);
   }
 
   // ---------- render ----------
@@ -345,7 +393,7 @@ export function mountTranscript(root, ctx) {
       lastMode = ui.mode;
       mode = ui.mode;
       note.textContent = ui.mode === 'demo'
-        ? 'Voice at its ALSJ / air-to-ground transcript time; computer events at the model’s time. Select a source tag for details.'
+        ? 'Voice at its ALSJ / air-to-ground transcript time; computer events at the model’s time. Select a source tag for details (↑/↓ move between tags).'
         : 'Computer events from the model, the keys you press on the DSKY and how the landing went.';
       setText(titleText, ui.mode === 'demo' ? 'Transcript' : 'Computer log');
       setText(voiceBtn, ui.mode === 'demo' ? 'Voice' : 'Keys');
@@ -372,6 +420,8 @@ export function mountTranscript(root, ctx) {
       busyFrames = 2;
       list.replaceChildren();
       lines = [];
+      tabTag = null;
+      tagUsed = false;
       append(rebuild, software);
       rebuild = null;
       changed = true;

@@ -125,11 +125,11 @@ export function mountExec(root, ctx) {
       <div class="ex-board" data-role="board">
         <svg class="ex-links" data-role="links" aria-hidden="true" focusable="false"></svg>
         <section class="ex-row ex-row-cores" data-spot="exec.coresets" aria-labelledby="ex-cores-h">
-          <h4 class="ex-row-title" id="ex-cores-h"><span data-k="coresTitle">Core sets</span> <span class="ex-count" data-k="coresCount">0 / 8</span></h4>
+          <div class="ex-row-head"><h4 class="ex-row-title" id="ex-cores-h">Core sets</h4> <span class="ex-count" data-k="coresCount">0 / 8</span></div>
           <ol class="ex-cards ex-cards-cores" data-role="cores"></ol>
         </section>
         <section class="ex-row ex-row-vacs" data-spot="exec.vacs" aria-labelledby="ex-vacs-h">
-          <h4 class="ex-row-title" id="ex-vacs-h">VAC areas <span class="ex-count" data-k="vacsCount">0 / 5</span></h4>
+          <div class="ex-row-head"><h4 class="ex-row-title" id="ex-vacs-h">VAC areas</h4> <span class="ex-count" data-k="vacsCount">0 / 5</span></div>
           <ol class="ex-cards ex-cards-vacs" data-role="vacs"></ol>
         </section>
         <div class="ex-bounce" data-role="bounce" aria-hidden="true" hidden><span class="ex-bounce-req" data-k="bounceReq"></span><span class="ex-bounce-code" data-k="bounceCode"></span></div>
@@ -139,17 +139,17 @@ export function mountExec(root, ctx) {
 
       <div class="ex-strips">
         <section class="ex-strip" aria-labelledby="ex-wl-h">
-          <h4 class="ex-strip-title" id="ex-wl-h">Waitlist <span class="ex-count" data-k="wlCount">0 / 9</span></h4>
+          <div class="ex-row-head"><h4 class="ex-strip-title" id="ex-wl-h">Waitlist</h4> <span class="ex-count" data-k="wlCount">0 / 9</span></div>
           <ol class="ex-slots" data-role="waitlist"></ol>
         </section>
         <section class="ex-strip" aria-labelledby="ex-rg-h">
-          <h4 class="ex-strip-title" id="ex-rg-h">Restart groups <span class="ex-hint">what a restart brings back</span></h4>
+          <div class="ex-row-head"><h4 class="ex-strip-title" id="ex-rg-h">Restart groups</h4> <span class="ex-hint">what a restart brings back</span></div>
           <ol class="ex-groups" data-role="groups"></ol>
         </section>
       </div>
 
       <section class="ex-load" data-spot="exec.load" aria-labelledby="ex-load-h">
-        <h4 class="ex-strip-title" id="ex-load-h">CPU time, last second <span class="ex-count" data-k="busy">busy 0%</span></h4>
+        <div class="ex-row-head"><h4 class="ex-strip-title" id="ex-load-h">CPU time, last second</h4> <span class="ex-count" data-k="busy">busy 0%</span></div>
         <div class="ex-bar" data-role="bar" role="img" aria-label="CPU load"></div>
         <div class="ex-bar-scale" aria-hidden="true"><span>0</span><span>50%</span><span class="ex-bar-100">100%</span></div>
         <ul class="ex-legend" data-role="legend"></ul>

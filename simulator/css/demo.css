@@ -463,6 +463,35 @@
 
 /* Interactive */
 
+/* The preset's description and tips fold under its title (narration-view
+   folds them after the first key where the panel sits above the cockpit). */
+.nar-preset > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.nar-preset > summary::-webkit-details-marker {
+  display: none;
+}
+
+.nar-preset > summary::after {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-left: 2px;
+  border-right: 2px solid var(--text-faint);
+  border-bottom: 2px solid var(--text-faint);
+  transform: translateY(-3px) rotate(45deg);
+}
+
+.nar-preset:not([open]) > summary::after {
+  transform: rotate(-45deg);
+}
+
 .nar-tips {
   margin: 8px 0 0;
   padding-left: 1.2em;

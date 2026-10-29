@@ -190,6 +190,8 @@ export function formatFps(mps) {
 // Landing outcome of an interactive flight, from a 'vehicle' bus event
 // (App.watchVehicle): { kind: 'lowLevel'|'depleted'|'touchdown', verdict,
 // vVert, vHoriz (m/s), tilt (deg) }, or the snapshot's vehicle.touchdown.
+// The touchdown limits are the sandbox's own [ASSUMED] scoring thresholds
+// (vehicle/constants.js), not sourced LM landing-gear limits.
 export function vehicleEventText(ev) {
   if (ev?.kind === 'lowLevel') {
     return `Low-level light: the descent propellant is down to ${(LM.lowLevelFraction * 100).toFixed(1)} %.`;
@@ -200,7 +202,7 @@ export function vehicleEventText(ev) {
   if (ev?.verdict === 'hard') {
     const L = TOUCHDOWN_LIMITS;
     return `Hard landing: ${speeds}${Number.isFinite(ev.tilt) ? `, tilted ${Math.round(ev.tilt)}°` : ''} — `
-      + `beyond the landing gear's limits (${Math.round(toFps(L.maxVertical))} ft/s down, `
+      + `beyond this simulator's touchdown limits (${Math.round(toFps(L.maxVertical))} ft/s down, `
       + `${Math.round(toFps(L.maxHorizontal))} ft/s across, ${L.maxTilt}°).`;
   }
   return `Touchdown: a safe landing at ${speeds}.`;
