@@ -45,7 +45,37 @@ function q(id, t, who, text, extra = {}) {
   });
 }
 
+// LOI-1 lines (Columbia, Comanche 055 P40) are from the Apollo 11 Flight
+// Journal, "Lunar Orbit Insertion" (12day4-loi1.html), which prints the
+// Command Module's onboard (DSE) tape: the burn took place behind the Moon,
+// out of contact with Earth (loss of signal at 075:41:23). Checked against
+// the page text; `src: AFJ`.
+const AFJ = { src: 'AFJ (CM onboard tape)', channel: 'onboard' };
+
 export const TRANSCRIPT_A11 = Object.freeze([
+  // ---------- Columbia: Lunar Orbit Insertion, LOI-1 (AFJ) ----------
+  q('loi-proceed-on-99', '075:48:37', 'Collins', 'I\'ll proceed on the 99.', AFJ),
+  q('loi-dsky-blank', '075:49:14', 'Armstrong', '35 seconds; DSKY\'s blank, EMS Mode, Normal. Okay.', AFJ),
+  q('loi-splendor', '075:49:26', 'Collins', 'Yes, the Moon is there, boy - in all its splendor.', AFJ),
+  q('loi-plaster', '075:49:32', 'Collins', 'Plaster of paris gray to me.', AFJ),
+  q('loi-8-seconds', '075:49:42', 'Aldrin', '8 seconds.', AFJ),
+  q('loi-99', '075:49:45', 'Collins', '99...',
+    { ...AFJ, note: 'AFJ 075:49:46 "Proceed." is attributed to "Armstrong/Collins".' }),
+  q('loi-standby-tig', '075:49:48', 'Collins', 'Stand by for TIG.', AFJ),
+  q('loi-burning', '075:49:51', 'Armstrong', 'Burning. We\'re looking good.', AFJ),
+  q('loi-chamber', '075:50:00', 'Aldrin', 'It\'s good. 95, 95.',
+    { ...AFJ, note: 'Answering Collins: "read your chamber pressure?"' }),
+  q('loi-steering', '075:50:03', 'Armstrong', 'PUGS is oscillating around. Okay, we\'re steering.', AFJ),
+  q('loi-10-seconds', '075:55:38', 'Armstrong', '10 seconds.', AFJ),
+  q('loi-count', '075:55:40', 'Collins', 'Okay. 9, 8, 7, 6, 5, 4, 3...', AFJ),
+  q('loi-shutdown', '075:55:49', 'Armstrong', 'Shutdown.', AFJ),
+  q('loi-residuals', '075:56:17', 'Aldrin', 'Look at the residuals. Proceed.', AFJ),
+  q('loi-no-trim', '075:56:20', 'Collins', 'Proceed? Copy them down; we\'re not going to trim them.', AFJ),
+  q('loi-minus-1', '075:56:23', 'Collins', '[Garble] minus 1, minus 1, plus 1. Jesus!',
+    { ...AFJ, note: 'The Noun 85 residuals: −0.1, −0.1, +0.1 ft/s (research src-comanche §3).' }),
+  q('loi-mit', '075:56:29', 'Collins', 'I take back any bad things I ever said about MIT - which I never have.', AFJ),
+  q('loi-ems', '075:56:37', 'Collins', 'Okay, EMS says minus 6.8.', AFJ),
+
   // ---------- before PDI ----------
   q('go-pdi', '102:28:08', 'Duke', 'Eagle, Houston. If you read, you\'re Go for powered descent. Over.',
     { note: 'Relayed by Collins at 102:28:18 and 102:28:34; Duke repeats at 102:28:51.' }),

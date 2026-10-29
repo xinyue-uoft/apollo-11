@@ -9,6 +9,7 @@ import alarms1202 from './alarms-1202.js';
 import p64Approach from './p64-approach.js';
 import p66Touchdown from './p66-touchdown.js';
 import fullDescent from './full-descent.js';
+import cmLoi from './cm-loi.js';
 
 export const SCENARIOS = Object.freeze([
   dskyBasics,
@@ -18,4 +19,5 @@ export const SCENARIOS = Object.freeze([
   p64Approach,
   p66Touchdown,
   fullDescent,
+  cmLoi,
 ]);

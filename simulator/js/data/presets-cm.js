@@ -1,11 +1,13 @@
 // Interactive starting points for the Command Module chapter (Comanche 055,
 // "Columbia"), merged into PRESETS by js/data/presets.js (ARCHITECTURE §11.2).
-// All three use the CmSpsVehicle ('cmSps') on Apollo 11's approach to the
-// Moon and the LOI-1 maneuver PAD read up at 072:51:24 GET (see
-// js/agc/programs/cm/p40.js, LOI1_PAD).
+// The LOI presets use the CmSpsVehicle ('cmSps') on Apollo 11's approach to
+// the Moon and the LOI-1 maneuver PAD read up at 072:51:24 GET (see
+// js/agc/programs/cm/p40.js, LOI1_PAD); the entry preset uses its scripted
+// entry mode and the Entry PAD (js/agc/programs/cm/entry.js, ENTRY_PAD).
 
 import { formatGET, parseGET } from '../util/time.js';
 import { LOI1_PAD, loadExternalDeltaV } from '../agc/programs/cm/p40.js';
+import { loadEntryPad } from '../agc/programs/cm/entry.js';
 
 const TIG = parseGET(LOI1_PAD.tig); // 075:49:49.65
 
@@ -27,6 +29,13 @@ export function setupLoi1(sim, { stage = 'countdown' } = {}) {
     sim.vehicle.setAttitude(p40.ut);
   }
   if (stage !== 'r60') p40.skipTo(stage);
+}
+
+// Entry: load the Entry PAD and start P61 (or a later entry program).
+//   stage: 61 (crew steps through P61/P62) | 63 (already waiting for 0.05 g)
+export function setupEntry(sim, { stage = 61 } = {}) {
+  loadEntryPad(sim.agc);
+  sim.agc.startProgram(stage);
 }
 
 export const PRESETS_CM = [
@@ -75,5 +84,20 @@ export const PRESETS_CM = [
     initialProgram: null,
     vehicleOptions: { initial: 'loi1' },
     setup: (sim) => setupLoi1(sim, { stage: 'countdown' }),
+  },
+  {
+    id: 'cm-entry',
+    title: 'Entry (P61–P67, scripted)',
+    description: [
+      'Columbia\'s entry on 24 July 1969 at the level of the computer\'s programs: the displays and switching rules are from Comanche 055; the trajectory is a scripted profile through the Mission Report\'s and Entry PAD\'s numbers (in between: illustrative).',
+      'P61 flashes V06N61 (splash point), V06N60 and V06N63: PRO through them. P62 asks for CM/SM separation (V50N25 00041): PRO, then PRO on V06N61.',
+      'P63 waits for 0.05 g (195:03:34), P64 flies the constant-drag phase, P65 the up-control skip (PRO on the flashing V16N69), P67 the final phase until 1,000 ft/s.',
+    ].join(' '),
+    software: 'Comanche055',
+    vehicle: 'cmSps',
+    startGET: '194:44:00',
+    initialProgram: null,
+    vehicleOptions: { initial: 'entry' },
+    setup: (sim) => setupEntry(sim, { stage: 61 }),
   },
 ];

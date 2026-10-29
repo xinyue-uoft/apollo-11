@@ -56,12 +56,31 @@
 //
 // COST NUMBERS ARE MODEL CALIBRATION, NOT MEASUREMENTS. No source gives the
 // CPU time of individual jobs. They were chosen so that the duty-cycle
-// margins match Eyles' figures (research web-1202-b §1.3): P63 before
+// margins follow Eyles' figures (research web-1202-b §1.3: P63 before
 // landing-radar data "over 15%", after LR acquisition "perhaps 13%", with
-// V16N68 "10% or less", P64 "less than 10%", P66 lighter; and so that, with
-// the RR CDU stealing ~13%, the Apollo 11 behaviour emerges (see
-// test/executive.test.mjs "calibration report"). Tune through
-// `workload.params` (deep-copied per instance, safe to edit).
+// V16N68 "10% or less", P64 "less than 10%", P66 lighter) and so that, with
+// the RR CDUs stealing 13 %, the Apollo 11 behaviour emerges. That needs
+// the as-modelled margins about two points above Eyles' round numbers
+// (P63 18 / 15.3 / 11.8 %, P64 12.1-12.5 %, P66 32.5 % without the RR
+// fault) — equivalent to Eyles' margins with an average drain nearer 11 %,
+// consistent with the CDUs "for brief periods, not count[ing] at their
+// maximum rate" (Grumman, via Eyles). See the calibration report in
+// test/executive.test.mjs. Tune through `workload.params` (deep-copied per
+// instance; safe to edit at run time, e.g. from a scenario action).
+//
+// How the two alarms emerge (no alarm is scripted):
+// - 1202, "no core sets": every pass of SERVICER finishes, but there is too
+//   little time left over for the guidance display job, which waits at
+//   SERVICER's priority with a NOVAC priority word that ranks below every
+//   SERVICER copy (see executive.js). One more waits after every pass until
+//   the core sets are gone — P63 with V16N68, and P64 after PRO.
+// - 1201, "no VAC areas": SERVICER itself cannot finish before the next
+//   READACCS; the new copy, given a higher VAC area, pre-empts the old one,
+//   which stays behind as a stub holding its core set and VAC area — P64
+//   while the flashing V06N64 display job also holds a VAC area.
+// After each restart only the newest SERVICER (group 5) and the guidance
+// (group 3) come back, from their last waypoint, and the crew's monitor is
+// gone: in P63 the load drops back below 100 %, in P64 it does not.
 
 // ------------------------------------------------------------------ RR CDU
 
@@ -95,6 +114,11 @@ const CM_ENTRY = { T4RUPT: 0.03, 'T5RUPT (DAP)': 0.08, T6RUPT: 0.01, DOWNRUPT: 0
 
 export const DEFAULT_PARAMS = Object.freeze({
   cycleS: 2.0,                     // 2SECS DEC 200 (FIXED_FIXED_CONSTANT_POOL.agc:117)
+  // Restart waypoints per part of a pass: 11 QUIKFAZ5 calls in SERVICER,
+  // 8 FASTCHNG calls in the landing guidance + DOPIF in THROTTLE
+  // (grep the listings); modelled as evenly spaced.
+  navWaypoints: 10,
+  guidWaypoints: 9,
   rrCduSteal: RR_CDU.mitAssumed,   // fraction stolen while the RR fault is on
   // Waitlist task costs (ms of interrupt-level CPU per execution).
   tasks: {
@@ -112,9 +136,9 @@ export const DEFAULT_PARAMS = Object.freeze({
     flashWakeMs: 3,       // flashing display job after the crew responds
     mondoMs: 35,          // V16N68: three registers incl. min/sec, once a second
     gyroMs: 3,            // 1/GYRO
-    lrhWorkMs: [2, 2],    // LRHJOB before/after its sleep
+    lrhWorkMs: [1, 1],    // LRHJOB before/after its sleep ("a millisecond or so", Cherry)
     lrhSleepMs: 95,       // "LRHJOB TO SLEEP ABOUT 95MS"
-    lrvWorkMs: [3, 4],
+    lrvWorkMs: [1, 1],
     lrvSleepMs: 500,      // "PUT LRVJOB TO SLEEP ABOUT 500 MS"
     rodcompMs: 30,
     normlizeMs: 40,
@@ -134,17 +158,17 @@ export const DEFAULT_PARAMS = Object.freeze({
       lrAlt: false, lrVel: false, interrupts: LM_POWERED,
     },
     'P63-LR': {
-      avgG: true, navMs: 520, guidMs: 704, display: true, r10: true, gyro: true,
-      lrAlt: true, lrVel: 'auto', lrConvMs: 46, lrIncorpMs: 10, interrupts: LM_POWERED,
+      avgG: true, navMs: 520, guidMs: 710, display: true, r10: true, gyro: true,
+      lrAlt: true, lrVel: 'auto', lrConvMs: 46, lrIncorpMs: 3, interrupts: LM_POWERED,
     },
     P64: {
-      avgG: true, navMs: 520, guidMs: 687, display: true, flashable: true, r10: true, gyro: true,
-      lrAlt: true, lrVel: true, lrConvMs: 46, lrIncorpMs: 10, lpdMs: 60, attHoldSavingMs: 80,
+      avgG: true, navMs: 520, guidMs: 760, display: true, flashable: true, r10: true, gyro: true,
+      lrAlt: true, lrVel: true, lrConvMs: 46, lrIncorpMs: 3, lpdMs: 10, attHoldSavingMs: 80,
       higate: true, interrupts: LM_POWERED,
     },
     P66: {
       avgG: true, navMs: 520, guidMs: 300, display: true, r10: true, gyro: true, rod: true,
-      lrAlt: true, lrVel: true, lrConvMs: 46, lrIncorpMs: 10, interrupts: LM_POWERED,
+      lrAlt: true, lrVel: true, lrConvMs: 46, lrIncorpMs: 3, interrupts: LM_POWERED,
     },
     landed: { avgG: false, interrupts: LM_SURFACE },
     cmIdle: { avgG: false, interrupts: CM_COAST },
@@ -178,6 +202,8 @@ export class Workload {
     this.higateDone = false;
     this.g5 = null;                // { phase, servicer }
     this.g3 = false;
+    this.copies = new Set();       // live SERVICER/GUIDANCE jobs created here
+    this._holders = { navLeftMs: null, guidLeftMs: null };
     this._wired = false;
     this._wire();
     this._applyInterrupts();
@@ -195,6 +221,19 @@ export class Workload {
       if (typeof agc.t === 'number' && exec.t < agc.t) exec.t = agc.t;
     }
     if (!exec.dsky && agc.dsky) exec.dsky = agc.dsky;
+    // Calibrated costs of jobs other modules create (PINBALL's MONDO and
+    // CHARIN, the restart's DSPMMJB): the requester's workMs is replaced so
+    // that the duty-cycle calibration below holds whoever creates them.
+    if (!exec.costModel) {
+      exec.costModel = (name) => {
+        const j = this.params.jobs;
+        switch (name) {
+          case 'MONDO': return j.mondoMs;
+          case 'CHARIN': case 'PROCKEY': return j.charinMs;
+          default: return undefined;
+        }
+      };
+    }
     if (typeof exec.onOverflow !== 'function') {
       exec.onOverflow = (code) => {
         if (typeof agc.bailout === 'function') agc.bailout(code);
@@ -289,6 +328,8 @@ export class Workload {
   // Called by RestartModel after the executive and waitlist were flushed
   // (before the groups are re-entered).
   onRestart() {
+    this._holders = this._waypointHolders();
+    this.copies.clear();
     this.readaccsTask = null;
     this.r10Task = null;
     this.rodTask = null;
@@ -341,6 +382,7 @@ export class Workload {
     // PIPSDONE: 5.5 (REDO5.5 = request SERVICER again and carry on).
     this._setG5('5.5', true);
     this._requestServicer(t);
+    if (exec.restartPending) return; // BAILOUT: READACCS does not carry on
     // MUNFLAG set and group 2 idle: start R10,R11 (SERVICER.agc:111-136).
     if (cfg.r10 && !this.r10Task && !this.agc.restart?.isProtected?.(2)) {
       this.r10Ctr = 7;
@@ -355,23 +397,29 @@ export class Workload {
     this._scheduleReadaccs(this.params.cycleS);
   }
 
-  _requestServicer(t, { name = 'SERVICER', prio = 0o20, guidanceOnly = false } = {}) {
+  // One SERVICER pass as an Executive job: the Average-G part, then (via
+  // AVGEXIT) the guidance part. `fromNavMs`/`fromGuidMs` restart a pass
+  // part-way (a restart re-enters at the last QUIKFAZ5/FASTCHNG waypoint).
+  _requestServicer(t, { name = 'SERVICER', prio = 0o20, guidanceOnly = false, navLeftMs = null, guidLeftMs = null } = {}) {
     const exec = this.exec;
     const cfg = this.cfg;
     const j = this.params.jobs;
     const steps = [];
     if (!guidanceOnly) {
-      const navMs = (cfg.navMs || 0) + (cfg.lrAlt ? cfg.lrConvMs || 0 : 0) + (this._lrIncorporating() ? cfg.lrIncorpMs || 0 : 0);
+      const fullNav = (cfg.navMs || 0) + (cfg.lrAlt ? cfg.lrConvMs || 0 : 0) + (this._lrIncorporating() ? cfg.lrIncorpMs || 0 : 0);
       steps.push({
-        workMs: navMs,
+        workMs: navLeftMs === null ? fullNav : Math.min(fullNav, navLeftMs),
         label: 'Average-G',
+        part: 'nav',
         // SERVICER: TC PHASCHNG OCT 16035 (5.3 + job GETABVAL).
-        onStart: (tt) => {
+        onStart: () => {
           this._setG5('5.3', true);
-          if (cfg.gyro) exec.requestJob({ name: '1/GYRO', prio: 0o21, vac: false, workMs: j.gyroMs, source: 'workload', anchor: 'exec.job.gyro' });
+          if (cfg.gyro && navLeftMs === null) {
+            exec.requestJob({ name: '1/GYRO', prio: 0o21, vac: false, workMs: j.gyroMs, source: 'workload', anchor: 'exec.job.gyro' });
+          }
         },
         // MUNRETRN chain: READV when velocity reads are on.
-        onEnd: (tt) => {
+        onEnd: () => {
           if (this._lrVelocity()) {
             exec.requestJob({
               name: 'LRVJOB', prio: 0o32, vac: false, source: 'workload', anchor: 'exec.job.lrvjob',
@@ -385,26 +433,63 @@ export class Workload {
       steps.push({
         workMs: this._guidanceMs(),
         label: 'guidance',
+        part: 'guidance',
         // LUNLAND: 5.3 (PIPA task only) + group 3 = guidance job PRIO21.
         onStart: (tt, job) => {
-          job.remainingMs = this._guidanceMs();
+          const full = this._guidanceMs();
+          job.remainingMs = guidLeftMs === null ? full : Math.min(full, guidLeftMs);
           this._setG5('5.3', false);
           this._setG3(true);
         },
       });
     }
     if (!steps.length) steps.push({ workMs: 0 });
-    return exec.requestJob({
+    // DISPEXIT runs before ENDOFJOB: the display job is requested while this
+    // job still holds its core set and VAC area.
+    steps[steps.length - 1].onEnd = chain(steps[steps.length - 1].onEnd, (tt, jb) => this._dispexit(tt, jb));
+    const job = exec.requestJob({
       name, prio, vac: true, steps, source: 'workload', group: 'servicer',
       restartGroup: guidanceOnly ? 3 : 5,
       anchor: guidanceOnly ? 'exec.job.guidance' : 'exec.job.servicer',
-      label: guidanceOnly ? 'guidance (restarted at GUILDEN)' : 'Average-G + guidance',
-      onDone: (tt, job) => this._passComplete(tt, job),
+      label: guidanceOnly ? 'guidance, restarted (group 3, PRIO21)' : 'Average-G + guidance',
+      onDone: (tt, jb) => {
+        this.copies.delete(jb);
+      },
     });
+    if (job) this.copies.add(job);
+    return job;
   }
 
-  // DISPEXIT (kill group 3) + display request + ENDOFJOB.
-  _passComplete(t, job) {
+  // Where a restart re-enters a pass: the copy that most recently ran in
+  // that part holds the latest waypoint (QUIKFAZ5 stores PHSNAME5,
+  // SERVICER.agc:1412-1419; FASTCHNG stores PHSNAME3, LUNAR_LANDING_GUIDANCE_
+  // EQUATIONS.agc:1423-1429). Work done since that waypoint is redone.
+  _waypointHolders() {
+    const p = this.params;
+    let nav = null;
+    let guid = null;
+    for (const job of this.copies) {
+      if (job.lastRunT === null) continue;
+      const part = job.steps[job.stepIndex]?.part;
+      if (part === 'nav' && (!nav || job.lastRunT > nav.lastRunT)) nav = job;
+      if (part === 'guidance' && (!guid || job.lastRunT > guid.lastRunT)) guid = job;
+    }
+    const left = (job, waypoints) => {
+      const total = job.stepTotalMs || 0;
+      const done = Math.max(0, total - job.remainingMs);
+      const seg = total / Math.max(1, waypoints);
+      const atWaypoint = seg > 0 ? Math.floor(done / seg + 1e-9) * seg : 0;
+      return total - atWaypoint;
+    };
+    return {
+      navLeftMs: nav ? left(nav, p.navWaypoints) : null,
+      guidLeftMs: guid ? left(guid, p.guidWaypoints) : null,
+    };
+  }
+
+  // End of a pass: DISPEXIT (kill group 3), the program's guidance/display
+  // update, the display job request (REGODSPR/REFLASHR); ENDOFJOB follows.
+  _dispexit(t, job) {
     this._setG3(false);
     this._setG5('5.3', false);
     this.passes += 1;
@@ -515,9 +600,21 @@ export class Workload {
 
   // ------------------------------------------------------------ monitor
 
+  // Is a V1x monitor running? An explicit setMonitor() wins; otherwise it
+  // is derived from PINBALL (pinball.state.monitor).
   _monitorWanted() {
     if (this.monitorOverride !== null) return this.monitorOverride;
-    return false;
+    const pb = this.agc.pinball;
+    return !!(pb && pb.state && pb.state.monitor);
+  }
+
+  // PINBALL (pinball.js) runs its own MONREQ/MONDO through the Executive;
+  // the workload creates MONDO jobs only when no such PINBALL is attached
+  // (tests, other front ends). The MONDO cost is calibrated here either way
+  // (costModel / params.jobs.mondoMs).
+  _ownsMonitorJobs() {
+    const pb = this.agc.pinball;
+    return !(pb && typeof pb.monitor === 'function');
   }
 
   // MONREQ every 1 s while the monitor is wanted — unless PINBALL is
@@ -525,9 +622,12 @@ export class Workload {
   _syncMonitor() {
     const exec = this.exec;
     if (!exec) return;
-    const want = this._monitorWanted();
+    const want = this._monitorWanted() && this._ownsMonitorJobs();
     if (want && !this.monreqTask) {
-      this.monreqTask = exec.waitlist.add(1.0, 'MONREQ', (t) => this._monreq(t), {
+      // MONITOR: CAF ONE / TC WAITLIST / 2CADR MONREQ — the first refresh
+      // 1 cs after ENTR, then every MONDEL = 1 s (PINBALL_GAME_BUTTONS_AND_
+      // LIGHTS.agc:2359-2363, :2381-2395).
+      this.monreqTask = exec.waitlist.add(0.01, 'MONREQ', (t) => this._monreq(t), {
         costMs: this.params.tasks.monreqMs, key: 'tasks',
       });
     } else if (!want && this.monreqTask) {
@@ -539,7 +639,7 @@ export class Workload {
   _monreq(t) {
     const exec = this.exec;
     this.monreqTask = null;
-    if (!this._monitorWanted()) return;
+    if (!this._monitorWanted() || !this._ownsMonitorJobs()) return;
     this.monreqTask = exec.waitlist.add(1.0, 'MONREQ', (tt) => this._monreq(tt), {
       costMs: this.params.tasks.monreqMs, key: 'tasks',
     });
@@ -614,7 +714,9 @@ export class Workload {
     const r = this.agc.restart;
     if (!r) return;
     if (on) {
-      r.protect?.(3, '3.var', (t) => this._requestServicer(t, { name: 'GUIDANCE', prio: 0o21, guidanceOnly: true }), {
+      r.protect?.(3, '3.var', (t) => this._requestServicer(t, {
+        name: 'GUIDANCE', prio: 0o21, guidanceOnly: true, guidLeftMs: this._holders.guidLeftMs,
+      }), {
         label: 'guidance job PRIO21 at GUILDEN', anchor: 'restart.lunland', owner: 'workload',
       });
     } else {
@@ -641,7 +743,12 @@ export class Workload {
     const due = (this.tbase5 ?? t) + this.params.cycleS;
     if (due > t + 0.005) this._scheduleReadaccs(0, due);
     else this._scheduleReadaccs(0.01);
-    if (g.servicer) this._requestServicer(t);
+    if (g.servicer) {
+      // 5.4: the new SERVICER had not started -> a whole pass. 5.3 + job
+      // (type B): resume the newest copy's navigation at its last waypoint.
+      const navLeftMs = g.phase === '5.4' ? null : this._holders.navLeftMs;
+      this._requestServicer(t, { navLeftMs });
+    }
   }
 
   // ------------------------------------------------------------ helpers
@@ -714,6 +821,14 @@ export function estimateLoad(params, phase, { monitor = false, lrIncorporating =
   if (monitor) ms += T * (j.mondoMs + k.monreqMs);
   load += ms / (T * 1000);
   return load;
+}
+
+function chain(a, b) {
+  if (!a) return b;
+  return (t, job) => {
+    a(t, job);
+    if (!job.dead) b(t, job);
+  };
 }
 
 function clone(x) {

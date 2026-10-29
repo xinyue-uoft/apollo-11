@@ -113,6 +113,23 @@ export function setErasable(agc, name, value) {
   if (agc.erasable && typeof agc.erasable === 'object') agc.erasable[name] = value;
 }
 
+// Three-component erasables (VGBODY, DELVLVC, THETAD ...) are stored as
+// separate words under the listing's names — NAME, NAME+1, NAME+2 for single
+// precision, NAME, NAME+2, NAME+4 for double precision — the keys
+// js/agc/nouns.js looks up first.
+export function setVector(agc, name, vec, { dp = false } = {}) {
+  const step = dp ? 2 : 1;
+  for (let k = 0; k < 3; k++) setErasable(agc, k === 0 ? name : `${name}+${k * step}`, vec[k]);
+}
+
+export function getVector(agc, name, { dp = false } = {}) {
+  const e = agc.erasable || {};
+  if (Array.isArray(e[name])) return e[name].slice(0, 3);
+  const step = dp ? 2 : 1;
+  const v = [0, 1, 2].map((k) => e[k === 0 ? name : `${name}+${k * step}`]);
+  return v.every(Number.isFinite) ? v : null;
+}
+
 export function vehicleState(agc) {
   return agc.vehicle?.state || null;
 }
@@ -130,6 +147,21 @@ export function unprotect(agc, group, owner) {
   if (!r) return;
   if (owner && typeof r.clearIfOwner === 'function') r.clearIfOwner(group, owner);
   else r.clear?.(group);
+}
+
+// Ask the Executive for a job so that the program's work shows (and costs
+// CPU) in the Executive model. Load accounting only: the CM programs run
+// their logic in their own TaskList, so a lost job (overflow) or a restart
+// flush does not change the sequence (everything P40 does is restart-
+// protected in the listing). Returns the job or null.
+export function requestJob(agc, spec) {
+  const exec = agc.exec;
+  if (!exec || typeof exec.requestJob !== 'function') return null;
+  try {
+    return exec.requestJob({ source: 'program', ...spec });
+  } catch {
+    return null;
+  }
 }
 
 export function emitBus(agc, type, payload) {

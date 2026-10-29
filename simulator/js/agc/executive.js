@@ -184,6 +184,7 @@ export class Executive {
     this.onOverflow = null;   // (code, request) => void   — BAILOUT path (1201/1202/1203)
     this.onAbort = null;      // (code, request) => void   — POODOO path (1204)
     this.onActivity = null;   // (active:boolean, t) => void — COMP ACTY lamp
+    this.costModel = null;    // (name, request) => workMs|undefined (set by Workload)
 
     this.t = startT;
     this._now = null;         // time inside a slice / callback
@@ -263,7 +264,14 @@ export class Executive {
       return null;
     }
 
-    const steps = normaliseSteps(req);
+    // The workload model owns the calibrated CPU cost of well-known jobs
+    // (MONDO, CHARIN, ...) whoever requests them (see workload.js).
+    let costed = req;
+    if (!Array.isArray(req.steps) && typeof this.costModel === 'function') {
+      const c = this.costModel(name, req);
+      if (typeof c === 'number' && c >= 0) costed = { ...req, workMs: c };
+    }
+    const steps = normaliseSteps(costed);
     const job = {
       id: ++this._jobSeq,
       name,
@@ -276,6 +284,8 @@ export class Executive {
       steps,
       stepIndex: 0,
       remainingMs: steps[0].workMs ?? 0,
+      stepTotalMs: steps[0].workMs ?? 0,
+      lastRunT: null,
       wakeAt: null,
       state: 'READY',
       created: t,
@@ -456,6 +466,7 @@ export class Executive {
       job.workDoneMs += use;
       avail -= use;
       this._account(job.name, job.group, use);
+      job.lastRunT = t0 + dt * (1 - avail / dtMs);
       if (job.remainingMs <= EPS) {
         const tNow = t0 + dt * (1 - avail / dtMs);
         this._advanceStep(job, tNow);
@@ -511,6 +522,7 @@ export class Executive {
       if (job.runPrio !== null) job.prio = clampPrio(job.runPrio);
       const s = job.steps[job.stepIndex];
       if (s && s.onStart) this._call(s.onStart, tNow, job);
+      job.stepTotalMs = job.remainingMs;
     }
     job.state = 'RUNNING';
   }
@@ -538,6 +550,7 @@ export class Executive {
     } else {
       job.remainingMs = next.workMs || 0;
       if (next.onStart) this._call(next.onStart, tNow, job);
+      job.stepTotalMs = job.remainingMs;
       if (job.remainingMs <= EPS && !job.dead) this._advanceStep(job, tNow);
     }
   }
@@ -598,6 +611,9 @@ export class Executive {
       t, code, name: req?.name || null, prio: req?.prio ?? null, vac: !!req?.vac,
       kind: req?.kind || 'job', coreSetsUsed: this.coreSets.filter(Boolean).length,
       vacsUsed: this.vacs.filter(Boolean).length,
+      // The board at the moment of the failed request (the view holds it on
+      // screen while the request "bounces off").
+      board: this._board(t),
     };
     this.lastOverflow = rec;
     this.overflows.push(rec);
@@ -738,9 +754,9 @@ export class Executive {
 
   // ------------------------------------------------------------- snapshot
 
-  snapshot() {
-    const now = this.now();
-    const jobView = (job) => job && {
+  // Plain view of one job (snapshot shape, ARCHITECTURE §6.7 + extras).
+  _jobView(job, now) {
+    return job && {
       id: job.id,
       name: job.name,
       prio: job.prio,
@@ -755,10 +771,20 @@ export class Executive {
       label: job.label,
       restartGroup: job.restartGroup,
     };
-    const coreSets = this.coreSets.map((job, index) => ({ index, job: jobView(job) }));
-    const vacs = this.vacs.map((job, index) => ({
-      index, label: `VAC${index + 1}`, job: job ? { id: job.id, name: job.name, coreSet: job.coreSet } : null,
-    }));
+  }
+
+  _board(now) {
+    return {
+      coreSets: this.coreSets.map((job, index) => ({ index, job: this._jobView(job, now) })),
+      vacs: this.vacs.map((job, index) => ({
+        index, label: `VAC${index + 1}`, job: job ? { id: job.id, name: job.name, coreSet: job.coreSet } : null,
+      })),
+    };
+  }
+
+  snapshot() {
+    const now = this.now();
+    const { coreSets, vacs } = this._board(now);
     const queue = this.coreSets
       .filter((j) => j && j.state !== 'SLEEPING')
       .sort((a, b) => priorityWord(b) - priorityWord(a) || a.coreSet - b.coreSet)
@@ -790,7 +816,7 @@ export class Executive {
       coreSetsUsed: this.coreSets.filter(Boolean).length,
       vacsUsed: this.vacs.filter(Boolean).length,
       lastOverflow: this.lastOverflow,
-      overflows: this.overflows.slice(),
+      overflows: this.overflows.map(({ board, ...o }) => o),
       stats: { ...this.stats },
       waitlist: this.waitlist.snapshot(now),
       waitlistSlots: this.waitlist.slots,

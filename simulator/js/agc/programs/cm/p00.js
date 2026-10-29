@@ -2,7 +2,7 @@
 // V37E00E: no guidance, coasting-flight integration only ("POOH",
 // Comanche055/FRESH_START_AND_RESTART.agc:953-1013; "ASTRONAUT SELECTION OF
 // IDLING", P20-P25.agc:68). Selecting it also stops Average-G and turns
-// the engine off (V37, FRESH_START_AND_RESTART.agc:739-747), which the
+// the engine off (V37, FRESH_START_AND_RESTART.agc:741-746), which the
 // previous program's exit() does in this model.
 
 import { setPhase } from './cm-common.js';
@@ -19,6 +19,8 @@ export default class P00 {
 
   enter() {
     setPhase(this.agc, 'cmIdle');
+    // POOH: "TURN OFF NODOFLAG" (FRESH_START_AND_RESTART.agc:960-962).
+    if (this.agc.flags) this.agc.flags.NODOFLAG = false;
   }
 
   step() {}

@@ -29,10 +29,10 @@ const LM_POST = { 63: 'V06N63', 40: 'V06N40', 42: 'V06N40', 12: 'V06N74' };
 // 50 cs after ignition (ULLAGOFF, BBB:530-533).
 const LM_ULLAGE = { 63: -7.5, 40: -7.5, 42: -3.5, 12: null };
 
-// Throttle levels as fractions of rated thrust. FTP 0.925 (AER-DPS; see
-// instruments-view.js); minimum ≈0.10 (MR measured 0.13).
+// Throttle levels as fractions of rated thrust: FTP 0.93 (the LGC's FMAXPOS;
+// see instruments-view.js); minimum ≈0.10 (MR measured 0.13).
 const MIN_T = 0.1;
-const FTP_T = 0.925;
+const FTP_T = 0.93;
 
 export function burnTitle(program, software) {
   if (software === 'Comanche055') return `P40 · SPS burn (Comanche 055)`;
@@ -40,8 +40,8 @@ export function burnTitle(program, software) {
   return names[program] || (Number.isFinite(program) ? `P${program}` : 'Burn');
 }
 
-// Lanes & planned throttle profile for a program. `end` is the rel time
-// (s) where the timeline should stop being interesting (cutoff + margin).
+// Lanes & planned throttle profile for a program. `end` is the cutoff's
+// rel time (s) when known, else null.
 export function ignitionSchedule(program, software, { cutoffRel = null } = {}) {
   const lanes = [];
   let throttle = [];
@@ -53,7 +53,7 @@ export function ignitionSchedule(program, software, { cutoffRel = null } = {}) {
     const end = cutoffRel ?? 40;
     lanes.push({
       id: 'dsky', label: 'DSKY', segments: [
-        { from: -Infinity, to: -35, text: 'V06N40 countdown', kind: 'disp' },
+        { from: -Infinity, to: -35, text: 'V06N40', kind: 'disp' },
         { from: -35, to: -30, text: 'blank', kind: 'blank' },
         { from: -30, to: -5, text: 'V06N40', kind: 'disp' },
         { from: -5, to: 0, text: 'V99N40 — PRO?', kind: 'flash' },
@@ -64,7 +64,7 @@ export function ignitionSchedule(program, software, { cutoffRel = null } = {}) {
     throttle = [{ from: -Infinity, to: 0, level: 0 }, { from: 0, to: end, level: 1 }, { from: end, to: Infinity, level: 0 }];
     notes = ['SPS: fixed thrust (not throttleable).'];
     const sequence = 'DSKY: V06N40 countdown → blank at TIG−35 → V06N40 again at TIG−30 (Average-G running) → V99N40 flashing at TIG−5 until PRO → V06N40 counting to cutoff.';
-    return { lanes, throttle, throttleLabel: 'SPS', notes, end, sequence };
+    return { lanes, throttle, throttleLabel: 'SPS', notes, end: cutoffRel, sequence };
   }
   const noun = LM_NOUNS[program] || '62';
   const post = LM_POST[program] || 'V06N63';
@@ -74,7 +74,7 @@ export function ignitionSchedule(program, software, { cutoffRel = null } = {}) {
       // integration (BBB:222-246); TIG−35 blanks it for 5 s "TO INDICATE
       // THAT AVERAGE G IS STARTING" (BBB:250-263, 784-788); TIG−30 restores
       // it (BBB:292-315); TIG−5 flashes V99 (DISPCHNG, BBB:354-386, 768-781).
-      { from: -Infinity, to: -35, text: `V06N${noun} countdown`, kind: 'disp' },
+      { from: -Infinity, to: -35, text: `V06N${noun}`, kind: 'disp' },
       { from: -35, to: -30, text: 'blank', kind: 'blank' },
       { from: -30, to: -5, text: `V06N${noun}`, kind: 'disp' },
       { from: -5, to: 0, text: `V99N${noun} — PRO?`, kind: 'flash' },
@@ -114,7 +114,7 @@ export function ignitionSchedule(program, software, { cutoffRel = null } = {}) {
     notes = ['APS: fixed thrust (not throttleable).'];
   }
   const sequence = `DSKY: V06N${noun} countdown → blank at TIG−35 (Average-G starting) → V06N${noun} at TIG−30 → V99N${noun} flashing at TIG−5 until PRO → ${post} after ignition.`;
-  return { lanes, throttle, throttleLabel: program === 42 || program === 12 ? 'APS' : 'DPS', notes, end: cutoffRel ?? 40, sequence };
+  return { lanes, throttle, throttleLabel: program === 42 || program === 12 ? 'APS' : 'DPS', notes, end: cutoffRel, sequence };
 }
 
 // ---------- scales ----------
@@ -166,7 +166,7 @@ export function timelineTicks(scale) {
   const d = scale.domain;
   const out = [];
   const linEnd = d.length > 2 ? d[1] : d[d.length - 1];
-  for (let v = Math.ceil(d[0] / 5) * 5; v <= linEnd + 1e-9; v += 5) out.push({ v, major: v % 10 === 0 });
+  for (let v = Math.ceil(d[0] / 5) * 5; v <= linEnd + 1e-9; v += 5) out.push({ v, major: v % 10 === 0, lin: true });
   if (d.length > 2) {
     // At most ~3 labels in the compressed tail (it gets 38 % of the width).
     const span = d[2] - d[1];
@@ -295,9 +295,9 @@ export function mountIgnition(root, ctx) {
         <p class="ign-desc" data-k="desc"></p>
         <p class="ign-now"><span class="ign-now-label">DSKY now</span> <span class="ign-now-val" data-k="dsky">—</span><span class="ign-now-label ign-now-thr">Throttle</span> <span class="ign-now-val" data-k="thr">—</span></p>
         <div class="ign-timeline" data-spot="ignition.timeline">
-          <div class="ign-row ign-row-ev"><span class="ign-lane-label">Events</span><div class="ign-events" data-role="events"></div></div>
+          <div class="ign-row ign-row-ev" aria-hidden="true"><span class="ign-lane-label">Events</span><div class="ign-events" data-role="events"></div></div>
           <div class="ign-row ign-row-axis" aria-hidden="true"><span class="ign-lane-label"></span><div class="ign-axis" data-role="axis"></div></div>
-          <div class="ign-lanes" data-role="lanes"></div>
+          <div class="ign-lanes" data-role="lanes" aria-hidden="true"></div>
           <div class="ign-cursor-layer" aria-hidden="true"><div class="ign-cursor" data-role="cursor"><span class="ign-cursor-label" data-k="cursor">now</span></div></div>
         </div>
         <p class="ign-seq" data-k="seq"></p>
@@ -409,7 +409,9 @@ export function mountIgnition(root, ctx) {
     const isCm = software === 'Comanche055';
     set('title', isCm ? 'SPS IGNITION' : 'BURN, BABY, BURN');
     set('titleSub', isCm ? 'Comanche 055’s own P40 countdown' : 'master ignition routine');
-    set('sub', `${burnTitle(b.program, software)} · TIG ${formatGET(b.tig, { tenths: true })}`);
+    // `table` names the BURNBABY table the program put in WHICH (LM only).
+    const which = !isCm && b.table ? ` · WHICH → ${b.table}` : '';
+    set('sub', `${burnTitle(b.program, software)}${which} · TIG ${formatGET(b.tig, { tenths: true })}`);
     set('clock', rel === null ? 'TIG —' : `TIG ${formatMinSec(rel).replace('-', '−')}`);
     const ph = phaseText(b.phase, software);
     set('phase', burn ? ph[0] : 'Complete');
@@ -480,7 +482,7 @@ export function mountIgnition(root, ctx) {
     // Axis.
     const ticks = timelineTicks(sc);
     const lastMajor = ticks.filter((t) => t.major).pop();
-    el.axis.innerHTML = ticks.map((t) => `<span class="ign-tick${t.major ? ' is-major' : ''}${t.v === 0 ? ' is-tig' : ''}${t === lastMajor ? ' is-last' : ''}" style="left:${pctX(t.v)}">${t.major ? `<span>${t.v === 0 ? 'TIG' : fmtRel(t.v)}${t === lastMajor ? ' s' : ''}</span>` : ''}</span>`).join('')
+    el.axis.innerHTML = ticks.map((t) => `<span class="ign-tick${t.major ? ' is-major' : ''}${t.v === 0 ? ' is-tig' : ''}${t === lastMajor ? ' is-last' : ''}${t.major && t.lin && Math.abs(t.v) % 20 === 10 ? ' is-odd' : ''}" style="left:${pctX(t.v)}">${t.major ? `<span>${t.v === 0 ? 'TIG' : fmtRel(t.v)}${t === lastMajor ? ' s' : ''}</span>` : ''}</span>`).join('')
       + (sc.domain.length > 2 ? `<span class="ign-break" style="left:${pctX(sc.domain[1])}" title="Scale compressed after this point">≈</span>` : '');
 
     // Lanes.
@@ -540,6 +542,9 @@ export function mountIgnition(root, ctx) {
       const btn = doc.createElement('button');
       btn.type = 'button';
       btn.className = 'ign-ev';
+      // Pointer shortcut only: the sequence list below is the keyboard and
+      // screen-reader path to the same events.
+      btn.tabIndex = -1;
       btn.dataset.ev = String(o.i);
       btn.style.left = `${(o.x * 100).toFixed(3)}%`;
       btn.style.setProperty('--row', String(rows[k]));

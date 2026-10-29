@@ -268,7 +268,7 @@ function defaultGuess(target) {
 // (all 1 when r = 1). The "SAFEGUARD" forces −TTF + LEADTIME ≥ 0 (:546-551).
 export function leadCoefficients(ttg, leadTime = GUIDANCE_PARAMS.leadTime) {
   const lagged = Math.min(ttg - leadTime, 0);
-  const r = ttg < 0 ? lagged / ttg : 0;
+  const r = ttg < 0 ? (lagged / ttg) + 0 : 0;   // + 0 turns −0 into 0
   return {
     r,
     cV: 2 * r * r - r,
@@ -473,6 +473,7 @@ const PHASES = ['braking', 'approach', 'vertical'];
 //
 //   const g = new LandingGuidance();
 //   g.start({ t });                      // P63ZOOM: connect guidance (FLATOUT)
+//   g.start({ t, phase: 'approach' });   // preset at high gate (STARTP64 next pass)
 //   const out = g.pass(nav, t);          // each SERVICER pass (PIPA time t)
 //   g.proceedP64();                      // crew PRO on flashing V06N64
 //   g.addLpdClicks({ el, az });          // LPD hand-controller clicks (P64)
@@ -507,17 +508,21 @@ export class LandingGuidance {
 
   // P63ZOOM (BURN_BABY_BURN...agc:564-570): AVEGEXIT := LUNLAND, FLATOUT.
   // phase 'approach' with ttfGuess −62 starts as if P63 had just ended
-  // (presets at high gate). FLPASS0 = 2 after P63IGN (BBB:465-469), 0 to
-  // run NEWPHASE (STARTP64) on the first pass.
-  start({ t, phase = 'braking', ttfGuess } = {}) {
+  // (presets at high gate): FLPASS0 = 0, so the first pass runs NEWPHASE
+  // (STARTP64: TTF += DELTTFAP, newProgram 64). With `entered: true` that
+  // start routine counts as done — TTF is used as given (e.g. −172 s for
+  // the approach) and no newProgram is reported. FLPASS0 = 2 after P63IGN
+  // (BBB:465-469).
+  start({ t, phase = 'braking', ttfGuess, entered = false } = {}) {
     const wch = PHASES.indexOf(phase);
     if (wch < 0) throw new Error(`LandingGuidance: unknown phase ${phase}`);
+    const defaultTtf = phase === 'approach'
+      ? -this.targets.braking.tend + (entered ? this.targets.approach.deltaTtf : 0)
+      : -this.params.guidDurn;
     this.s = {
       wchPhase: wch,
-      flPass0: phase === 'braking' ? 2 : 0,
-      ttf: Number.isFinite(ttfGuess)
-        ? ttfGuess
-        : phase === 'approach' ? -this.targets.braking.tend : -this.params.guidDurn,
+      flPass0: phase === 'braking' || entered ? 2 : 0,
+      ttf: Number.isFinite(ttfGuess) ? ttfGuess : defaultTtf,
       tPip: t,
       program: this.targets[phase].program,
       fcold: 0,                 // FLATOUT
@@ -625,8 +630,9 @@ export class LandingGuidance {
         alarm = 0o1406;
         s.ttf = ttf;
         s.flPass0 += 1;
-        const out = this.output({ s, phase, geo, navG, bodyX, ttf, passes, converged, alarm, newProgram, redesignation, cmd: s.last });
-        return out;
+        // The previous commands are repeated (the caller keeps them).
+        const held = s.last && { ...s.last, recovery: false, throttleUp: false };
+        return this.output({ s, phase, geo, navG, bodyX, ttf, passes, converged, alarm, newProgram, redesignation, cmd: held });
       }
       ttf = root.ttg;
       acg = accelCommand({ rg: geo.rg, vg: geo.vg, target, ttg: ttf, leadTime: p.leadTime });

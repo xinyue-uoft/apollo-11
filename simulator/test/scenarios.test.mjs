@@ -76,7 +76,8 @@ test('scenario headers: software, vehicle, track, window, program', () => {
     if (s.software === 'Luminary099' && s.vehicle === 'replay') {
       assert.equal(s.track, 'apollo11Descent', `${s.id}: LM replays use the apollo11Descent track`);
     }
-    assert.ok(Number.isInteger(s.initialProgram), `${s.id}: initialProgram`);
+    assert.ok(Number.isInteger(s.initialProgram) || (s.initialProgram === null && typeof s.setup === 'function'),
+      `${s.id}: initialProgram (or null with a setup that starts the program)`);
     const minutes = (parseGET(s.end) - parseGET(s.start)) / 60;
     assert.ok(minutes >= 1.5 && minutes <= 16, `${s.id}: ${minutes.toFixed(1)} min of sim time`);
   }

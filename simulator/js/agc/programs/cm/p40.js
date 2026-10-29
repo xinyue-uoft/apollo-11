@@ -42,7 +42,7 @@ import {
 } from './csm-math.js';
 import {
   TaskList, ResponseRouter, showDisplay, setPhase, setFlag, setErasable,
-  vehicleState, protect, unprotect, emitBus,
+  setVector, getVector, vehicleState, protect, unprotect, emitBus, requestJob,
 } from './cm-common.js';
 
 // ---------- Apollo 11 LOI-1 maneuver PAD ----------
@@ -92,6 +92,17 @@ export const PAD_LOADS = Object.freeze({
   EMDOT: SPS_MDOT_NOMINAL,
 });
 
+// Executive jobs P40 creates, for the Executive model's load accounting
+// (priorities from the listing; CPU costs are model estimates, matching the
+// LM's BURNBABY model where the jobs correspond).
+const JOBS = Object.freeze({
+  CLOCKJOB: { name: 'CLOCKJOB', prio: 0o27, vac: false, workMs: 25, anchor: 'cm.p40.clockjob' },     // P40-P47.agc:900-903
+  P40SSV: { name: 'P40S/SV', prio: 0o12, vac: true, workMs: 1500, anchor: 'cm.p40.countdown' },      // :126,134-146 (MIDTOAV1)
+  P40BLNKR: { name: 'P40BLNKR', prio: 0o14, vac: false, workMs: 5, anchor: 'cm.p40.tigblnk' },      // :358-361
+  S4013: { name: 'S40.13', prio: 0o20, vac: true, workMs: 60, anchor: 'cm.p40.s4013' },             // :492-495
+  POSTBURN: { name: 'POSTBURN', prio: 0o12, vac: false, workMs: 20, anchor: 'cm.p40.postburn' },    // :675-678
+});
+
 // Load an external-ΔV maneuver into erasable memory the way P30 (or the
 // ground uplink) would before P40: TIG (N33), ΔV in local-vertical axes
 // (N81), weights (N47), trims (N48), PAD attitude (N22/N18 display), and the
@@ -100,12 +111,12 @@ export function loadExternalDeltaV(agc, pad = LOI1_PAD) {
   const tig = parseGET(pad.tig);
   setErasable(agc, 'TIG', tig);
   setErasable(agc, 'NOMTIG', tig);
-  setErasable(agc, 'DELVLVC', pad.dvLv.slice());
+  setVector(agc, 'DELVLVC', pad.dvLv, { dp: true });
   setErasable(agc, 'CSMMASS', pad.weight);
   setErasable(agc, 'LEMMASS', pad === LOI1_PAD ? LOI1_LM_WEIGHT : (pad.lmWeight ?? 0));
   setErasable(agc, 'PACTOFF', pad.pitchTrim);
   setErasable(agc, 'YACTOFF', pad.yawTrim);
-  setErasable(agc, 'THETAD', pad.attitude.slice());
+  setVector(agc, 'THETAD', pad.attitude);
   if (pad.n42) {
     setErasable(agc, 'HAPO', pad.n42.ha);
     setErasable(agc, 'HPER', pad.n42.hp);
@@ -200,7 +211,7 @@ export default class P40 {
   exit() {
     this.redisplay = null;
     // V37 (or POST41 → P00): "THE ENGINE IS TURNED OFF AND THE DAP IS
-    // INITIALIZED FOR COAST" (FRESH_START_AND_RESTART.agc:739-747).
+    // INITIALIZED FOR COAST" (FRESH_START_AND_RESTART.agc:741-746).
     this.engineOn = false;
     this.thrustDir = null;
     this.tasks.clear();
@@ -292,7 +303,7 @@ export default class P40 {
   s40_1() {
     const agc = this.agc;
     const tig = agc.erasable.TIG;
-    const dvLvFps = agc.erasable.DELVLVC || LOI1_PAD.dvLv;
+    const dvLvFps = getVector(agc, 'DELVLVC', { dp: true }) || LOI1_PAD.dvLv;
     const dvLv = dvLvFps.map((x) => x * FT);
     const nav = this.navState();
     if (nav) {
@@ -391,6 +402,7 @@ export default class P40 {
     this.prot(6, PH.CLOCK);
     this.prot(4, PH.P40SSV);
     this.tasks.at(clockAt ?? this.t + 0.01, 'CLOKTASK', () => this.clokTask());
+    requestJob(agc, JOBS.P40SSV);
 
     let tig = agc.erasable.TIG;
     const tdec1 = tig - SEC29_96;
@@ -417,6 +429,7 @@ export default class P40 {
   clokTask() {
     if (!this.flags.TIMRFLAG) return;           // PHASCHNG OCT 6 → kill
     this.tasks.at(this.t + 1, 'CLOKTASK', () => this.clokTask());
+    if (this.nvword !== NV.NONE) requestJob(this.agc, JOBS.CLOCKJOB);
     this.clockJob();
   }
 
@@ -471,6 +484,7 @@ export default class P40 {
     const tick = this.tasks.next('CLOKTASK');
     let until = this.t + SEC5;
     if (tick) until = tick.t + Math.ceil(Math.max(0, this.t + SEC5 - tick.t) - 1e-9);
+    requestJob(this.agc, JOBS.P40BLNKR);
     this.agc.pinball?.blankFor?.(Math.max(0.01, until - this.t));
     this.redisplay = null;
     this.prot(4, PH.TIGAVEG);
@@ -505,6 +519,7 @@ export default class P40 {
     this.prot(4, PH.TIG0);
     this.prot(3, PH.S4013);
     this.nvword = NV.V99;
+    requestJob(this.agc, JOBS.S4013);
     this.s40_13();
   }
 
@@ -547,7 +562,7 @@ export default class P40 {
     this.setF('ASTNFLAG', true);
     const rel = this.t - this.tig0;
     this.events.push({ id: 'v99p', label: 'Crew PRO on V99N40 (ASTNFLAG)', rel, t: this.t, done: true, anchor: 'cm.p40.v99p' });
-    emitBus(this.agc, 'burn', { id: 'v99p', label: 'Crew PRO on V99N40', t: this.t, rel });
+    emitBus(this.agc, 'burn', { id: 'v99p', label: 'Crew PRO on V99N40', t: this.t, rel, program: 40, anchor: 'cm.p40.v99p' });
     this.nvword = NV.V06N40;
     if (this.flags.IGNFLAG) this.tasks.at(this.t + 0.01, 'IGNITION', () => this.ignition());
   }
@@ -718,7 +733,7 @@ export default class P40 {
     this.nvword = NV.V97;
     this.setF('STEERSW', false);
     this.burnPhase = 'burning';
-    emitBus(this.agc, 'burn', { id: 'v97', label: 'Low thrust: V97N40 engine-fail display', t: this.t, rel: this.t - this.tig0 });
+    emitBus(this.agc, 'burn', { id: 'v97', label: 'Low thrust: V97N40 engine-fail display', t: this.t, rel: this.t - this.tig0, program: 40, anchor: 'cm.p40.lothrust' });
   }
 
   // ENGINOFF → SPSOFF: TEVENT, ENGONFLG off, channel 11 bit 13 off (and
@@ -734,6 +749,7 @@ export default class P40 {
     this.tasks.at(this.t + 2.5, 'DOTVCRCS', () => {
       this.tvcZap();
       this.prot(4, PH.POSTBURN);
+      requestJob(this.agc, JOBS.POSTBURN);
       this.postBurn();
     });
   }
@@ -806,7 +822,7 @@ export default class P40 {
     z = vnorm(z) > 1e-9 ? vunit(z) : [0, 0, 1];
     const y = vcross(z, x);
     const vg = this.vg || [0, 0, 0];
-    this.er('VGBODY', [ftps(vdot(vg, x)), ftps(vdot(vg, y)), ftps(vdot(vg, z))]);
+    setVector(this.agc, 'VGBODY', [ftps(vdot(vg, x)), ftps(vdot(vg, y)), ftps(vdot(vg, z))], { dp: true });
   }
 
   // POST41: AVEGEXIT = SERVEXIT (Average-G keeps running), then GOTOPOOH.
@@ -926,6 +942,7 @@ export default class P40 {
     if (e || id) {
       emitBus(this.agc, 'burn', {
         id, label: e ? e.label : id, t: this.t, rel: this.tig0 === null ? 0 : this.t - this.tig0,
+        program: 40, anchor: e ? e.anchor : null,
       });
     }
   }

@@ -32,7 +32,7 @@
 // surface is a smooth sphere (no terrain), so the radar altitude equals
 // the true altitude.
 
-import { MOON_MU, MOON_RADIUS, FPS, rad, deg } from '../util/units.js';
+import { MOON_MU, MOON_RADIUS, rad } from '../util/units.js';
 import { parseGET } from '../util/time.js';
 import {
   DPS, LM, ATTITUDE, TOUCHDOWN_LIMITS, MOON_ROTATION_RATE,
@@ -212,6 +212,8 @@ export class LmPhysics {
       const k4 = f(y3[0], y3[2], y3[3]);
       const y = y0.map((v, i) => v + (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
       [this.r, this.theta, this.vr, this.vt] = y;
+    } else {
+      this.theta -= this.omega * dt;   // carried along by the rotating surface
     }
 
     // ---- propellant ----
@@ -287,5 +289,3 @@ export class LmPhysics {
 export function pitchForThrustDir(vehicle, dir) {
   return pitchOfLocal(guidanceToLocal(dir, vehicle.state.phi));
 }
-
-export { deg, FPS };

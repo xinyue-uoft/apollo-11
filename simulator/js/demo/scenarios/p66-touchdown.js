@@ -39,7 +39,7 @@ export default defineScenario({
     { at: '102:43:13.3', narrate: {
       title: 'ATT HOLD',
       body: '<p>Armstrong switches the PGNS mode control to <b>attitude hold</b> (Mission Report: 102:43:13, about 600 feet) and pitches nearly upright to fly on over the rocks. The guidance program keeps the throttle; GUILDENSTERN, the auto-modes monitor, watches for the next move.</p>',
-      anchors: ['scn.guid.guilden'],
+      anchors: ['guid.guildenstern'],
     } },
     { at: '102:43:14', spotlight: 'crew' },
     say('going-to'),
@@ -49,13 +49,13 @@ export default defineScenario({
     { at: '102:43:22.3', narrate: {
       title: 'P66: one foot per second per click',
       body: '<p>In attitude hold, one click of the <b>ROD</b> (rate of descent) switch makes <code>GUILDENSTERN</code> start <b>P66</b> (102:43:22, about 400 feet). P66 takes the present descent rate as its target; every click moves the target by 1 ft/s (pad load <code>RODSCALE</code>; up slows the descent, down speeds it). Each second <code>RODTASK</code> starts <code>RODCOMP</code>, which folds in the clicks, and the throttle holds the new rate while Armstrong flies the attitude by hand. His later clicks were not logged one by one; the replay follows the reconstructed trajectory.</p>',
-      anchors: ['scn.guid.guilden', 'scn.guid.p66'],
+      anchors: ['guid.guildenstern', 'p66.rodtask'],
     } },
     { at: '102:43:23', spotlight: 'crew.rod' },
     { at: '102:43:25', narrate: {
       title: 'Verb 06 Noun 60',
       body: '<p>The display is now <b>V06N60</b> (<code>VERTDISP</code>): R1 horizontal velocity, R2 altitude rate, R3 altitude. Aldrin’s “N forward” callouts start here. In P66 the display is refreshed by every <code>RODCOMP</code>, once a second instead of every two. Watch the three registers against his voice.</p>',
-      anchors: ['scn.guid.vertdisp'],
+      anchors: ['p66.vertdisp'],
     } },
     { at: '102:43:25.5', spotlight: 'dsky.r1' },
     say('400-feet'),
@@ -145,7 +145,7 @@ export default defineScenario({
     { at: '102:46:41', narrate: {
       title: 'P68: “now look where you ended up”',
       body: '<p>P68, landing confirmation, is selected with Verb 37 — when the crew keyed it is not recorded; here it is illustrative. <code>LANDJUNK</code> sets the surface flag, computes latitude, longitude and altitude of the landing site from the navigated state, and flashes <b>V06N43</b>, under the comment “ASTRONAUT: NOW LOOK WHERE YOU ENDED UP”. Eagle was about 6.6 km beyond its target, mostly because of the 21,000-foot navigation error at PDI.</p>',
-      anchors: ['scn.p68.landjunk', 'scn.v37.table'],
+      anchors: ['p68.entry', 'scn.v37.table'],
     } },
     { at: '102:46:52', spotlight: 'dsky.noun' },
     say('stay-t1'),

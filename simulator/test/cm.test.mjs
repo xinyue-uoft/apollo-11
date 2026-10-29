@@ -17,7 +17,10 @@ import P40, { LOI1_PAD, loadExternalDeltaV, PAD_LOADS } from '../js/agc/programs
 import P00 from '../js/agc/programs/cm/p00.js';
 import { PROGRAMS_COMANCHE055 } from '../js/agc/programs/cm/index.js';
 import { s40_1, lvlhToInertial, coast, vnorm } from '../js/agc/programs/cm/csm-math.js';
-import { PRESETS_CM, setupLoi1 } from '../js/data/presets-cm.js';
+import { getVector } from '../js/agc/programs/cm/cm-common.js';
+import { PRESETS_CM, setupLoi1, setupEntry } from '../js/data/presets-cm.js';
+import { ENTRY } from '../js/vehicle/cm-sps.js';
+import { ENTRY_PAD, ENTRY_CONSTANTS, loadEntryPad as loadEntryPadFn } from '../js/agc/programs/cm/entry.js';
 import { ANCHORS as CM_ANCHORS } from '../js/data/anchors/cm.js';
 
 const TIG = parseGET(LOI1_PAD.tig);
@@ -242,7 +245,7 @@ test('P40: ENTER on V99 bypasses the SPS (P40RCS → flashing V16N85)', () => {
   assert.equal(rig.event('ignition'), null);
   assert.deepEqual([rig.agc.current.verb, rig.agc.current.noun, rig.agc.current.flash], [16, 85, true]);
   // VG in body axes ≈ the whole burn along +X.
-  const [x] = rig.agc.erasable.VGBODY;
+  const [x] = getVector(rig.agc, 'VGBODY', { dp: true });
   assert.ok(x > 2900, `VGBODY X ${x}`);
 });
 
@@ -319,7 +322,7 @@ test('LOI-1: ΔV accumulates to the target, cut-off near 357.5 s, ~170 x 60 n mi
   rig.key('proceed');
   rig.runTo(rig.t + 2.5);
   assert.deepEqual([agc.current.verb, agc.current.noun, agc.current.flash], [16, 85, true]);
-  const vgb = agc.erasable.VGBODY;
+  const vgb = getVector(agc, 'VGBODY', { dp: true });
   assert.ok(vgb.every((c) => Math.abs(c) < 2), `VGBODY ${vgb.map((c) => c.toFixed(2))}`);
   rig.key('proceed');
   assert.deepEqual([agc.current.verb, agc.current.noun, agc.current.flash], [37, 99, true]);
@@ -398,7 +401,7 @@ test('snapshot.burn shape (ARCHITECTURE §6.9.1) with source anchors that exist'
 
 test('Every anchor id used by the CM code is defined in anchors/cm.js', async () => {
   const { readFileSync } = await import('node:fs');
-  const files = ['p40.js', 'p00.js', 'cm-common.js', 'index.js'].map((f) => `../js/agc/programs/cm/${f}`);
+  const files = ['p40.js', 'p00.js', 'entry.js', 'cm-common.js', 'index.js'].map((f) => `../js/agc/programs/cm/${f}`);
   const ids = new Set();
   for (const f of files) {
     const src = readFileSync(new URL(f, import.meta.url), 'utf8');
@@ -413,7 +416,7 @@ test('Every anchor id used by the CM code is defined in anchors/cm.js', async ()
 test('PROGRAMS_COMANCHE055 exposes P00 and P40 with the §6.10 class shape', () => {
   assert.equal(PROGRAMS_COMANCHE055[0], P00);
   assert.equal(PROGRAMS_COMANCHE055[40], P40);
-  for (const P of [P00, P40]) {
+  for (const P of Object.values(PROGRAMS_COMANCHE055)) {
     assert.equal(typeof P.number, 'number');
     assert.equal(typeof P.name, 'string');
     assert.ok(CM_ANCHORS[P.anchor], P.anchor);
@@ -445,6 +448,11 @@ test('PRESETS_CM: well-formed; set-up works on a stand-in sim', () => {
     };
     if (pr.initialProgram !== null && pr.initialProgram !== undefined) agc.startProgram(pr.initialProgram);
     pr.setup({ agc, vehicle });
+    if (pr.id === 'cm-entry') {
+      assert.equal(agc.program.constructor.number, 61);
+      assert.equal(agc.erasable.ENTRYEI, parseGET('195:03:06'));
+      continue;
+    }
     assert.equal(agc.erasable.TIG, TIG);
     if (pr.id !== 'cm-p00') {
       assert.equal(agc.program.constructor.number, 40);
@@ -471,12 +479,190 @@ test('PAD values loaded for the displays (N33, N47, N48, N81)', () => {
   const agc = { erasable: {}, flags: {} };
   loadExternalDeltaV(agc);
   assert.equal(agc.erasable.TIG, parseGET('075:49:49.65'));
-  assert.deepEqual(agc.erasable.DELVLVC, [-2889.7, -394.4, -68.6]);
+  assert.deepEqual(getVector(agc, 'DELVLVC', { dp: true }), [-2889.7, -394.4, -68.6]);
+  assert.equal(agc.erasable['DELVLVC+2'], -394.4);
   assert.equal(agc.erasable.CSMMASS, 62710);
   assert.equal(agc.erasable.PACTOFF, 0.98);
   assert.equal(agc.erasable.YACTOFF, -0.19);
   assert.ok(Math.abs(agc.erasable.CSMMASS + agc.erasable.LEMMASS - 96061.6) < 1e-6);
   assert.equal(PAD_LOADS.ETDECAY < 0, true);
+});
+
+// ---------- entry (P61–P67, scripted profile) ----------
+
+function makeEntryRig(start = parseGET('194:44:00')) {
+  const vehicle = new CmSpsVehicle({ startGET: start, initial: 'entry' });
+  const modes = [];
+  const agc = {
+    software: 'Comanche055', t: start, vehicle, erasable: {}, flags: {}, current: null, program: null, mode: null,
+    pinball: { showDisplay(o) { agc.current = o; }, blankFor() {} },
+    workload: { phase: null, setPhase(p) { this.phase = p; } },
+    startProgram(n) {
+      agc.program?.exit?.();
+      agc.mode = n;
+      modes.push({ t: agc.t, n });
+      agc.program = new PROGRAMS_COMANCHE055[n](agc);
+      agc.program.enter();
+    },
+  };
+  const rig = {
+    agc, vehicle, modes, t: start,
+    runTo(until) {
+      while (rig.t < until - 1e-9) {
+        rig.t = Math.round((rig.t + DT) * 100) / 100;
+        vehicle.step(DT, agc.program?.vehicleCommands?.() || {}, rig.t);
+        agc.t = rig.t;
+        agc.program?.step(rig.t, DT);
+      }
+    },
+    key(kind) {
+      const d = agc.current;
+      if (!d?.flash) return false;
+      ({ proceed: d.onProceed, terminate: d.onTerminate, enter: d.onEnter })[kind]?.();
+      return true;
+    },
+    vn() { return [agc.current?.verb, agc.current?.noun, !!agc.current?.flash]; },
+    modeAt(n) { return modes.find((m) => m.n === n) || null; },
+  };
+  return rig;
+}
+
+test('Entry P61/P62: Entry PAD displays and crew responses per the listing', () => {
+  const rig = makeEntryRig();
+  setupEntry({ agc: rig.agc, vehicle: rig.vehicle }, { stage: 61 });
+  assert.equal(rig.agc.workload.phase, 'cmEntry');
+  assert.deepEqual(rig.vn(), [6, 61, true]);
+  assert.equal(rig.agc.erasable['LAT(SPL)'], 13.32);
+  assert.equal(rig.agc.erasable['LNG(SPL)'], -169.17);
+  assert.equal(rig.agc.erasable.HEADSUP, -1, 'lift up');
+  rig.key('enter');                                   // recycle: same display
+  assert.deepEqual(rig.vn(), [6, 61, true]);
+  rig.runTo(rig.t + 1);
+  rig.key('proceed');
+  assert.deepEqual(rig.vn(), [6, 60, true]);
+  assert.equal(rig.agc.erasable.GMAX, 630, 'GMAX kept as 100·g');
+  assert.equal(rig.agc.erasable.VPRED, 36194);
+  rig.runTo(rig.t + 1);
+  rig.key('proceed');
+  assert.deepEqual(rig.vn(), [6, 63, true]);
+  assert.equal(rig.agc.erasable.RTGO, 1403.3);
+  assert.ok(rig.agc.erasable.TTE < 0, 'TTE counts toward the EMS altitude');
+  rig.runTo(rig.t + 1);
+  rig.key('proceed');
+  assert.equal(rig.agc.mode, 62);
+  assert.deepEqual(rig.vn(), [50, 25, true]);
+  assert.equal(rig.agc.erasable.DSPTEM1, 0o41, 'checklist 00041 CM/SM SEP switch up');
+  rig.runTo(rig.t + 1);
+  rig.key('proceed');
+  assert.deepEqual(rig.vn(), [6, 61, true]);
+  rig.runTo(rig.t + 1);
+  rig.key('proceed');
+  assert.deepEqual(rig.vn(), [6, 22, false]);
+  const tPro = rig.t;
+  rig.runTo(tPro + 31);
+  assert.equal(rig.agc.mode, 63);
+  rig.runTo(rig.t + 2.1);
+  assert.deepEqual(rig.vn(), [6, 64, false]);
+});
+
+test('Entry P63→P67: 0.05 g, up control, no P66, steering ends below 1,000 ft/s', () => {
+  const rig = makeEntryRig(ENTRY.eiGET - 120);
+  setupEntry({ agc: rig.agc, vehicle: rig.vehicle }, { stage: 63 });
+  rig.runTo(ENTRY.eiGET + 600);
+  const rel = (n) => rig.modeAt(n) && rig.modeAt(n).t - ENTRY.eiGET;
+  // 0.05 g at EI+28 s (Entry PAD), sensed on the next 2-s pass.
+  assert.ok(rel(64) > 28 && rel(64) <= 30.01, `P64 at EI+${rel(64)}`);
+  assert.ok(rel(65) >= 150 && rel(65) <= 152.01, `P65 at EI+${rel(65)}`);
+  assert.equal(rig.modeAt(66), null, '"You\'ll get P65, but no P66"');
+  assert.ok(rel(67) > rel(65), 'P67 after P65');
+  // The P65 → P67 criterion: falling and V < VL + 500 ft/s.
+  const at67 = rig.modeAt(67).t;
+  const v = new CmSpsVehicle({ startGET: at67, initial: 'entry' }).state.entry;
+  assert.ok(v.rdot < 0 && v.v < rig.agc.erasable.VL + ENTRY_CONSTANTS.C18);
+  // P67.1 flashing V16N67 once V < VQUIT; response → GOTOPOOH (V37).
+  assert.deepEqual(rig.vn(), [16, 67, true]);
+  assert.ok(rig.agc.erasable.RTGON67 < 10, `range to go ${rig.agc.erasable.RTGON67}`);
+  assert.ok(Math.abs(rig.agc.erasable.LAT - 13.3) < 0.2);
+  rig.key('proceed');
+  assert.deepEqual(rig.vn(), [37, 99, true]);
+  assert.equal(rig.agc.mode, 67, 'the major mode stays until V37');
+});
+
+test('Entry P65 flashing V16N69 shows drag level and exit velocity inside the PAD limits', () => {
+  const rig = makeEntryRig(ENTRY.eiGET - 10);
+  setupEntry({ agc: rig.agc, vehicle: rig.vehicle }, { stage: 63 });
+  rig.runTo(ENTRY.eiGET + 160);
+  assert.equal(rig.agc.mode, 65);
+  assert.deepEqual(rig.vn(), [16, 69, true]);
+  const { Q7, VL } = rig.agc.erasable;
+  assert.ok(Q7 <= ENTRY_PAD.dl[0] && Q7 >= ENTRY_PAD.dl[1]);
+  assert.ok(VL <= ENTRY_PAD.vl[0] && VL >= ENTRY_PAD.vl[1]);
+  rig.key('proceed');
+  rig.runTo(rig.t + 2.1);
+  assert.deepEqual(rig.vn(), [6, 74, false], 'entry display resumes after PRO');
+});
+
+test('Entry P64 below 27,000 ft/s goes to the final phase at 0.2 g (KEP2, no P65)', () => {
+  // Start the chain late, already slower than VFINAL1: INITROLL → KEP2 → P67.
+  const rig = makeEntryRig(ENTRY.eiGET + 140);
+  setupEntry({ agc: rig.agc, vehicle: rig.vehicle }, { stage: 63 });
+  rig.runTo(ENTRY.eiGET + 160);
+  assert.equal(rig.modeAt(65), null);
+  assert.equal(rig.agc.mode, 67);
+});
+
+test('Entry profile: sourced points are honoured', () => {
+  const at = (get) => new CmSpsVehicle({ startGET: get, initial: 'entry' }).state;
+  const ei = at(ENTRY.eiGET);
+  assert.ok(Math.abs(ei.entry.v - 36194.4) < 0.01);
+  assert.ok(Math.abs(ei.alt / FT - 400000) < 1);
+  const g05 = at(ENTRY.eiGET + 28).entry;
+  assert.ok(Math.abs(g05.g - 0.05) < 1e-9);
+  assert.ok(Math.abs(g05.rtgo - 1403.3) < 1e-6);
+  const drogue = at(parseGET('195:12:06.9'));
+  assert.ok(Math.abs(drogue.entry.rtgo - 1.7) < 1e-6);
+  assert.ok(Math.abs(drogue.entry.lat - 13.30) < 1e-6 && Math.abs(drogue.entry.lon + 169.15) < 1e-6);
+  const landed = at(parseGET('195:18:35'));
+  assert.equal(landed.landed, true);
+  assert.ok(Math.abs(landed.mass / LB - 10873.0) < 0.01);
+  const peak = Math.max(...ENTRY.keyframes.map((k) => k.d));
+  assert.equal(peak, 6.5);
+});
+
+// ---------- the noun tables (engineer B's nouns.js) read what P40/entry write ----------
+
+test('CM nouns render the P40 and entry erasables (N40, N85, N33, N47, N48, N60, N61, N69)', async (t) => {
+  const mod = await tryImport('../js/agc/nouns.js');
+  const fmt = await tryImport('../js/agc/display-format.js');
+  if (mod.__error || fmt.__error) {
+    t.skip('nouns.js / display-format.js not importable yet');
+    return;
+  }
+  const { NOUNS_COMANCHE055 } = mod;
+  const { formatRegister } = fmt;
+  const rig = makeRig({ start: TIG - 45, autoPro: -4 });
+  rig.runTo(TIG - 20);
+  const agc = rig.agc;
+  const show = (n) => NOUNS_COMANCHE055[n].components.map((c) => {
+    const r = formatRegister(c.read(agc), c.format);
+    return `${r.sign}${r.digits}`;
+  });
+  const n40 = show(40);
+  assert.match(n40[0], /^-00 [12]\d$/, `N40 R1 ${n40[0]}`);   // about −20 s
+  assert.equal(n40[1], '+29173');                              // VG 2917.3 ft/s
+  assert.equal(n40[2], '+00000');
+  assert.deepEqual(show(33), ['+00075', '+00049', '+04965']);  // TIG 075:49:49.65
+  assert.deepEqual(show(47), ['+62710', '+33352']);
+  assert.deepEqual(show(48), ['+00098', '-00019']);
+  assert.deepEqual(show(18), ['+35800', '+22600', '+34700']); // PAD burn attitude
+  // Residuals in body axes as Collins read them ("minus 1, minus 1, plus 1").
+  for (const [k, v] of [['VGBODY', -0.1], ['VGBODY+2', -0.1], ['VGBODY+4', 0.1]]) agc.erasable[k] = v;
+  assert.deepEqual(show(85), ['-00001', '-00001', '+00001']);
+  // Entry PAD displays (research src-comanche.md §7.2: N61 +01332 -16917 -00001; N60 +00630 +36194 -00648).
+  loadEntryPadFn(agc);
+  assert.deepEqual(show(61), ['+01332', '-16917', '-00001']);
+  assert.deepEqual(show(60), ['+00630', '+36194', '-00648']);
+  assert.deepEqual(show(22), ['+00000', '+15200', '+00100']);
 });
 
 // ---------- integration with the real computer model (when present) ----------
@@ -489,36 +675,104 @@ async function tryImport(path) {
   }
 }
 
-test('Real Simulation: CM presets build and LOI-1 burns (skipped until agc.js/vehicle index exist)', async (t) => {
-  const simMod = await tryImport('../js/sim.js');
-  if (simMod.__error) {
-    t.skip(`Simulation not importable yet: ${simMod.__error.message.split('\n')[0]}`);
-    return;
-  }
-  const { Simulation } = simMod;
-  for (const pr of PRESETS_CM) {
-    const sim = new Simulation({
-      software: pr.software, vehicle: pr.vehicle, startGET: pr.startGET,
-      initialProgram: pr.initialProgram ?? null, vehicleOptions: pr.vehicleOptions || {},
-    });
-    pr.setup(sim);
-    assert.equal(sim.agc.erasable.TIG, TIG, pr.id);
-    sim.step(2);
-    const snap = sim.snapshot();
-    assert.equal(snap.software, 'Comanche055');
-  }
-  // Fly LOI-1 through the real Agc + PINBALL: PRO on V99, then check the cut-off.
-  const pr = PRESETS_CM.find((p) => p.id === 'cm-loi1-ignition');
+function buildSim(Simulation, pr) {
   const sim = new Simulation({
     software: pr.software, vehicle: pr.vehicle, startGET: pr.startGET,
     initialProgram: pr.initialProgram ?? null, vehicleOptions: pr.vehicleOptions || {},
   });
   pr.setup(sim);
-  sim.runTo(TIG - 3.5);
-  assert.equal(sim.agc.dsky.verb, '99', 'V99 shown');
+  return sim;
+}
+
+const dskyLine = (sim) => {
+  const d = sim.agc.dsky;
+  return { prog: d.prog, verb: d.verb, noun: d.noun, flash: d.flashVerbNoun, blanked: d.blanked, r: d.r.map((x) => x.sign + x.digits) };
+};
+
+test('Real Simulation: every CM preset builds and runs', async (t) => {
+  const simMod = await tryImport('../js/sim.js');
+  if (simMod.__error) {
+    t.skip(`Simulation not importable yet: ${simMod.__error.message.split('\n')[0]}`);
+    return;
+  }
+  for (const pr of PRESETS_CM) {
+    const sim = buildSim(simMod.Simulation, pr);
+    if (pr.id === 'cm-entry') assert.equal(sim.agc.erasable.ENTRYEI, parseGET('195:03:06'));
+    else assert.equal(sim.agc.erasable.TIG, TIG, pr.id);
+    sim.step(2);
+    const snap = sim.snapshot();
+    assert.equal(snap.software, 'Comanche055');
+    assert.equal(snap.agc.dsky.prog, { 'cm-p00': '00', 'cm-entry': '61' }[pr.id] || '40', pr.id);
+  }
+});
+
+test('Real Simulation: LOI-1 on the real Agc/PINBALL — DSKY at the listing times', async (t) => {
+  const simMod = await tryImport('../js/sim.js');
+  if (simMod.__error) {
+    t.skip(`Simulation not importable yet: ${simMod.__error.message.split('\n')[0]}`);
+    return;
+  }
+  const sim = buildSim(simMod.Simulation, PRESETS_CM.find((p) => p.id === 'cm-loi1-ignition'));
+  sim.runTo(TIG - 36);
+  let d = dskyLine(sim);
+  assert.deepEqual([d.verb, d.noun, d.flash], ['06', '40', false]);
+  assert.equal(d.r[1], '+29173', 'VG 2917.3 ft/s');
+  sim.runTo(TIG - 32);
+  d = dskyLine(sim);
+  assert.ok(d.blanked || (d.verb === '  ' && d.r.every((x) => x.trim() === '')), 'blank between TIG−35 and TIG−30');
+  sim.runTo(TIG - 28);
+  assert.equal(dskyLine(sim).noun, '40', 'V06N40 back after TIG−30');
+  sim.runTo(TIG - 3.9);
+  d = dskyLine(sim);
+  assert.deepEqual([d.verb, d.noun, d.flash], ['99', '40', true], 'V99N40 flashing');
+  sim.runTo(TIG + 3);
+  assert.equal(sim.vehicle.state.engineOn, false, 'no PRO, no ignition');
   sim.agc.key('PRO', { source: 'user' });
-  sim.runTo(TIG + 365);
-  const burn = sim.agc.program?.snapshot?.();
-  assert.ok(burn && burn.tCutoff, 'cut-off happened');
-  assert.ok(Math.abs(burn.tCutoff - burn.tIgnition - 357.5) < 3);
+  sim.runTo(TIG + 3.1);
+  assert.equal(sim.vehicle.state.engineOn, true, 'late PRO ignites at once');
+  sim.runTo(TIG + 370);
+  const p = sim.agc.program.snapshot();
+  assert.ok(p.tCutoff, 'cut-off happened');
+  assert.ok(Math.abs(p.tCutoff - p.tIgnition - 357.5) < 3, `burn ${p.tCutoff - p.tIgnition}`);
+  d = dskyLine(sim);
+  assert.deepEqual([d.verb, d.noun, d.flash], ['16', '40', true], 'POSTBURN V16N40');
+  sim.agc.key('PRO', { source: 'user' });
+  sim.step(2.5);
+  d = dskyLine(sim);
+  assert.deepEqual([d.verb, d.noun, d.flash], ['16', '85', true], 'TIGNOW V16N85');
+  sim.agc.key('PRO', { source: 'user' });
+  sim.step(1);
+  assert.deepEqual([dskyLine(sim).verb, dskyLine(sim).flash], ['37', true], 'GOTOPOOH: flashing V37');
+  sim.agc.keys('V37E00E', { source: 'user' });
+  sim.step(4);
+  assert.equal(sim.agc.mode, 0);
+  t.diagnostic(`real sim: burn ${(p.tCutoff - p.tIgnition).toFixed(2)} s (late ignition at TIG+3)`);
+});
+
+test('Real Simulation: entry P61 → P67 on the real Agc/PINBALL', async (t) => {
+  const simMod = await tryImport('../js/sim.js');
+  if (simMod.__error) {
+    t.skip(`Simulation not importable yet: ${simMod.__error.message.split('\n')[0]}`);
+    return;
+  }
+  const sim = buildSim(simMod.Simulation, PRESETS_CM.find((p) => p.id === 'cm-entry'));
+  const seen = [];
+  sim.outBus.on('mode', ({ mode, t: tt }) => seen.push({ mode, t: tt }));
+  for (let i = 0; i < 5; i++) {
+    sim.agc.key('PRO', { source: 'user' });
+    sim.step(2);
+  }
+  assert.equal(sim.agc.mode, 62);
+  sim.runTo('195:05:50');
+  assert.equal(sim.agc.mode, 65);
+  assert.deepEqual([sim.agc.dsky.verb, sim.agc.dsky.noun], ['16', '69']);
+  sim.agc.key('PRO', { source: 'user' });
+  sim.runTo('195:12:00');
+  assert.equal(sim.agc.mode, 67);
+  assert.deepEqual([sim.agc.dsky.verb, sim.agc.dsky.noun, sim.agc.dsky.flashVerbNoun], ['16', '67', true]);
+  const modes = seen.map((m) => m.mode);
+  for (const m of [63, 64, 65, 67]) assert.ok(modes.includes(m), `P${m}`);
+  assert.ok(!modes.includes(66), 'no P66');
+  const p64 = seen.find((m) => m.mode === 64).t - ENTRY.eiGET;
+  assert.ok(p64 > 28 && p64 < 31, `P64 at EI+${p64.toFixed(2)}`);
 });

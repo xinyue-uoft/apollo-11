@@ -42,7 +42,7 @@ export default defineScenario({
     { at: '102:37:50', narrate: {
       title: 'Core sets and VAC areas',
       body: '<p>The <b>Executive</b> runs jobs by priority (octal numbers; higher wins). Every job needs a <b>core set</b> — 12 registers holding its state — and Luminary 099 has <b>eight</b>. A job that uses the vector interpreter also needs a <b>VAC area</b>, a 43-word scratch pad; there are <b>five</b>. <code>NOVAC</code> asks for a core set only, <code>FINDVAC</code> for both.</p><p>The comment beside the search still says “SEVEN SETS OF ELEVEN REGISTERS” — it is stale; the erasable layout says eight of 12.</p>',
-      anchors: ['scn.exec.coresets', 'scn.exec.vacareas', 'scn.exec.novac2'],
+      anchors: ['exec.erasable.coresets', 'exec.erasable.vacs', 'exec.novac.1202'],
     } },
     { at: '102:37:53', spotlight: 'exec.coresets' },
     { at: '102:37:56', spotlight: 'exec.vacs' },
@@ -53,7 +53,7 @@ export default defineScenario({
     { at: '102:38:05', narrate: {
       title: 'Aldrin keys V16N68',
       body: '<p>The landing radar has locked on. Aldrin keys <b>Verb 16 Noun 68</b> to watch <b>ΔH</b>, radar altitude minus the computer’s altitude, in R3 (Cherry’s DSKY log: 102:38:09, ΔH −2,884 ft).</p><p>Verb 16 is a monitor: every second the task <code>MONREQ</code> starts a <code>MONDO</code> job at priority 30 — above SERVICER’s 20 — and it takes a core set. Eyles: the monitor cut the spare time from about 13 % to “10% or less”. With 13 % stolen, that is not enough.</p>',
-      anchors: ['scn.pinball.monitor', 'scn.noun.n68'],
+      anchors: ['exec.job.mondo', 'scn.noun.n68'],
     } },
     ...crewEvents(START, END),
     { at: '102:38:10', spotlight: 'dsky.r3' },
@@ -62,7 +62,7 @@ export default defineScenario({
     { at: '102:38:12', narrate: {
       title: 'SERVICER gets last crack',
       body: '<p>Every 2 seconds the waitlist task <code>READACCS</code> reads the accelerometers and asks for a new <b>SERVICER</b> job (priority 20, <code>FINDVAC</code>): navigation, guidance, throttle, attitude, displays. It is the biggest job and the lowest-priority one, so when time runs short it is SERVICER that has not finished when the next READACCS, “running punctually”, schedules another (Eyles).</p><p>Each unfinished copy keeps its core set <i>and</i> its VAC area. Watch them stack up.</p>',
-      anchors: ['scn.servicer.readaccs'],
+      anchors: ['servicer.readaccs'],
     } },
     { at: '102:38:14', spotlight: 'exec.load' },
     { at: '102:38:17', spotlight: 'exec.coresets' },
@@ -75,7 +75,7 @@ export default defineScenario({
     { at: '102:38:22.4', narrate: {
       title: '1202: no core sets',
       body: '<p>A job asks for a core set; <code>NOVAC2</code> looks at all eight and finds none free. <code>NEXTCORE</code> gives up: <code>TC BAILOUT1</code>, <code>OCT 1202</code> — “EXECUTIVE OVERFLOW - NO CORE SETS”.</p><p><code>BAILOUT1</code> stores 1202 in the alarm register, turns on the <b>PROG</b> lamp — the crew saw no number, only the lamp — and starts a <b>software restart</b>. Not a reboot, and not the RESTART lamp, which only a hardware restart lights.</p>',
-      anchors: ['scn.exec.1202', 'scn.alarm.list', 'scn.alarm.bailout1'],
+      anchors: ['exec.nextcore', 'alarm.list.exec', 'alarm.bailout1'],
       focus: 'exec',
     } },
     { at: '102:38:22.6', spotlight: 'dsky.light.prog' },
@@ -83,7 +83,7 @@ export default defineScenario({
     { at: '102:38:24', narrate: {
       title: 'The software restart',
       body: '<p><code>ENEMA</code> clears the decks: all eight core sets and five VAC areas freed, the waitlist emptied, the DSKY digits blanked and — line 550 — <code>MONSAVE # KILL MONITOR</code>. Erasable memory is kept: the state vector, the guidance, the engine still burning.</p><p>Then <code>GOPROG3</code> reads the <b>phase tables</b>: each protected restart group is restarted from its last checkpoint — group 5 navigation (only the newest SERVICER), group 3 guidance. The V16N68 monitor was not protected, so it is gone; V06N63 comes back on the next pass.</p>',
-      anchors: ['scn.restart.enema', 'scn.restart.killmon', 'scn.restart.goprog3', 'scn.servicer.job', 'scn.guid.lunland'],
+      anchors: ['restart.enema', 'restart.kill-monitor', 'restart.goprog3', 'restart.servicer', 'guid.lunland'],
     } },
     { at: '102:38:25', spotlight: 'exec.coresets' },
     say('affirmative'),
@@ -92,7 +92,7 @@ export default defineScenario({
     { at: '102:38:27.5', narrate: {
       title: 'Verb 05 Noun 09',
       body: '<p>The code was not displayed automatically. Aldrin keyed <b>V05N09</b> (Cherry’s log: 102:38:27): R1 shows <b>01202</b>, in octal like every alarm code. The three registers keep the first, second and latest alarm since they were last cleared.</p><p>Then — our reconstruction, since the record does not time it — <kbd>RSET</kbd> to clear PROG and the registers, and <kbd>KEY REL</kbd> to give the DSKY back to the guidance display.</p>',
-      anchors: ['scn.alarm.failreg', 'scn.pinball.rset', 'scn.pinball.keyrel'],
+      anchors: ['alarm.failreg', 'alarm.rset', 'scn.pinball.keyrel'],
     } },
     { at: '102:38:28', spotlight: 'dsky.r1' },
     say('its-1202'),
@@ -109,14 +109,14 @@ export default defineScenario({
     { at: '102:38:45.5', narrate: {
       title: 'V57: let the radar in',
       body: '<p>Aldrin keys <b>Verb 57</b> (Mission Report: 102:38:45) — <code>LRON</code>, “PERMIT INCORPORATION OF LR DATA”. From now on SERVICER blends the radar’s altitude into its own estimate, and ΔH shrinks (the Mission Report: within about 30 seconds). Unlike a monitor, V57 costs almost nothing: it sets one flag and ends.</p>',
-      anchors: ['scn.verb.v57'],
+      anchors: ['lr.v57'],
     } },
     say('go-on-alarm'),
     { at: '102:38:53', spotlight: 'transcript' },
     { at: '102:38:54', narrate: {
       title: 'V16N68 again',
       body: '<p>Aldrin keys V16N68 a second time (Cherry: 102:38:51) to watch ΔH come down — Eyles says it read about 900 ft. The same monitor on the same overloaded computer: the core sets fill again. C. Tillman of Grumman, working from the telemetry, found that both P63 alarms came about 12 seconds after a monitor verb was keyed.</p>',
-      anchors: ['scn.pinball.monitor'],
+      anchors: ['exec.job.mondo'],
     } },
     { at: '102:38:58', spotlight: 'exec.coresets' },
     say('six-plus-25'),
@@ -124,7 +124,7 @@ export default defineScenario({
     { at: '102:39:02.4', narrate: {
       title: 'Second 1202',
       body: '<p>Same alarm, same restart — and again the restart <i>helps</i>: it flushes the SERVICER stubs that had piled up and kills the monitor that tipped the balance. In Eyles’ words, restart protection “primarily motivated by the possibility of hardware glitches synergistically provided a means to shed computational load”.</p>',
-      anchors: ['scn.exec.1202', 'scn.restart.tables5'],
+      anchors: ['exec.nextcore', 'restart.tables.5'],
     } },
     { at: '102:39:02.6', spotlight: 'dsky.light.prog' },
     say('six-plus-25b'),
@@ -155,7 +155,7 @@ export default defineScenario({
     { at: '102:41:32.5', narrate: {
       title: 'P64: a thinner margin',
       body: '<p>High gate, 7,129 ft: <b>P64</b>. Eyles: “the essential software by itself left a duty-cycle margin of less than 10%”. And the new display, a flashing <b>V06N64</b>, is re-posted on every pass until the crew presses PRO — and a flashing display job asks for a VAC area: “IS THIS A FLASHING R DISPLAY … YES, MAKE DSPLAY JOB A VAC”. Cherry’s log shows that PRO only at 102:42:33. Watch the five VAC areas.</p>',
-      anchors: ['scn.guid.p64disps', 'scn.display.vacdsp'],
+      anchors: ['p64.disps', 'exec.job.makeplay'],
       focus: 'exec',
     } },
     { at: '102:41:34', spotlight: 'exec.vacs' },
@@ -170,7 +170,7 @@ export default defineScenario({
     { at: '102:42:18.4', narrate: {
       title: '1201: no VAC areas',
       body: '<p>This time a job that needs a VAC area finds all five taken: <code>FINDVAC2</code> checks <code>VAC1USE</code> … <code>VAC5USE</code>, then <code>TC BAILOUT1</code>, <code>OCT 1201</code> — “NO VAC AREAS”. Cherry: “some job like SERVICER was scheduled two and possibly three or four times” — and each copy, like each flashing-display job, holds a VAC area. No monitor is running: “We weren’t in 1668 at that point” (Aldrin, debriefing).</p><p>The restart works as before, but now it can only buy time: “Each time, the software restart flushed the Executive queue but could not shed load” (Eyles).</p>',
-      anchors: ['scn.exec.1201', 'scn.display.vacdsp'],
+      anchors: ['exec.findvac.1201', 'exec.job.makeplay'],
     } },
     { at: '102:42:18.6', spotlight: 'exec.vacs' },
     { at: '102:42:19', hold: 4 },
@@ -181,7 +181,7 @@ export default defineScenario({
     { at: '102:42:26', narrate: {
       title: '“Same type”',
       body: '<p>Garman remembered shouting “Same type!” down the line; Duke passes it straight to the crew. Aldrin reads the code with V05N09 (Cherry: 102:42:21), clears it (our reconstruction), and at 102:42:33 finally presses <b>PRO</b> on the flashing V06N64: the display goes steady, landing-point redesignation is enabled, and one VAC consumer disappears.</p>',
-      anchors: ['scn.guid.p64disps'],
+      anchors: ['p64.disps'],
     } },
     { at: '102:42:33.5', spotlight: 'dsky.verb' },
     say('2000-feet'),
@@ -191,13 +191,13 @@ export default defineScenario({
     { at: '102:42:43.4', narrate: {
       title: 'Fourth: 1202',
       body: '<p>Twenty-five seconds later the core sets run out again: <b>1202</b>. Aldrin reads it with V05N09 (Cherry: 102:42:45). There is no voice call for this one — the crew is busy: 1,400 ft, LPD 47°, a boulder field ahead. The flashing display is gone since the PRO at 102:42:33; the essential P64 work alone is more than the computer has time for.</p>',
-      anchors: ['scn.exec.1202'],
+      anchors: ['exec.nextcore'],
     } },
     { at: '102:42:43.6', spotlight: 'dsky.light.prog' },
     { at: '102:42:58.4', narrate: {
       title: 'Fifth and last: 1202',
       body: '<p>770 feet, 27 ft/s down (Eyles): the last alarm of the descent. Five alarms, and each time navigation, guidance, throttle and attitude came back from their last checkpoint within a fraction of a second; the engine never stopped. The relief came from the crew: at 102:43:13 Armstrong switched to attitude hold, “forestalling the next alarm”, and ten seconds later to P66, whose load was lighter (Eyles). No alarm followed.</p>',
-      anchors: ['scn.exec.1202', 'scn.guid.guilden'],
+      anchors: ['exec.nextcore', 'guid.guildenstern'],
     } },
     say('copy-1202'),
     { at: '102:43:00', hold: 4 },

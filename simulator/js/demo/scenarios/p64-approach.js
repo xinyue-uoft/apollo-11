@@ -35,7 +35,7 @@ export default defineScenario({
     { at: '102:41:32.3', narrate: {
       title: 'Flashing V06N64',
       body: '<p>PROG 64 (Mission Report: 102:41:32, 7,129 ft). The display is <b>Verb 06 Noun 64</b>, flashing. R1 holds two numbers: the seconds left in which a redesignation is allowed, and the <b>LPD angle</b> in degrees; R2 is the altitude rate, R3 the altitude.</p><p>The flash asks a question: “may I accept landing-point redesignations?” Until the crew presses PRO, <code>P64DISPS</code> re-posts the flashing display on every pass.</p>',
-      anchors: ['scn.guid.startp64', 'scn.guid.p64disps'],
+      anchors: ['p64.entry', 'p64.disps'],
     } },
     { at: '102:41:33', spotlight: 'dsky.r1' },
     say('p64'),
@@ -43,7 +43,7 @@ export default defineScenario({
     { at: '102:41:40', narrate: {
       title: 'How the LPD works',
       body: '<p>The commander’s window carries a scale of angles. With his eye on the reticle, the LPD angle in R1 tells him where on that scale the computer’s landing site appears. Don’t like it? Each click of the hand controller moves the aim: fore or aft by half a degree of look angle (farther or nearer), left or right by 2° (<code>ELEACH</code>, <code>AZEACH</code>). The task <code>REDESMON</code> counts the clicks; the next guidance pass moves the target, until the redesignation time in R1 runs out.</p>',
-      anchors: ['scn.guid.redesmon'],
+      anchors: ['p64.countem'],
     } },
     { at: '102:41:42', spotlight: 'crew.lpd' },
     { at: '102:41:50', hold: 3 },
@@ -63,7 +63,7 @@ export default defineScenario({
     { at: '102:42:18.4', narrate: {
       title: '1201',
       body: '<p>A <b>1201</b> — Executive overflow, no VAC areas. In P64 the essential software alone left less than 10 % spare time, and with the radar CDUs still stealing about 13 %, SERVICER copies stack up; the flashing display’s job needs a VAC area too. The software restart flushes the queue and the computer flies on. Houston: “Same type. We’re Go.” (Details: <i>1202: the Executive overflow</i>.)</p>',
-      anchors: ['scn.exec.1201', 'scn.display.vacdsp'],
+      anchors: ['exec.findvac.1201', 'exec.job.makeplay'],
     } },
     { at: '102:42:18.6', spotlight: 'dsky.light.prog' },
     say('copy-3000'),
@@ -75,7 +75,7 @@ export default defineScenario({
     { at: '102:42:33.2', narrate: {
       title: '“Give me an LPD”',
       body: '<p>At 2,000 feet Armstrong asks for the angle, and Aldrin — who has just read the alarm code and pressed <b>PRO</b> on the flashing Noun 64 (Cherry’s DSKY log: 102:42:33) — reads it from R1: <b>47 degrees</b>. Sighting along 47° on his window, Armstrong can see where the computer is taking them: toward a crater surrounded by a field of boulders — West crater (ALSJ commentary). “Pretty rocky area,” he says at 700 feet.</p>',
-      anchors: ['scn.guid.p64disps'],
+      anchors: ['p64.disps'],
     } },
     say('lpd-47-a'),
     say('give-lpd-2'),
@@ -86,7 +86,7 @@ export default defineScenario({
     { at: '102:42:43.4', narrate: {
       title: '1202, and again 1202',
       body: '<p>Two more Executive overflows follow, both <b>1202</b> (no core sets): at 102:42:43 and 102:42:58, at about 1,400 and 770 feet. Aldrin reads the first with V05N09 (Cherry: 102:42:45). Each restart takes a fraction of a second; guidance, throttle and the LPD display come straight back.</p>',
-      anchors: ['scn.exec.1202'],
+      anchors: ['exec.nextcore'],
     } },
     { at: '102:42:43.6', spotlight: 'dsky.light.prog' },
     say('1000-at-30'),
@@ -97,14 +97,14 @@ export default defineScenario({
     { at: '102:43:09', narrate: {
       title: 'One redesignation',
       body: '<p>The telemetry logs one landing-point redesignation at 102:43:09. Armstrong said later he did not use the LPD to redesignate; Eyles calls it “apparently one inadvertent redesignation”. We do not replay it: its direction is not recorded. Four seconds later it could not have happened at all: in attitude hold <code>COUNT’EM</code> skips the redesignation logic (“ARE WE IN ATTITUDE-HOLD?”).</p>',
-      anchors: ['scn.guid.redesmon'],
+      anchors: ['p64.countem'],
     } },
     say('rocky'),
     say('600-feet'),
     { at: '102:43:13.3', narrate: {
       title: 'Attitude hold: Armstrong takes over',
       body: '<p>At about 600 feet (Mission Report: 102:43:13) Armstrong switches to <b>ATT HOLD</b> and flies the attitude himself, pitching almost upright (from about 18° to 5°) so that the LM keeps its forward speed and flies on over the boulder field; the computer still runs the throttle. Eyles notes that this also eased the computer’s load, “forestalling the next alarm”. Ten seconds later, one click of the rate-of-descent switch starts <b>P66</b>.</p>',
-      anchors: ['scn.guid.guilden'],
+      anchors: ['guid.guildenstern'],
     } },
     { at: '102:43:14', spotlight: 'crew' },
     say('going-to'),

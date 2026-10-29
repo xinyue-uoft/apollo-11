@@ -20,9 +20,14 @@
 //   the flown burn (see LOI1 below), not from engine data.
 // - Attitude is just the thrust axis (body +X); slews are rate-limited.
 //
+// Second mode ('entry'): a *scripted* Earth entry of the Command Module for
+// the P61–P67 milestones — no aerodynamics, just a GET-stamped profile
+// (ENTRY below) whose sourced points come from the Mission Report and the
+// Entry PAD and whose in-between values are illustrative.
+//
 // state follows ARCHITECTURE §8 where meaningful; LM-only fields stay
 // 0/false. CM extras: r, v, bodyX, pipa, pipaPulses, dvSensed, burnTime,
-// propellant, orbit, gimbal.
+// propellant, orbit, gimbal; in entry mode `entry` (see entryState()).
 
 import {
   FT, LB, LBF, NMI, G0, MOON_MU, MOON_RADIUS,
@@ -86,6 +91,133 @@ export const RCS_ULLAGE_2JET = 2 * 199.6 * Math.cos(10 * Math.PI / 180) * LBF;
 
 // PIPA pulse size of the CM IMU (Comanche055/SERVICER207.agc:186).
 export const CM_PIPA_PULSE = 0.0585; // m/s
+
+// ---------- historical data (Apollo 11 entry, scripted) ----------
+//
+// Sourced points (everything else is illustrative interpolation):
+// - Entry interface (400,000 ft) 195:03:05.7, 36,194.4 ft/s, flight-path
+//   angle −6.48°, 3.19° S 171.96° E (Mission Report Table 7-VII).
+// - Entry PAD (AFJ, Evans 191:43:57, update 194:16:57): 0.05 g 28 s after EI
+//   at 36,275 ft/s; EMS range to go 1,403.3 n mi; max g 6.3; VCIRC at
+//   EI+2:14; skip drag levels DL max 1.54 g / min 0.84 g; skip velocities
+//   VL 22,400 / 18,000 ft/s; drogues at EI+9:02; "You'll get P65, but no P66".
+// - First acceleration pulse ≈ 6.5 g, second 6.0 g (Mission Report §4.19;
+//   the peak is 6.56 g in §7.5 and 6.51 g in Table 7-VII) — their times are
+//   not in the sources: illustrative.
+// - PAO, AFJ Day 9 part 2: "Velocity; 33,000 ... 800 nautical miles high ...
+//   7 minutes away from entry"; 35,578 ft/s "a minute and 45 seconds from
+//   entry".
+// - V ≈ 1,000 ft/s at ≈ 65,000 ft at the end of P67 (AFJ commentary).
+// - Drogues 195:12:06.9, landing 195:18:35, onboard landing solution
+//   13.30° N 169.15° W (Mission Report Table 7-VII, §8.6.7); main chutes
+//   reported 195:13:22 (AFJ). CM mass 12,095.5 lb at entry, 11,603.7 at
+//   drogues, 11,318.9 at mains, 10,873.0 at landing (Table A-I).
+export const ENTRY = Object.freeze({
+  eiGET: parseGET('195:03:05.7'),
+  sepGET: parseGET('194:49:12.7'),
+  // dt from EI (s); v ft/s (inertial); d drag deceleration (g); alt ft;
+  // rdot ft/s; rollc deg (0 = lift up); src: 'sourced' | 'illustrative'.
+  keyframes: [
+    { dt: -1200, v: 30500, d: 0, alt: 9.5e6, rdot: -8000, rollc: 0, src: 'illustrative' },
+    { dt: -420, v: 33000, d: 0, alt: 800 * 6076.12, rdot: -8500, rollc: 0, src: 'PAO: 33,000 ft/s, 800 n mi, 7 min before entry' },
+    { dt: -105, v: 35578, d: 0, alt: 9.0e5, rdot: -5200, rollc: 0, src: 'PAO: 35,578 ft/s at EI−1:45' },
+    { dt: 0, v: 36194.4, d: 0, alt: 400000, rdot: -4085, rollc: 0, src: 'MR Table 7-VII (EI)' },
+    { dt: 28, v: 36275, d: 0.05, alt: 297431, rdot: -3200, rollc: 0, src: 'Entry PAD: 0.05 g at EI+0:28, 36,275 ft/s; 297,431 ft = N63 EMS altitude' },
+    { dt: 60, v: 34600, d: 3.5, alt: 235000, rdot: -1400, rollc: 40, src: 'illustrative' },
+    { dt: 85, v: 31200, d: 6.5, alt: 207000, rdot: -250, rollc: 60, src: 'MR: first pulse ≈ 6.5 g (time illustrative)' },
+    { dt: 110, v: 28100, d: 5.0, alt: 198000, rdot: 200, rollc: 70, src: 'illustrative' },
+    { dt: 134, v: 25900, d: 3.6, alt: 197000, rdot: 420, rollc: 60, src: 'Entry PAD: VCIRC at EI+2:14 (value illustrative)' },
+    { dt: 150, v: 24700, d: 2.4, alt: 203000, rdot: 520, rollc: 20, src: 'illustrative (P65 up control starts)' },
+    { dt: 195, v: 23000, d: 1.3, alt: 221000, rdot: 160, rollc: 0, src: 'illustrative (drag stays above Q7: no P66, as the Entry PAD said)' },
+    { dt: 240, v: 21300, d: 1.54, alt: 213000, rdot: -420, rollc: 30, src: 'Entry PAD: skip drag level max 1.54 g (time illustrative)' },
+    { dt: 300, v: 17400, d: 6.0, alt: 166000, rdot: -1100, rollc: 90, src: 'MR: second pulse 6.0 g (time illustrative)' },
+    { dt: 360, v: 10200, d: 4.6, alt: 126000, rdot: -1250, rollc: 110, src: 'illustrative' },
+    { dt: 430, v: 3600, d: 2.1, alt: 92000, rdot: -950, rollc: 70, src: 'illustrative' },
+    { dt: 470, v: 1000, d: 1.1, alt: 65000, rdot: -780, rollc: 60, src: 'AFJ: ≈ 1,000 ft/s at ≈ 65,000 ft when P67 stops steering (time illustrative)' },
+    { dt: 541.2, v: 330, d: 1.0, alt: 24000, rdot: -330, rollc: 60, src: 'MR: drogues 195:12:06.9 (altitude illustrative)' },
+    { dt: 616.3, v: 170, d: 1.0, alt: 10500, rdot: -170, rollc: 60, src: 'AFJ: main chutes reported 195:13:22 (altitude illustrative)' },
+    { dt: 929.3, v: 0, d: 1.0, alt: 0, rdot: 0, rollc: 60, src: 'MR: landing 195:18:35' },
+  ],
+  dt05g: 28,                       // s after EI (Entry PAD RET 0.05G)
+  dtUpControl: 150,                // s after EI: HUNTEST finds the up-control solution (illustrative)
+  dtDrogue: 541.2,                 // s after EI (195:12:06.9)
+  rtgo05g: 1403.3,                 // n mi, Entry PAD EMS range to go (update 194:16:57)
+  rtgoAtDrogue: 1.7,               // n mi (onboard: 1.69 mi from target)
+  eiLatLon: [-3.19, 171.96],       // deg (MR Table 7-VII)
+  landingLatLon: [13.30, -169.15], // deg, onboard guidance (MR Table 7-VII)
+  massEntry: 12095.5 * LB,
+  massDrogue: 11603.7 * LB,
+  massMain: 11318.9 * LB,
+  massLanding: 10873.0 * LB,
+  drogueGET: parseGET('195:12:06.9'),
+  mainGET: parseGET('195:13:22'),
+  landingGET: parseGET('195:18:35'),
+});
+
+// Interpolated entry state at GET t (piecewise linear between keyframes —
+// a display-level approximation, not a trajectory).
+export function entryState(t) {
+  const k = ENTRY.keyframes;
+  const dt = t - ENTRY.eiGET;
+  let i = 0;
+  while (i < k.length - 2 && dt > k[i + 1].dt) i += 1;
+  const a = k[i];
+  const b = k[i + 1];
+  const f = Math.max(0, Math.min(1, (dt - a.dt) / (b.dt - a.dt)));
+  const lerp = (x, y) => x + (y - x) * f;
+  const v = lerp(a.v, b.v);
+  const d = lerp(a.d, b.d);
+  const alt = lerp(a.alt, b.alt);
+  const rdot = lerp(a.rdot, b.rdot);
+  const rollc = lerp(a.rollc, b.rollc);
+  // Range to go: the Entry PAD's EMS range at 0.05 g (1,403.3 n mi), then
+  // reduced in proportion to the distance flown so that the onboard solution
+  // is 1.7 n mi from the target at drogue deployment. Frozen after drogues.
+  const d05 = entryDistance(ENTRY.dt05g);
+  const dDrogue = entryDistance(ENTRY.dtDrogue);
+  const flown = Math.min(entryDistance(dt), dDrogue);
+  const scaleK = (ENTRY.rtgo05g - ENTRY.rtgoAtDrogue) / (dDrogue - d05);
+  const rtgo = ENTRY.rtgo05g - (flown - d05) * scaleK;
+  const frac = Math.max(0, Math.min(1, flown / dDrogue));
+  const [la0, lo0] = ENTRY.eiLatLon;
+  const [la1, lo1] = ENTRY.landingLatLon;
+  const lon1 = lo1 < lo0 ? lo1 + 360 : lo1;
+  let lon = lo0 + (lon1 - lo0) * frac;
+  if (lon > 180) lon -= 360;
+  return {
+    dtEI: dt,
+    v,                 // ft/s, inertial velocity
+    g: d,              // drag deceleration in g
+    alt,               // ft
+    rdot,              // ft/s
+    rollc,             // deg, commanded bank (0 = lift up), illustrative
+    rtgo,              // n mi to the target
+    lat: la0 + (la1 - la0) * frac,
+    lon,
+    src: f < 0.5 ? a.src : b.src,
+    drogue: t >= ENTRY.drogueGET,
+    mains: t >= ENTRY.mainGET,
+    landed: t >= ENTRY.landingGET,
+  };
+}
+
+// ∫ v dt from EI (n mi), trapezoids over the keyframes (horizontal speed ≈ v).
+function entryDistance(dt) {
+  const k = ENTRY.keyframes;
+  let s = 0;
+  for (let i = 0; i < k.length - 1; i++) {
+    const a = k[i];
+    const b = k[i + 1];
+    if (b.dt <= 0) continue;
+    const lo = Math.max(0, a.dt);
+    const hi = Math.min(dt, b.dt);
+    if (hi <= lo) continue;
+    const va = a.v + (b.v - a.v) * ((lo - a.dt) / (b.dt - a.dt));
+    const vb = a.v + (b.v - a.v) * ((hi - a.dt) / (b.dt - a.dt));
+    s += ((va + vb) / 2) * (hi - lo);
+  }
+  return s / 6076.12;
+}
 
 const SLEW_RATE = 2 * Math.PI / 180;  // rad/s, coast attitude slews (simplified DAP)
 const TVC_RATE = 1 * Math.PI / 180;   // rad/s, while the SPS is thrusting
@@ -171,8 +303,12 @@ export class CmSpsVehicle {
     this.t = Number.isFinite(o.startGET) ? o.startGET : parseGET(o.startGET ?? 0);
     this.rng = o.rng || null;
     this.isLoi1 = o.initial === 'loi1' || o.initial === undefined;
+    this.isEntry = o.initial === 'entry';
 
-    if (this.isLoi1) {
+    if (this.isEntry) {
+      this.r = [MOON_RADIUS, 0, 0];   // unused in entry mode
+      this.v = [0, 0, 0];
+    } else if (this.isLoi1) {
       const s = hyperbolaState(
         MOON_RADIUS + LOI1.pericynthionAlt, LOI1.pericynthionSpeed,
         this.t - LOI1.pericynthionGET,
@@ -183,11 +319,11 @@ export class CmSpsVehicle {
       this.r = o.initial.r.slice();
       this.v = o.initial.v.slice();
     } else {
-      throw new Error('CmSpsVehicle: initial must be "loi1" or { r, v }');
+      throw new Error('CmSpsVehicle: initial must be "loi1", "entry" or { r, v }');
     }
 
-    this.mass = o.mass ?? LOI1.ignitionMass;
-    this.propellant = o.propellant ?? LOI1.spsAtLoi;
+    this.mass = o.mass ?? (this.isEntry ? ENTRY.massEntry : LOI1.ignitionMass);
+    this.propellant = o.propellant ?? (this.isEntry ? 0 : LOI1.spsAtLoi);
     this.spsLoaded = o.spsLoaded ?? LOI1.spsLoaded;
     this.thrustNominal = o.thrust ?? LOI1_SPS.thrust;
     this.mdotNominal = o.mdot ?? LOI1_SPS.mdot;
@@ -221,6 +357,11 @@ export class CmSpsVehicle {
 
   step(dt, commands = {}, t) {
     if (!(dt > 0)) return;
+    if (this.isEntry) {
+      this.t = Number.isFinite(t) ? t : this.t + dt;
+      this.updateState();
+      return;
+    }
     const cmd = commands || {};
 
     // Attitude: slew toward the commanded thrust direction (if any).
@@ -284,6 +425,44 @@ export class CmSpsVehicle {
     this.updateState();
   }
 
+  // §8 state for the scripted entry (feet → SI).
+  entryVehicleState() {
+    const e = entryState(this.t);
+    const mass = this.t < ENTRY.drogueGET ? ENTRY.massEntry
+      : this.t < ENTRY.mainGET ? ENTRY.massDrogue
+        : this.t < ENTRY.landingGET ? ENTRY.massMain : ENTRY.massLanding;
+    const v = e.v * FT;
+    const rdot = e.rdot * FT;
+    return {
+      t: this.t,
+      alt: e.alt * FT,
+      altRate: rdot,
+      vHoriz: Math.sqrt(Math.max(0, v * v - rdot * rdot)),
+      vCross: 0,
+      range: e.rtgo * NMI,
+      downrange: (ENTRY.rtgo05g - e.rtgo) * NMI,
+      mass,
+      thrust: 0,
+      throttle: 0,
+      fuelFrac: 0,
+      pitch: 0,
+      yaw: 0,
+      engineOn: false,
+      ullage: false,
+      landed: e.landed,
+      contact: e.landed,
+      lr: { altValid: false, velValid: false, alt: 0, altRate: 0, vHoriz: 0 },
+      speed: v,
+      dvSensed: 0,
+      burnTime: 0,
+      propellant: 0,
+      orbit: null,
+      gimbal: { pitch: 0, yaw: 0 },
+      // Entry quantities the CM programs read (display units, scripted).
+      entry: e,
+    };
+  }
+
   gimbalTrim() {
     if (!this.isLoi1) return { pitch: 0, yaw: 0 };
     // Cosmetic: interpolate the Mission Report's LOI gimbal positions over
@@ -298,6 +477,10 @@ export class CmSpsVehicle {
   }
 
   updateState() {
+    if (this.isEntry) {
+      this.state = this.entryVehicleState();
+      return;
+    }
     const rm = norm(this.r);
     const up = scale(this.r, 1 / rm);
     const altRate = dot(this.v, up);

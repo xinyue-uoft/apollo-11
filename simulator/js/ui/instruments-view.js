@@ -37,12 +37,13 @@ export const LOW_LEVEL_GET_A11 = parseGET('102:44:28');
 // Throttle marks as fractions of the 10,500 lbf design thrust:
 // minimum ≈10 % (THROTTLE_CONTROL_ROUTINES.agc:63-65 "THROTTLING IN THE REGION
 // 10% - 94% ... THE MANUAL THROTTLE ... PROVIDES THE LOWER BOUND"; MR §9.8.1
-// measured 13 %); FTP 92.5 % (AER-DPS p.7; the LGC models 93.0 %, FMAXPOS
-// in CONTROLLED_CONSTANTS.agc); throttle recovery/advance thresholds
+// measured 13 %); FTP 93.0 % — the thrust the flown LGC models (FMAXPOS
+// 43,454.68 N, CONTROLLED_CONSTANTS.agc; design FTP 92.5 %, AER-DPS p.7) and
+// the value the physics model uses; throttle recovery/advance thresholds
 // LOWCRIT 57 % / HIGHCRIT 63 % (Apollo 11 pad load) — all via
 // research/web-trajectory-b.md §1.2.
 export const THROTTLE_MIN = 0.10;
-export const THROTTLE_FTP = 0.925;
+export const THROTTLE_FTP = 0.93;
 export const THROTTLE_LOWCRIT = 0.57;
 export const THROTTLE_HIGHCRIT = 0.63;
 
@@ -235,7 +236,7 @@ export function mountInstruments(root, ctx) {
             <span class="ibar-fill" data-role="thrFill"></span>
             <span class="ibar-cmd" data-role="thrCmd" title="Commanded by the AGC"></span>
             <span class="ibar-mark" style="left:${THROTTLE_MIN * 100}%" title="Minimum throttle ≈10 % (MR measured 13 %)"></span>
-            <span class="ibar-mark" style="left:${THROTTLE_FTP * 100}%" title="Fixed throttle position ≈92.5 %"></span>
+            <span class="ibar-mark" style="left:${THROTTLE_FTP * 100}%" title="Fixed throttle position ≈93 %"></span>
           </div>
           <div class="ibar-scale" aria-hidden="true"><span style="left:${THROTTLE_MIN * 100}%">MIN</span><span style="left:${(THROTTLE_LOWCRIT + THROTTLE_HIGHCRIT) * 50}%">57–63</span><span style="left:${THROTTLE_FTP * 100}%">FTP</span></div>
         </div>
@@ -346,7 +347,7 @@ export function mountInstruments(root, ctx) {
   let run = freshRun();
   function freshRun() {
     return {
-      lowLevelT: null, prevFuel: null, ignitionT: null, cutoffT: undefined,
+      lowLevelT: null, prevFuel: null, prevLow: null, ignitionT: null, cutoffT: undefined,
       vgAtIgn: null, vgPre: null, prevEngine: false, lastT: null,
     };
   }
@@ -426,7 +427,11 @@ export function mountInstruments(root, ctx) {
 
     // Throttle.
     const act = Number.isFinite(v.throttle) ? Math.max(0, Math.min(1, v.throttle)) : null;
-    const cmd = Number.isFinite(agc.guidance?.throttleCmd) ? Math.max(0, Math.min(1, agc.guidance.throttleCmd)) : null;
+    // Commanded: the AGC's guidance throttle command; else what the vehicle
+    // model was last commanded (LmPhysics / ReplayVehicle `throttleCmd`).
+    const cmdRaw = Number.isFinite(agc.guidance?.throttleCmd) ? agc.guidance.throttleCmd
+      : v.engineOn && Number.isFinite(v.throttleCmd) ? v.throttleCmd : null;
+    const cmd = cmdRaw === null ? null : Math.max(0, Math.min(1, cmdRaw));
     set('thrAct', `act ${act === null ? '—' : pct(v.engineOn ? act : 0)}`);
     set('thrCmd', `cmd ${cmd === null ? '—' : pct(cmd)}`);
     setStyle(el.thrFill, 'thrFill', 'width', `${((v.engineOn ? act : 0) || 0) * 100}%`);
@@ -442,7 +447,9 @@ export function mountInstruments(root, ctx) {
     setStyle(el.resFill, 'resFill', 'width', `${Math.min(1, (fuel ?? 0) / 0.1) * 100}%`);
     // Low-level light time: historical in replays, detected in physics runs.
     if (vehicleKind() === 'replay') run.lowLevelT = snap.t >= LOW_LEVEL_GET_A11 ? LOW_LEVEL_GET_A11 : null;
-    else if (run.lowLevelT === null && fuel !== null && fuel <= LOW_LEVEL_FRAC && run.prevFuel !== null && run.prevFuel > LOW_LEVEL_FRAC) run.lowLevelT = snap.t;
+    else if (run.lowLevelT === null && (v.lowLevel === true ? run.prevLow === false
+      : fuel !== null && fuel <= LOW_LEVEL_FRAC && run.prevFuel !== null && run.prevFuel > LOW_LEVEL_FRAC)) run.lowLevelT = snap.t;
+    run.prevLow = v.lowLevel === true;
     run.prevFuel = fuel;
     const bingo = v.landed ? null : bingoRemaining(run.lowLevelT, snap.t);
     const bingoText = bingo === null ? (run.lowLevelT !== null ? 'low-level light on' : '')

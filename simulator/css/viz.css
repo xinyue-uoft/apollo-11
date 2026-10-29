@@ -698,7 +698,16 @@
   }
 
   .ign-li-btn {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+  }
+
+  .ign-clock {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .ign-tick.is-odd span {
+    display: none;
   }
 
   .ign-li-src {

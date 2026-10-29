@@ -53,7 +53,7 @@ export const ULLAGE_IMPULSE_2JET = 7.96 * 199.6 * Math.cos(10 * Math.PI / 180) *
 export const CM_PIPA_PULSE = 0.0585; // m/s
 
 // SERVICER (Average-G) period: READACCS recycles every 2 s.
-// Comanche055/SERVICER207.agc:47-49,82-84
+// Comanche055/SERVICER207.agc:48-50,87
 export const SERVICER_PERIOD = 2;
 
 // ---------- vectors ----------

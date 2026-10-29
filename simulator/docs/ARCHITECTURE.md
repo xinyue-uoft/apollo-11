@@ -351,6 +351,30 @@ vehicle.step(dt, commands)   // commands from AGC/crew: { throttle, thrustDir, e
 vehicle.reset()
 ```
 
+State semantics (as implemented in `js/vehicle/`):
+
+- `alt` is footpad height above the local surface; the contact light comes on
+  at 5.6 ft (probe length). In the replay, 102:45:39.9 is probe contact;
+  `landed` follows after engine cutoff at 102:45:41.4.
+- `range` is to the computer's aim point (Eagle ends ~1,100 ft beyond it:
+  negative); the planned map site is in `SITES` of the track module.
+- `downrange` is ground distance since the provider started.
+- `throttle` is a fraction of the 10,500 lbf rated thrust.
+- `pitch` = thrust-axis angle from local vertical, positive when braking;
+  `yaw` = 0 face-down, 180 face-up.
+- Extra fields: `vInertial`, `throttleCmd`, `propellant` (kg), `lowLevel`,
+  `depleted`, `touchdown`, `phi`.
+- Replay altitude is terrain-relative (what the DSKY showed once LR data were
+  incorporated); the pre-LR altitude error lives in the AGC's `nav`.
+
+Commands (`vehicle.step(dt, commands, t)`; the GET `t` wins over accumulated dt):
+
+- `thrustDir` — unit vector in the landing-site guidance frame (x up, y
+  cross-range, z downrange), as `thrustCommand` returns it; `null` holds attitude.
+- `pitch`, `yaw` (deg) — used when `thrustDir` is absent (P66 attitude stand-in).
+- `lpd = { downrange, crossrange }` (m) — cumulative landing-site shift.
+- `throttle` (fraction of rated), `engineOn`, `ullage`; `rod` is ignored by vehicles.
+
 - `ReplayVehicle` (`replay.js`) interpolates a historical track
   (`data/apollo11-descent.js`: GET-stamped keyframes in historical units,
   with source citations) and ignores commands.

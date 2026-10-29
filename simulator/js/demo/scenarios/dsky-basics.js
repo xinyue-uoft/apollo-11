@@ -40,7 +40,7 @@ export default defineScenario({
     { at: '102:00:22', narrate: {
       title: 'Verb 35: test lights',
       body: '<p>Each key press raises an interrupt, <code>KEYRUPT1</code>, which asks the Executive for a small job, <code>CHARIN</code> (priority 30 octal), to decode the key. That is <b>PINBALL GAME BUTTONS AND LIGHTS</b>, the keyboard and display program.</p><p>Verb 35 runs <code>VBTSTLTS</code>: every lamp on, every digit an 8, the verb and noun flashing — for exactly 5 seconds (<code>SHOLTS</code> = 500 centiseconds). Watch the whole DSKY.</p>',
-      anchors: ['scn.pinball.keyrupt', 'scn.pinball.charin', 'scn.pinball.lamptest'],
+      anchors: ['exec.job.charin', 'scn.pinball.charin', 'scn.pinball.lamptest'],
     } },
     keysEndingAt('102:00:28', 'V35E', 'Crew'),
     { at: '102:00:28.5', spotlight: 'dsky' },
@@ -49,7 +49,7 @@ export default defineScenario({
     { at: '102:00:36', narrate: {
       title: 'Verb 16 Noun 36: the computer’s clock',
       body: '<p>Verb 16 is a <b>monitor</b>: the display refreshes itself once a second. In the code, <code>MONITOR</code> starts a waitlist task, <code>MONREQ</code>, that re-arms itself every second (<code>MONDEL OCT 144</code> = 100 centiseconds) and each time asks the Executive for a job, <code>MONDO</code>, to redraw the numbers.</p><p>Noun 36 is the AGC clock: hours in R1, minutes in R2, seconds in R3. Watch R3 tick. Remember that monitor job — it reappears in the 1202 story.</p>',
-      anchors: ['scn.pinball.monitor'],
+      anchors: ['exec.job.mondo'],
     } },
     keysEndingAt('102:00:44', 'V16N36E', 'Crew'),
     { at: '102:00:45', spotlight: 'dsky.r3' },
@@ -58,7 +58,7 @@ export default defineScenario({
     { at: '102:00:52', narrate: {
       title: 'Noun 65 and KEY REL',
       body: '<p>Noun 65 is <i>sampled</i> time: the keyboard interrupt snatches the clock at the moment you press a key (“TIME IS SNATCHED IN RUPT FOR NOUN 65”).</p><p><kbd>KEY REL</kbd> (key release) hands the DSKY back to the computer. When a program wants to show something while the crew is using the keyboard, the KEY REL lamp flashes; pressing the key brings the program’s display back. You will see Aldrin do this after reading an alarm.</p>',
-      anchors: ['scn.pinball.keyrupt', 'scn.pinball.keyrel'],
+      anchors: ['exec.job.charin', 'scn.pinball.keyrel'],
     } },
     keysEndingAt('102:00:58', 'V16N65E', 'Crew'),
     keysEndingAt('102:01:06', 'K', 'Crew'),
@@ -68,7 +68,7 @@ export default defineScenario({
     { at: '102:01:12', narrate: {
       title: 'Verb 05 Noun 09: the alarm codes',
       body: '<p>Verb 05 displays three components in <b>octal</b>; noun 09 is <code>FAILREG</code>, the three alarm-code registers. R1 holds the first alarm since they were last cleared, R2 the second, R3 the most recent. No sign in front of the digits means octal.</p><p>Right now all three read 00000. During the landing Aldrin keyed exactly this, and R1 read <b>01202</b>.</p>',
-      anchors: ['scn.exec.vacareas', 'scn.alarm.failreg'],
+      anchors: ['alarm.noun09', 'alarm.erasable.failreg', 'alarm.failreg'],
     } },
     keysEndingAt('102:01:18', 'V05N09E', 'Crew'),
     { at: '102:01:19', spotlight: 'dsky.r1' },
@@ -85,7 +85,7 @@ export default defineScenario({
     { at: '102:01:38', narrate: {
       title: 'RSET',
       body: '<p><kbd>RSET</kbd> runs PINBALL’s <code>ERROR</code> routine: it turns off OPR ERR and the PROG alarm lamp, clears the three alarm registers and redraws every digit. After an alarm the crew read the code with V05N09 and then cleared it with RSET.</p>',
-      anchors: ['scn.pinball.rset'],
+      anchors: ['alarm.rset'],
     } },
     keysEndingAt('102:01:44', 'R', 'Crew'),
     { at: '102:01:43.5', spotlight: 'dsky.key.rset' },
@@ -101,7 +101,7 @@ export default defineScenario({
     { at: '102:02:04', narrate: {
       title: 'A flashing display asks a question',
       body: '<p>When the verb and noun <b>flash</b>, the computer is asking the crew something and waiting. P63 first shows a flashing <b>Verb 06 Noun 61</b> — time to go in the braking phase, time from ignition, cross-range — “primarily used by the crew in P63 to reset his event timer to agree with TIG”.</p><p>The answers are always the same three: <kbd>PRO</kbd> (proceed: yes), <kbd>ENTR</kbd> (recycle), or Verb 34 (terminate).</p>',
-      anchors: ['scn.burn.v06n61', 'scn.p63.entry'],
+      anchors: ['scn.burn.v06n61', 'p63.entry'],
     } },
     { at: '102:02:06', spotlight: 'dsky.verb' },
     { at: '102:02:12', hold: 3 },

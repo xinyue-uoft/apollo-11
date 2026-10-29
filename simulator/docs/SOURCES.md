@@ -22,6 +22,7 @@ repository.
 | **ONB** | *Apollo 11 Onboard Voice Transcription* (LM DSE tape), Day 5 pp. 171–179. <https://www.apollojournals.org/afj/ap11fj/pdf/a11-transcript-onboard.pdf> |
 | **AFJ** | *Apollo 11 Flight Journal* (D. Woods et al.), "Undocking and the Descent Orbit". <https://www.apollojournals.org/afj/ap11fj/17day5-undock-doi.html> |
 | **DBRF** | *Apollo 11 Technical Crew Debriefing*, 31 July 1969, Vol. I §9. <https://www.apollojournals.org/alsj/a11/A11TechCrewDebrfV1_ALSJ.pdf> |
+| **AFJ-LOI** | *Apollo 11 Flight Journal*, "Approach" (LOI-1 PAD, 072:51:24) and "Lunar Orbit Insertion" (Columbia's onboard tape during LOI-1). <https://apollojournals.org/afj/ap11fj/11day4-approach.html>, <https://apollojournals.org/afj/ap11fj/12day4-loi1.html> |
 | **AIRT** | *Apollo 11 In Real Time* (air-to-ground and onboard transcript data). <https://apolloinrealtime.org/11/> |
 
 ### Engineering documents
@@ -321,6 +322,41 @@ these files; the exact ranges are the anchors in
 Compact versions of 3.2–3.6; same sources, same crew schedule. Garman's "As
 long as it doesn't reoccur, it's fine" is from his 2001 oral history (a
 recollection, labelled as such on screen).
+
+### 3.8 Columbia's SPS burn: Lunar Orbit Insertion (`cm-loi`)
+
+- Runs on the Command Module programs (`js/agc/programs/cm/p40.js`) and SPS
+  vehicle; `setup` loads the LOI-1 PAD and starts P40 at its countdown, like
+  the "LOI-1 burn" interactive preset.
+- PAD (AFJ "Approach", read up by McCandless at 072:51:24, read back at
+  072:53:54): TIG 075:49:49.65, ΔVT 2917.3 ft/s, burn time 6:02, "No
+  ullage". LOS 075:41:23 — the burn was behind the Moon, "out of
+  communications" (AFJ "Lunar Orbit Insertion").
+- Actual (MR Table 8.6-II, Table 7-V, via research src-comanche §3): ignition
+  075:49:50.37, cutoff 075:55:47.90, 357.53 s ("the longest engine firing
+  was for 357.5 seconds"), 2,917.5 ft/s, orbit 169.7 × 60.0 nmi. The model
+  ignites at the PAD TIG once PRO has been given (the code's rule,
+  `Comanche055/P40-P47.agc:503-516`); the 0.7 s to the Mission Report's
+  ignition time is not explained by our sources.
+- Code: `TIGBLNK` (`P40-P47.agc:350-366`), `TIGAVEG` "UNBLANK DISPLAY"
+  (`:456-474`), `TIG-5` "WILL CAUSE V99 FLASH" (`:480-497`), `TIG-0` "CHECK
+  ASTN FLAG FOR V99 RESPONSE" and `SPSON` "TURN ON SPS ENGINE" (`:503-528`),
+  "0.4 SECOND DELAY FOR THRUST BUILDUP" (`:546-583`), `S40.8` and `TIG :=
+  PIPTIME + TGO` (`:1646-1738`), `S40.81` / `FOURSEC` (`:1719-1770`),
+  `SPSOFF`, "2.5 SECOND DELAY FOR SPS TAILOFF", `POSTBURN` V16N40, `TIGNOW`
+  V16N85 (`:176-200, 647-695`), `FENG` 20,500 lbf (`:320`; the "20,000 LBS"
+  comment at `:57` is stale), `3MDOT` comment 63.8 lb/s (`:344`), seven core
+  sets (`Comanche055/EXECUTIVE.agc:161`, `NO.CORES DEC 6`). Anchors are the
+  `cm.*` ones in `js/data/anchors/cm.js`.
+- Voice: the CM onboard tape as printed in AFJ "Lunar Orbit Insertion"
+  (`12day4-loi1.html`), checked against the page text. "Proceed" at
+  075:49:46 is attributed there to "Armstrong/Collins", so the demo has
+  Collins key it (he had said "I'll proceed on the 99" at 075:48:37). The PRO
+  on the flashing V16N40 after the burn is inferred from Aldrin's "Look at the
+  residuals. Proceed." (075:56:17); who pressed it is not recorded.
+- Residuals "minus 1, minus 1, plus 1" = −0.1, −0.1, +0.1 ft/s (research
+  src-comanche §3); not trimmed ("we're not going to trim them").
+- LOI-2 080:11:36.75, 16.88 s; TEI 135:23:42.28, 151.41 s (MR Table 8.6-II).
 
 ## 4. What is modelled, and what is simplified
 

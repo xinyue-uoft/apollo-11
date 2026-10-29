@@ -28,7 +28,7 @@ export default defineScenario({
     { at: '102:32:00.5', narrate: {
       title: 'Powered descent, in one go',
       body: '<p>Eagle, 50,000 feet above the Moon, 65 seconds before ignition. The computer runs <b>P63</b>; its master ignition routine, BURNBABY, counts down on Verb 06 Noun 62. Computer events here happen at the telemetry times of the Mission Report, voices at their transcript times — a few seconds later. The replay runs at 4×; it slows down for the moments that matter.</p>',
-      anchors: ['scn.burn.p63table'],
+      anchors: ['burn.p63table'],
       focus: 'ignition',
     } },
     { at: '102:32:02', hold: 3 },
@@ -37,7 +37,7 @@ export default defineScenario({
     { at: '102:32:28.5', narrate: {
       title: 'Blank, ullage, Verb 99',
       body: '<p>At TIG−35 the DSKY goes blank for 5 seconds: Average-G navigation is starting. At TIG−7.5 the RCS thrusters fire to settle the propellant. At TIG−5 <b>Verb 99</b> flashes — “please enable engine” — and waits for the crew’s PRO. Watch the DSKY, and the sequence on the Ignition tab.</p>',
-      anchors: ['scn.burn.tig35', 'scn.burn.tig5', 'scn.burn.v99'],
+      anchors: ['burn.tig35', 'burn.tig5', 'burn.v99'],
     } },
     { at: '102:32:31', spotlight: 'dsky' },
     { at: '102:32:40', speed: 2 },
@@ -49,7 +49,7 @@ export default defineScenario({
     { at: '102:33:05.2', narrate: {
       title: 'Ignition, 102:33:05',
       body: '<p>Aldrin pressed PRO; at the planned time the computer sets ENGINE ON. Ten percent thrust for 26 seconds while the engine trims, then <code>P63ZOOM</code> connects guidance and runs the throttle to its stop. The DSKY switches to Verb 06 Noun 63 — speed, altitude rate, altitude — the display of the braking phase.</p>',
-      anchors: ['scn.burn.ignition', 'scn.burn.zoom'],
+      anchors: ['burn.ignition', 'burn.zoom'],
     } },
     say('ignition'),
     say('throttle-up'),
@@ -60,7 +60,7 @@ export default defineScenario({
     { at: '102:33:40.5', narrate: {
       title: 'Braking phase',
       body: '<p>Every 2 seconds <b>SERVICER</b> reads the accelerometers, updates position and velocity (Average-G), runs the quadratic guidance — solving for time-to-go, then the acceleration to command — sets the throttle and attitude, and refreshes V06N63: speed, altitude rate, altitude. P63 will take Eagle from 5,560 ft/s to about 500 ft/s at high gate.</p>',
-      anchors: ['scn.servicer.readaccs', 'scn.guid.ttf8', 'scn.guid.dispexit'],
+      anchors: ['servicer.readaccs', 'guid.ttf8cl', 'guid.dispexit'],
       focus: 'trajectory',
     } },
     say('little-long'),
@@ -77,7 +77,7 @@ export default defineScenario({
     { at: '102:37:51.2', narrate: {
       title: 'Lock-on, and a monitor',
       body: '<p>The landing radar locks on: ΔH, radar minus computed altitude, is about −2,900 feet. Aldrin keys <b>V16N68</b> to watch it. But the rendezvous radar’s switch is out of LGC, and its angle counters have been stealing about 13 % of the computer’s memory cycles. The once-a-second monitor job is the last straw: watch SERVICER copies pile up on the Executive tab.</p>',
-      anchors: ['scn.pinball.monitor', 'scn.noun.n68'],
+      anchors: ['exec.job.mondo', 'scn.noun.n68'],
       focus: 'exec',
     } },
     { at: '102:37:53', spotlight: 'exec.load' },
@@ -86,7 +86,7 @@ export default defineScenario({
     { at: '102:38:22.4', narrate: {
       title: '1202',
       body: '<p>No core set left: <b>1202</b>, “Executive overflow — no core sets”. PROG lights, the software restarts in milliseconds, the restart-protected navigation and guidance resume, and the unprotected monitor is dropped. Aldrin reads the code with V05N09. Houston says go: “As long as it doesn’t reoccur, it’s fine,” Jack Garman later recalled telling guidance officer Steve Bales.</p>',
-      anchors: ['scn.exec.1202', 'scn.restart.goprog3'],
+      anchors: ['exec.nextcore', 'restart.goprog3'],
     } },
     { at: '102:38:22.6', spotlight: 'dsky.light.prog' },
     { at: '102:38:23', hold: 4 },
@@ -97,7 +97,7 @@ export default defineScenario({
     { at: '102:38:46', narrate: {
       title: 'Verb 57 — and again',
       body: '<p>Aldrin keys Verb 57: the computer may now use the radar, and ΔH melts away. He keys V16N68 again to watch — and at 102:39:02 the same alarm comes back. “It appears to come up when we have a 16/68 up.” After that, Houston watches ΔH for him.</p>',
-      anchors: ['scn.verb.v57'],
+      anchors: ['lr.v57'],
     } },
     say('same-alarm'),
     say('monitor-dh'),
@@ -105,7 +105,7 @@ export default defineScenario({
     { at: '102:39:31.2', narrate: {
       title: 'Throttle down',
       body: '<p>Guidance now wants less than the fixed maximum thrust, and the throttle comes back into its working range: 386 seconds after ignition, two seconds from the prediction. The pad-loaded threshold is about 5,985 lb (57 %); from now on the throttle moves on every 2-second pass.</p>',
-      anchors: ['scn.throttle.region'],
+      anchors: ['throttle.regions'],
     } },
     { at: '102:39:31', focus: 'trajectory' },
     say('throttle-down-on-time'),
@@ -116,7 +116,7 @@ export default defineScenario({
     { at: '102:41:32.3', narrate: {
       title: 'High gate: P64',
       body: '<p>7,129 feet, 125 ft/s down: <b>P64</b>. The LM pitches up so Armstrong can see where the computer is taking them; R1 of the flashing V06N64 gives the landing point designator angle to look along. The margin is now under 10 % even without a monitor — the next alarms will come with no extra load from the crew.</p>',
-      anchors: ['scn.guid.startp64', 'scn.guid.p64disps'],
+      anchors: ['p64.entry', 'p64.disps'],
     } },
     say('p64'),
     { at: '102:41:40', speed: 2 },
@@ -125,7 +125,7 @@ export default defineScenario({
     { at: '102:42:18.4', narrate: {
       title: '1201, 1202, 1202',
       body: '<p><b>1201</b> (no VAC areas) at 102:42:18, then <b>1202</b> at 102:42:43 and 102:42:58. Each restart flushes the queue but cannot shed the load. “Same type. We’re Go.” Aldrin calls the LPD angle — 47 degrees — and Armstrong sees a crater ringed with boulders.</p>',
-      anchors: ['scn.exec.1201', 'scn.exec.1202'],
+      anchors: ['exec.findvac.1201', 'exec.nextcore'],
     } },
     { at: '102:42:18.6', spotlight: 'dsky.light.prog' },
     say('program-alarm-1201'),
@@ -139,7 +139,7 @@ export default defineScenario({
     { at: '102:43:13.3', narrate: {
       title: 'Attitude hold, then P66',
       body: '<p>Armstrong takes the attitude himself (ATT HOLD, 102:43:13) and flies over the boulder field; ten seconds later a click of the rate-of-descent switch starts <b>P66</b>. The computer holds the descent rate he selects, 1 ft/s per click, and shows V06N60: forward speed, altitude rate, altitude. No more alarms.</p>',
-      anchors: ['scn.guid.guilden', 'scn.guid.p66'],
+      anchors: ['guid.guildenstern', 'p66.rodtask'],
     } },
     { at: '102:43:14', spotlight: 'crew.rod' },
     say('400-feet'),

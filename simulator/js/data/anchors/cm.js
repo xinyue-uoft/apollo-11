@@ -7,6 +7,8 @@ const P40 = 'Comanche055/P40-P47.agc';
 const SERV = 'Comanche055/SERVICER207.agc';
 const INFO = 'Comanche055/ASSEMBLY_AND_OPERATION_INFORMATION.agc';
 const FRESH = 'Comanche055/FRESH_START_AND_RESTART.agc';
+const P6X = 'Comanche055/P61-P67.agc';
+const RC = 'Comanche055/REENTRY_CONTROL.agc';
 
 export const ANCHORS = {
   // ---------------- P40: set-up ----------------
@@ -229,6 +231,87 @@ export const ANCHORS = {
     file: 'Comanche055/EXECUTIVE.agc', label: 'NOVAC2', start: 154, end: 162,
     title: 'Comanche: NO.CORES DEC 6 — seven core sets',
   },
+  // ---------------- entry: P61–P67 ----------------
+  'cm.p61': {
+    file: P6X, start: 36, end: 92,
+    title: 'P61: calculate and display EMS initialization data (flashing V06N61)',
+  },
+  'cm.p61.n60': {
+    file: P6X, label: 'P61.1', start: 122, end: 150,
+    title: 'P61: flashing V06N60 (GMAX, VPRED, GAMMAEI) and V06N63 (RTGO, VIO, TTE)',
+  },
+  'cm.p62': {
+    file: P6X, start: 155, end: 213,
+    title: 'P62: CM/SM separation request (V50N25 00041), entry DAP on',
+  },
+  'cm.p62.n61': {
+    file: P6X, label: 'P62.1', start: 215, end: 275,
+    title: 'P62: V06N61, roll per HEADSUP, maneuver to entry attitude, WAKEP62 → P63',
+  },
+  'cm.p63': {
+    file: P6X, start: 284, end: 329,
+    title: 'P63: initialize entry, hold attitude, sense 0.05 g (V06N64)',
+  },
+  'cm.p64': {
+    file: P6X, start: 341, end: 372,
+    title: 'P64: entry guidance from 0.05 g; P65 or P67 next (V06N74)',
+  },
+  'cm.p65': {
+    file: P6X, start: 375, end: 420,
+    title: 'P65: up control — flashing V16N69 (roll, drag level, exit velocity)',
+  },
+  'cm.p66': {
+    file: P6X, start: 423, end: 443,
+    title: 'P66: ballistic phase — hold trim until drag builds up again',
+  },
+  'cm.p67': {
+    file: P6X, start: 445, end: 471,
+    title: 'P67: final phase until 1,000 ft/s (V06N66)',
+  },
+  'cm.p67.1': {
+    file: P6X, label: 'P67.1', start: 477, end: 497,
+    title: 'P67.1: flashing V16N67 — range to go, latitude, longitude; then GOTOPOOH',
+  },
+  'cm.entry.sequence': {
+    file: RC, start: 166, end: 199,
+    title: 'Entry phases: INITROLL → HUNTEST → UPCONTRL → KEP2 → PREDICT3 → P67.1',
+  },
+  'cm.entry.05g': {
+    file: RC, start: 300, end: 323,
+    title: 'TARGETNG: is drag above 0.05 g? (.05GSW)',
+  },
+  'cm.entry.initroll': {
+    file: RC, label: 'INITROLL', start: 395, end: 433,
+    title: 'INITROLL: P64; below 27,000 ft/s go straight to the final phase',
+  },
+  'cm.entry.huntest': {
+    file: RC, label: 'HUNTEST', start: 493, end: 539,
+    title: 'HUNTEST: look for an up-control solution',
+  },
+  'cm.entry.upcontrl': {
+    file: RC, label: 'UPCONTRL', start: 873, end: 899,
+    title: 'UPCONTRL: drag below Q7 → Kepler (P66); falling below VL + 500 ft/s → final phase (P67)',
+  },
+  'cm.entry.kep2': {
+    file: RC, label: 'KEP', start: 1089, end: 1128,
+    title: 'KEP / KEP2: ballistic phase until drag exceeds Q7F + KDMIN',
+  },
+  'cm.entry.predict3': {
+    file: RC, label: 'PREDICT3', start: 1130, end: 1139,
+    title: 'PREDICT3: final phase — stop steering below VQUIT (1,000 ft/s)',
+  },
+  'cm.entry.steeroff': {
+    file: RC, label: 'STEEROFF', start: 1328, end: 1349,
+    title: 'STEEROFF: start P67.1, the final display',
+  },
+  'cm.entry.overnout': {
+    file: RC, label: 'OVERNOUT', start: 1310, end: 1324,
+    title: 'OVERNOUT: "ALL ENTRY DISPLAYS ARE DONE HERE"',
+  },
+  'cm.entry.constants': {
+    file: RC, label: 'Q7FKDMIN', start: 1503, end: 1588,
+    title: 'Entry constants: Q7F, VQUIT, .05G, VFINAL1 …',
+  },
   // ---------------- operating information ----------------
   'cm.info.verbs': {
     file: INFO, start: 245, end: 247,
@@ -243,8 +326,8 @@ export const ANCHORS = {
     title: 'Noun 85: VG (body)',
   },
   'cm.info.checklist204': {
-    file: INFO, start: 976, end: 978,
-    title: 'Checklist code 00204: PERFORM SPS GIMBAL TRIM',
+    file: INFO, start: 974, end: 978,
+    title: 'Checklist codes 00041 SWITCH CM/SM SEPARATION TO UP … 00204 PERFORM SPS GIMBAL TRIM',
   },
   'cm.info.alarms': {
     file: INFO, start: 941, end: 952,
