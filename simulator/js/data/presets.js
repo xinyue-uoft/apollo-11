@@ -20,8 +20,8 @@ export const PRESETS_LM = [
     title: 'DSKY only (P00)',
     description: [
       'Eagle’s computer (Luminary 099) idling in P00 at 102:10:30 GET, coasting in the descent orbit — Aldrin selected P63 at about 102:10:32 on Apollo 11.',
-      'Try V35E (lamp test), V16N36E (the AGC clock, updated every second; KEY REL or V34E to stop), V05N09E (alarm codes), and an illegal entry such as V37E99E (OPR ERR, cleared with RSET).',
-      'V37E63E starts P63 the way the crew did: flashing V06N61 (PRO), V50N25 00014 (ENTR skips the fine alignment), V50N18 (PRO maneuvers, ENTR when done), then the V06N62 countdown to the 102:33:05 ignition — 22 minutes away, so use the 10× speed.',
+      'Try V35E (lamp test), V16N36E (the AGC clock, updated every second; V34E stops it — KEY REL does not end a monitor), V05N09E (alarm codes), and an illegal entry such as V37E99E (OPR ERR, cleared with RSET).',
+      'V37E63E starts P63 the way the crew did: flashing V06N61 after a few seconds (wait for the flash, then PRO), V50N25 00014 (ENTR skips the fine alignment), V50N18 (PRO maneuvers, ENTR when done), then the V06N62 countdown to the 102:33:05 ignition — 22 minutes away, so use the 10× speed.',
     ].join(' '),
     software: 'Luminary099',
     vehicle: 'physics',
@@ -34,8 +34,8 @@ export const PRESETS_LM = [
     title: 'Before PDI (P63, TIG−5 min)',
     description: [
       'P63 at 102:28:00 GET, five minutes before powered descent initiation, counting down on V06N62 (R2 = time to ignition). The physics LM flies whatever the computer commands — the real descent guidance law, on the computer’s own estimate.',
-      'At TIG−35 s the DSKY goes blank (Average-G is starting); at TIG−5 s V99N62 flashes — press PRO or the engine will not light. After 26 s at minimum thrust the guidance throttles up.',
-      'When the radar locks on (ALT lamp out, about 4¾ min after ignition) key V16N68E to watch ΔH in R3 and V57E to let the computer use the radar — without V57 it keeps believing it is ≈3,000 ft higher. At high gate press PRO on the flashing V06N64.',
+      'At TIG−35 s the DSKY’s verb, noun and registers go blank (Average-G is starting); at TIG−5 s V99N62 flashes — press PRO or the engine will not light. After 26 s at minimum thrust the guidance throttles up.',
+      'When the radar locks on (ALT lamp out, about 4¾ min after ignition) key V16N68E to watch ΔH in R3, then V57E to let the computer use the radar; V57E ends the monitor, so key V16N68E again to watch ΔH shrink toward 0. Without V57 the altitude error keeps growing (several thousand feet by high gate) and the guidance flies the LM into the ground. At high gate press PRO on the flashing V06N64.',
       'Turn on the RR switch fault (crew panel) to load the computer the way Apollo 11’s rendezvous radar did, and watch for 1202s on the Executive tab.',
     ].join(' '),
     software: 'Luminary099',
@@ -64,8 +64,8 @@ export const PRESETS_LM = [
     id: 'lm-lowgate',
     title: 'Low gate (P66)',
     description: [
-      'P66 at 102:43:22 GET, where Armstrong took over: about 430 ft, 11 ft/s down, 60 ft/s forward, PGNS mode in ATT HOLD. V06N60 shows forward velocity, altitude rate and altitude.',
-      'Each click of the ROD switch changes the commanded descent rate by 1 ft/s (up = slower); the computer throttles to hold it. Luminary 099 does not fly the attitude in P66 — here a stand-in for the commander’s hand controller nulls the forward speed.',
+      'P66 at 102:43:22 GET, where Armstrong took over: about 430 ft, 11 ft/s down, 60 ft/s forward, PGNS mode in ATT HOLD. V06N60 shows horizontal velocity, altitude rate and altitude.',
+      'Each click of the ROD switch changes the commanded descent rate by 1 ft/s (up = slower); the computer throttles to hold it. Left alone it holds the 11 ft/s it starts with and lands hard; about eight ROD ▲ clicks bring the descent to about 3 ft/s. Luminary 099 does not fly the attitude in P66 — here a stand-in for the commander’s hand controller nulls the forward speed.',
       'After the contact light, ENGINE STOP (a stand-in pushes it 1.5 s after touchdown if you do not). Then key V37E68E for P68: flashing V06N43 shows where the computer thinks you landed.',
     ].join(' '),
     software: 'Luminary099',

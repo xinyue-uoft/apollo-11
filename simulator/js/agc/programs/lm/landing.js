@@ -116,13 +116,14 @@ export class LunarLanding extends LmProgram {
     else this.restoreAt(this.t, mode);
   }
 
-  // The TIG this burn uses: given by the preset/scenario (agcOptions.tig or
-  // erasable TIG), else Apollo 11's when it is reachable, else 10 minutes
-  // from now (IGNALG's answer is not modelled for arbitrary states).
+  // The TIG this burn uses (GET): given by the preset/scenario
+  // (agcOptions.tig or erasable TIG, which is in the AGC clock's frame),
+  // else Apollo 11's when it is reachable, else 10 minutes from now
+  // (IGNALG's answer is not modelled for arbitrary states).
   chooseTig(now, { strict = false } = {}) {
     const opt = this.agc.options?.tig;
     if (opt !== undefined && opt !== null) return parseGET(opt);
-    const e = this.agc.erasable.TIG;
+    const e = this.agc.fromClock(this.agc.erasable.TIG);
     if (Number.isFinite(e) && (strict || e > now)) return e;
     if (strict) return TIG_APOLLO11;
     const lead = TIG_APOLLO11 - now;
@@ -158,7 +159,7 @@ export class LunarLanding extends LmProgram {
   // DDUMGOOD (TLL:187-201): TIG = TDEC1 − ZOOMTIME; OUTOFPLN for N61 R3.
   ignalgDone(t) {
     const tig = this.chooseTig(t);
-    this.agc.erasable.TIG = tig;
+    this.agc.erasable.TIG = this.agc.clock(tig);
     this.agc.erasable.TTFDISP = APOLLO11_LANDING.n61Ttf;
     this.agc.erasable.OUTOFPLN = 0;       // planar model: no cross-range
     this.nav.arm({ tig });
@@ -230,7 +231,7 @@ export class LunarLanding extends LmProgram {
   r60End() {
     this.cancel('R60MANU');
     this.stage = 'burnbaby';
-    this.burn.arm(this.agc.erasable.TIG);
+    this.burn.arm(this.agc.fromClock(this.agc.erasable.TIG));
   }
 
   terminate() {
@@ -252,7 +253,7 @@ export class LunarLanding extends LmProgram {
     const A = APOLLO11_LANDING;
     const tig = this.chooseTig(t, { strict: true });
     this.flagOrgy();
-    this.agc.erasable.TIG = tig;
+    this.agc.erasable.TIG = this.agc.clock(tig);
     this.agc.erasable.OUTOFPLN = 0;
     this.agc.erasable.DELTAH = 99999;
     // A start after the time Apollo 11 keyed V57 (TIG + 340 s) assumes the
@@ -393,10 +394,14 @@ export class LunarLanding extends LmProgram {
   step(t) {
     const s = this.agc.vehicle?.state || {};
     this.cmd.ullage = this.burn.flags.ULLAGE;
-    if (this.agc.crew.engineStop && !this.engineStopped) this.engineStopped = true;
+    if (s.landed && this.landedAt === null) this.landedAt = t;
+    // ENGINE STOP is a crew switch, not a latch: until touchdown the engine
+    // follows it, and released the DPS (restartable) lights again on the
+    // normal throttle path. After touchdown a stop stays.
+    if (this.landedAt === null) this.engineStopped = !!this.agc.crew.engineStop;
+    else if (this.agc.crew.engineStop) this.engineStopped = true;
     // Replay: high gate at its historical time (MR Table 5-I).
     if (this.kind === 'replay' && this.mode === 63 && this.connected && t >= this.historical('p64')) this.startP64(t);
-    if (s.landed && this.landedAt === null) this.landedAt = t;
     if (this.physics) {
       // Stand-ins for the commander (not AGC code; ARCHITECTURE §11.3 has no
       // hand controller): in P66 the attitude nulls the horizontal velocity

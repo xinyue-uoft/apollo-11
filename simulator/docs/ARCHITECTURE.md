@@ -268,6 +268,10 @@ agc.key(key, { source }) / agc.keys(script, { source, gapMs })   // forward to p
 agc.crewInput(name, value)       // crew-station controls (§11.3)
 agc.t                            // current GET (s) as of the last step
 agc.workload                     // Workload (§6.7)
+agc.clock(t) / agc.setClock(v) / agc.fromClock(x) / agc.clockOffset
+                                 // the AGC clock (TIME2/TIME1) = GET + clockOffset; a V25N36
+                                 // load changes the offset. Erasable TIG/TEVENT are in the clock's
+                                 // frame; tasks, the vehicle and the model's time axis stay on GET
 agc.freshStart()                 // V36: SLAP1 — clears alarms, lights, jobs, goes to P00
 agc.hardwareRestart(cause)       // GOJAM path (e.g. V69 TC trap): RESTART light + GOPROG
 agc.step(t, dt)                  // programs + pinball + executive + workload

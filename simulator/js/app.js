@@ -8,6 +8,8 @@ import { Director } from './demo/director.js';
 import { SCENARIOS } from './demo/scenarios/index.js';
 import { PRESETS } from './data/presets.js';
 import { TRACKS } from './data/tracks.js';
+import { TOUCHDOWN_LIMITS, LM } from './vehicle/constants.js';
+import { toFps } from './util/units.js';
 
 import { mountDsky } from './ui/dsky-view.js';
 import { mountInstruments } from './ui/instruments-view.js';
@@ -28,6 +30,36 @@ const SOFTWARE_LABELS = {
 
 const MAX_FRAME_DT = 0.1; // s of real time per frame (tab switches, hiccups)
 const INTERACTIVE_SPEEDS = [1, 2, 5, 10];
+const VIZ_PANELS = ['trajectory', 'exec', 'ignition'];
+const VIZ_ENGAGED_MS = 20000; // a scenario does not switch tabs this soon after the user worked there
+
+const MODE_TITLES = {
+  demo: 'Demo: guided replays of Apollo 11, with explanations and the real source code',
+  interactive: 'Interactive: key the DSKY and fly it yourself',
+};
+
+// ft/s with one decimal below 100, whole numbers with separators above.
+function fps(mps) {
+  const v = Math.abs(toFps(mps));
+  return v < 100 ? v.toFixed(1) : Math.round(v).toLocaleString('en-US');
+}
+
+// Toast text for a landing-outcome bus event (see App.watchVehicle).
+export function vehicleEventText(ev) {
+  if (ev.kind === 'lowLevel') {
+    return `Low-level light: the descent propellant is down to ${(LM.lowLevelFraction * 100).toFixed(1)} %.`;
+  }
+  if (ev.kind === 'depleted') return 'Descent propellant exhausted: the engine has stopped.';
+  const speeds = `${fps(ev.vVert)} ft/s down, ${fps(ev.vHoriz)} ft/s across`;
+  if (ev.verdict === 'crash') return `CRASH: the LM hit the surface at ${speeds}.`;
+  if (ev.verdict === 'hard') {
+    const L = TOUCHDOWN_LIMITS;
+    return `Hard landing: ${speeds}${Number.isFinite(ev.tilt) ? `, ${Math.round(ev.tilt)}° tilt` : ''}, `
+      + `beyond the landing gear's limits (${Math.round(toFps(L.maxVertical))} ft/s down, `
+      + `${Math.round(toFps(L.maxHorizontal))} ft/s across, ${L.maxTilt}°).`;
+  }
+  return `Touchdown: a safe landing at ${speeds}.`;
+}
 
 export class App {
   constructor(doc = document) {
@@ -38,6 +70,10 @@ export class App {
     this.preset = null;
     this.interactive = { sim: null, playing: true, speed: 1 };
     this.tab = 'trajectory';
+    this._vehicleSeen = null;    // landing-outcome edges: { sim, lowLevel, depleted, touchdown }
+    this._pausedKeysTold = false; // the "simulation paused" toast, once per pause
+    this._vizTouched = -Infinity; // performance.now() of the user's last input in the viz panel
+    this._movingFocus = false;
 
     this.director = new Director({
       bus: this.bus,
@@ -90,6 +126,8 @@ export class App {
     this.buildModeSwitch();
     this.bindTabs();
     this.bindBus();
+    this.bindSkipLink();
+    this.observeStickyBars();
 
     this.applyRoute(this.doc.defaultView.location.hash);
     this.doc.defaultView.addEventListener('hashchange', () => {
@@ -109,7 +147,13 @@ export class App {
 
   applyRoute(hash) {
     const [, mode, id] = /^#\/?(demo|interactive)(?:\/([\w-]+))?/.exec(hash || '') || [];
-    if (mode === 'interactive') this.startInteractive(id || PRESETS[0]?.id, { route: false });
+    // A hash that is not a route (an in-page link such as "#main"): keep
+    // what is running and put the route back.
+    if (hash && hash !== '#' && !mode && (this.scenario || this.preset)) {
+      this.setRoute();
+      return;
+    }
+    if (mode === 'interactive') this.startInteractive(id || PRESETS[0]?.id, { route: false, resume: true });
     else this.loadScenario(id || SCENARIOS[0]?.id, { route: false });
   }
 
@@ -122,16 +166,17 @@ export class App {
 
   setMode(mode) {
     if (mode === this.mode) return;
-    if (mode === 'interactive') this.startInteractive(this.preset?.id || PRESETS[0]?.id);
+    if (mode === 'interactive') this.startInteractive(this.preset?.id || PRESETS[0]?.id, { resume: true });
     else this.loadScenario(this.scenario?.id || SCENARIOS[0]?.id);
   }
 
+  // The interactive sim is kept (not stepped) while a replay plays, so that
+  // coming back to Interactive resumes the user's flight.
   loadScenario(id, { route = true } = {}) {
     const scenario = SCENARIOS.find((s) => s.id === id) || SCENARIOS[0];
     if (!scenario) return;
     this.mode = 'demo';
     this.scenario = scenario;
-    this.interactive.sim = null;
     this.bus.emit('app:mode', { mode: 'demo', scenario });
     this.director.load(scenario);
     this.updateSoftwareLabel(scenario.software);
@@ -139,13 +184,30 @@ export class App {
     if (route) this.setRoute();
   }
 
-  startInteractive(presetId, { route = true } = {}) {
+  // `resume`: coming back from Demo to the same preset continues the sim
+  // that was left (PILOT-2); otherwise (another preset, Restart) a new one.
+  startInteractive(presetId, { route = true, resume = false } = {}) {
     const preset = PRESETS.find((p) => p.id === presetId) || PRESETS[0];
     if (!preset) return;
     this.director.pause();
+    // A replay seek still running must not announce anything (tab, source,
+    // crew keys) into interactive mode; the replay reloads on return.
+    this.director.cancelSeek();
+    if (resume && this.mode !== 'interactive' && this.interactive.sim && this.preset?.id === preset.id) {
+      this.mode = 'interactive';
+      this.bus.emit('app:mode', { mode: 'interactive', preset, resumed: true });
+      this.updateSoftwareLabel(preset.software);
+      this.updateModeSwitch();
+      if (route) this.setRoute();
+      return;
+    }
+    // A new starting point starts at 1× (10× suits P00, not a landing);
+    // Restart keeps the user's speed.
+    if (preset.id !== this.preset?.id) this.interactive.speed = 1;
     this.mode = 'interactive';
     this.preset = preset;
     this.interactive.playing = true;
+    this._pausedKeysTold = false;
     this.interactive.sim = this.createSim({
       software: preset.software,
       vehicle: preset.vehicle || 'static',
@@ -157,6 +219,8 @@ export class App {
     });
     this.bus.emit('app:mode', { mode: 'interactive', preset });
     if (typeof preset.setup === 'function') preset.setup(this.interactive.sim);
+    // The Command Module has no descent to plot: start on its SPS burn.
+    if (preset.software === 'Comanche055' && this.tab === 'trajectory') this.selectTab('ignition');
     this.updateSoftwareLabel(preset.software);
     this.updateModeSwitch();
     if (route) this.setRoute();
@@ -176,6 +240,12 @@ export class App {
   pressKey(key) {
     if (this.mode === 'interactive' && this.interactive.sim) {
       this.interactive.sim.agc.key(key);
+      // The keystroke waits for simulated time (PINBALL runs as Executive
+      // jobs): say so once per pause, or the DSKY looks dead.
+      if (!this.interactive.playing && !this._pausedKeysTold) {
+        this._pausedKeysTold = true;
+        this.bus.emit('toast', { text: 'The simulation is paused: your keys take effect when you press Run (Space).' });
+      }
       return true;
     }
     this.bus.emit('toast', {
@@ -194,6 +264,7 @@ export class App {
 
   setInteractivePlaying(playing) {
     this.interactive.playing = !!playing;
+    if (!this.interactive.playing) this._pausedKeysTold = false;
   }
 
   setInteractiveSpeed(speed) {
@@ -210,6 +281,7 @@ export class App {
     } else if (this.interactive.sim) {
       if (this.interactive.playing) this.interactive.sim.step(realDt * this.interactive.speed);
       snapshot = this.interactive.sim.snapshot();
+      this.watchVehicle(this.interactive.sim, snapshot);
     }
     const ui = this.uiState();
     for (const { id, view } of this.views) {
@@ -222,9 +294,37 @@ export class App {
     }
   }
 
+  // Landing outcome of the user's flight (interactive mode; in a replay the
+  // script tells the story): on the low-level light, propellant depletion
+  // and touchdown, emit 'vehicle' { t, kind, verdict?, vVert?, vHoriz?,
+  // tilt? } (SI, as in the snapshot) and a toast. Edges only: a new sim
+  // starts from its own state without announcing it.
+  watchVehicle(sim, snapshot) {
+    const v = snapshot?.vehicle;
+    if (!v) return;
+    const seen = this._vehicleSeen;
+    const now = { sim, lowLevel: !!v.lowLevel, depleted: !!v.depleted, touchdown: !!v.touchdown };
+    this._vehicleSeen = now;
+    if (!seen || seen.sim !== sim) return;
+    const events = [];
+    if (now.lowLevel && !seen.lowLevel) events.push({ kind: 'lowLevel' });
+    if (now.depleted && !seen.depleted) events.push({ kind: 'depleted' });
+    if (now.touchdown && !seen.touchdown) {
+      const td = v.touchdown;
+      events.push({ kind: 'touchdown', verdict: td.verdict, vVert: td.vVert, vHoriz: td.vHoriz, tilt: td.tilt, t: td.t });
+    }
+    for (const ev of events) {
+      const payload = { t: snapshot.t, ...ev };
+      if (!Number.isFinite(payload.t)) payload.t = snapshot.t;
+      this.bus.emit('vehicle', payload);
+      this.bus.emit('toast', { text: vehicleEventText(payload) });
+    }
+  }
+
   uiState() {
     return {
       mode: this.mode,
+      vehicleKind: this.currentSim()?.options?.vehicle ?? null,
       scenario: this.scenario,
       scenarios: SCENARIOS,
       preset: this.preset,
@@ -256,6 +356,7 @@ export class App {
       b.type = 'button';
       b.dataset.mode = mode;
       b.textContent = label;
+      b.title = MODE_TITLES[mode];
       b.addEventListener('click', () => this.setMode(mode));
       nav.append(b);
     }
@@ -269,10 +370,36 @@ export class App {
     this.doc.body.dataset.mode = this.mode;
   }
 
+  // ARIA tabs pattern: one tab stop (roving tabindex); ←/→ (wrapping),
+  // Home and End move to a tab and select it.
   bindTabs() {
-    for (const b of this.doc.querySelectorAll('#viz-tabs [role="tab"]')) {
+    const list = this.doc.getElementById('viz-tabs');
+    const tabs = () => [...this.doc.querySelectorAll('#viz-tabs [role="tab"]')];
+    for (const b of tabs()) {
       b.addEventListener('click', () => this.selectTab(b.dataset.tab));
     }
+    const touch = () => {
+      if (!this._movingFocus) this._vizTouched = this.doc.defaultView.performance.now();
+    };
+    for (const type of ['pointerdown', 'keydown', 'focusin']) {
+      this.doc.querySelector('.panel-viz')?.addEventListener(type, touch, true);
+    }
+    list?.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const all = tabs();
+      const i = all.indexOf(e.target);
+      if (i < 0) return;
+      let j;
+      if (e.key === 'ArrowRight') j = (i + 1) % all.length;
+      else if (e.key === 'ArrowLeft') j = (i - 1 + all.length) % all.length;
+      else if (e.key === 'Home') j = 0;
+      else if (e.key === 'End') j = all.length - 1;
+      else return;
+      e.preventDefault();
+      this.selectTab(all[j].dataset.tab);
+      all[j].focus();
+    });
+    this.selectTab(this.tab);
   }
 
   selectTab(name) {
@@ -282,6 +409,7 @@ export class App {
     for (const b of tabs) {
       const on = b.dataset.tab === name;
       b.setAttribute('aria-selected', String(on));
+      b.tabIndex = on ? 0 : -1;
       const panel = this.doc.getElementById(b.getAttribute('aria-controls'));
       if (panel) panel.hidden = !on;
     }
@@ -289,18 +417,71 @@ export class App {
   }
 
   bindBus() {
+    // A scenario's `focus` switches the visualisation tab — in a replay
+    // only. Not under a user who has just been working in the tabs or the
+    // panel (the tab the replay wants pulses instead); and if focus is in
+    // there, it moves to the newly selected tab rather than dropping to
+    // <body> with the hidden panel.
     this.bus.on('focus', ({ panel } = {}) => {
-      if (['trajectory', 'exec', 'ignition'].includes(panel)) this.selectTab(panel);
+      if (this.mode !== 'demo' || !VIZ_PANELS.includes(panel) || panel === this.tab) return;
+      const tab = this.doc.getElementById(`tab-${panel}`);
+      const inside = this.doc.activeElement?.closest?.('.panel-viz');
+      if (inside && this.doc.defaultView.performance.now() - this._vizTouched < VIZ_ENGAGED_MS) {
+        this.pulse(tab);
+        return;
+      }
+      this.selectTab(panel);
+      if (inside && tab) {
+        this._movingFocus = true;
+        tab.focus({ preventScroll: true });
+        this._movingFocus = false;
+      }
     });
     this.bus.on('spotlight', ({ target } = {}) => {
       if (!target) return;
-      for (const el of this.doc.querySelectorAll(`[data-spot="${cssEscape(target)}"]`)) {
-        el.classList.remove('spotlight');
-        void el.offsetWidth; // restart the animation
-        el.classList.add('spotlight');
-        setTimeout(() => el.classList.remove('spotlight'), 2600);
-      }
+      for (const el of this.doc.querySelectorAll(`[data-spot="${cssEscape(target)}"]`)) this.pulse(el);
     });
+  }
+
+  pulse(el) {
+    if (!el) return;
+    el.classList.remove('spotlight');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('spotlight');
+    setTimeout(() => el.classList.remove('spotlight'), 2600);
+  }
+
+  // The skip link moves focus without touching the hash, which is the
+  // router's (a "#main" hash used to reload the first scenario).
+  bindSkipLink() {
+    const link = this.doc.querySelector('.skip-link');
+    const main = this.doc.getElementById('main');
+    link?.addEventListener('click', (e) => {
+      e.preventDefault();
+      main?.focus();
+    });
+  }
+
+  // Publish the rendered heights of the sticky top bar and timeline as
+  // --sticky-top / --sticky-bottom, so that scroll-padding (base.css) keeps
+  // a focused element from scrolling in underneath them. Both wrap with the
+  // window width; the top bar is not sticky on narrow screens.
+  observeStickyBars() {
+    const win = this.doc.defaultView;
+    const root = this.doc.documentElement;
+    const top = this.doc.getElementById('topbar');
+    const bottom = this.doc.getElementById('timeline-root');
+    const height = (el) => (el && win.getComputedStyle(el).position === 'sticky' ? el.offsetHeight : 0);
+    const update = () => {
+      root.style.setProperty('--sticky-top', `${height(top)}px`);
+      root.style.setProperty('--sticky-bottom', `${height(bottom)}px`);
+    };
+    update();
+    if (typeof win.ResizeObserver === 'function') {
+      const ro = new win.ResizeObserver(update);
+      for (const el of [top, bottom]) if (el) ro.observe(el);
+    }
+    win.addEventListener('resize', update);
   }
 }
 

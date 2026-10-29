@@ -776,3 +776,28 @@ test('Real Simulation: entry P61 → P67 on the real Agc/PINBALL', async (t) => 
   const p64 = seen.find((m) => m.mode === 64).t - ENTRY.eiGET;
   assert.ok(p64 > 28 && p64 < 31, `P64 at EI+${p64.toFixed(2)}`);
 });
+
+test('Real Simulation: a clock load moves TIME2 — P40 TTOGO = TIME2 − TIG, TEVENT := TIME2; the burn keeps its GET', async (t) => {
+  const simMod = await tryImport('../js/sim.js');
+  if (simMod.__error) {
+    t.skip(`Simulation not importable yet: ${simMod.__error.message.split('\n')[0]}`);
+    return;
+  }
+  const sim = buildSim(simMod.Simulation, PRESETS_CM.find((p) => p.id === 'cm-loi1-ignition'));
+  const agc = sim.agc;
+  sim.runTo(TIG - 40);
+  agc.setClock(agc.t + 60);     // V25N36: the clock a minute ahead
+  sim.runTo(TIG - 38);
+  assert.ok(Math.abs(agc.erasable.TTOGO - (agc.clock() - agc.erasable.TIG)) < 1.05, 'TTOGO = TIME2 − TIG');
+  assert.ok(agc.erasable.TTOGO > 10, 'TIG not reloaded: the countdown is a minute off');
+  agc.erasable.TIG += 60;       // V25N33: TIG in the clock's new frame
+  sim.runTo(TIG - 20);
+  assert.ok(Math.abs(agc.erasable.TTOGO - -20) < 1.05, `countdown consistent again (${agc.erasable.TTOGO})`);
+  sim.runTo(TIG - 3);
+  sim.agc.key('PRO', { source: 'user' });
+  sim.runTo(TIG + 370);
+  const p = agc.program.snapshot();
+  assert.ok(Math.abs(p.tIgnition - TIG) < 0.05, `ignition at its GET (${p.tIgnition - TIG})`);
+  assert.ok(Math.abs(p.tCutoff - p.tIgnition - 357.5) < 3, `cut-off from TIG − TIME2 in one frame: burn ${p.tCutoff - p.tIgnition} s`);
+  assert.ok(Math.abs(agc.erasable.TEVENT - agc.clock(p.tCutoff)) < 0.05, 'TEVENT := TIME2 at cut-off');
+});

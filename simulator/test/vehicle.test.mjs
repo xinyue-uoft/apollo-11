@@ -35,6 +35,8 @@ test('track registry and shape', () => {
   assert.equal(TRACK.id, 'apollo11Descent');
   assert.equal(TRACK.pdiGET, g('102:33:05.01'));
   assert.equal(TRACK.touchdownGET, g('102:45:39.9'));
+  assert.equal(TRACK.footpadsGET, TRACK.touchdownGET, 'MR §5.4: 102:45:39.9 is the footpads on the surface');
+  assert.ok(TRACK.contactLightGET < TRACK.touchdownGET - 2, 'the contact light comes on seconds before touchdown');
   assert.ok(KEYFRAMES.length > 100);
   assert.ok(TRACK.startGET <= g('102:10:30'), 'track starts in the descent-orbit coast');
   assert.ok(TRACK.endGET >= g('102:48:00'), 'track continues after landing');
@@ -79,6 +81,9 @@ test('milestones: ordered, unique ids, { t, id, label, source }', () => {
   assert.equal(at('p66'), '102:43:22');
   assert.equal(at('low-level'), '102:44:28');
   assert.equal(at('touchdown'), '102:45:39.9');
+  // The lunar contact light is its own (derived) milestone, before touchdown.
+  assert.ok(g(at('contact-light')) < g(at('touchdown')) - 2);
+  assert.ok(g(at('contact-light')) < g('102:45:40'), 'before Aldrin\'s "Contact Light" call');
 });
 
 // ---------- the replay ----------
@@ -160,20 +165,33 @@ test('replay: values at the quoted crew callouts', (t) => {
   for (const row of rows) t.diagnostic(row);
 });
 
-test('replay: touchdown at 102:45:39.9 with alt ≈ 0, then on the surface', () => {
+test('replay: contact light ≈102:45:36.6, touchdown 102:45:39.9 with the engine running, no drop after cutoff', () => {
+  // The probes (67 in) touch a few seconds before the footpads [DER].
+  const light = replayAt(TRACK.contactLightGET);
+  assert.ok(light.contact && !light.landed && light.engineOn, 'contact light, still flying');
+  assert.ok(Math.abs(toFt(light.alt) - LM.probeLength / FT) < 0.2, `the probes (5.6 ft) touch (alt ${toFt(light.alt).toFixed(2)} ft)`);
+  assert.ok(!replayAt(TRACK.contactLightGET - 0.2).contact);
+  assert.ok(toFt(replayAt('102:45:39.5').alt) > 0.3, 'still above the surface just before touchdown');
+  // MR §5.4: landing at 102:45:39.9, 1.7 ft/s down, 2.1 ft/s left, negligible forward velocity.
   const td = replayAt('102:45:39.9');
-  assert.ok(td.contact, 'contact light at 102:45:39.9 (MR §5.4)');
-  assert.ok(toFt(td.alt) <= LM.probeLength / FT + 0.1, 'the probes (5.6 ft) touch');
+  assert.equal(td.alt, 0, 'the footpads are on the surface');
   assert.ok(Math.abs(toFps(td.altRate) + 1.7) < 0.2, '1.7 ft/s down');
   assert.ok(toFps(td.vHoriz) < 0.5, 'negligible forward velocity');
-  assert.ok(td.engineOn && !td.landed);
-  const before = replayAt('102:45:39.5');
-  assert.ok(!before.contact);
+  assert.ok(Math.abs(toFps(td.vCross) + 2.1) < 0.05, '2.1 ft/s to the left');
+  assert.ok(td.contact && td.engineOn, 'engine still running at touchdown (MR §3; Armstrong)');
+  // On the surface, engine on, until the cutoff at 102:45:41.4 — and no fall after it.
+  const onSurface = replayAt('102:45:41');
+  assert.ok(onSurface.landed && onSurface.engineOn && onSurface.alt === 0 && onSurface.vCross === 0);
+  for (let t = g('102:45:39.9'); t <= g('102:45:45'); t += 0.1) {
+    const s = replayAt(t);
+    assert.ok(s.alt === 0 && s.altRate <= 0, `on the surface at ${formatGET(t, { tenths: true })}`);
+  }
   const off = replayAt('102:45:41.5');
-  assert.ok(!off.engineOn, 'engine cutoff 102:45:41.4');
+  assert.ok(!off.engineOn && off.landed, 'engine cutoff 102:45:41.4, already landed');
   const down = replayAt('102:45:43');
   assert.ok(down.landed && down.alt === 0 && down.altRate === 0 && down.vHoriz === 0);
   assert.ok(down.touchdown && down.touchdown.t === g('102:45:39.9'));
+  assert.ok(Math.abs(toFps(down.touchdown.vVert) + 1.7) < 0.2, 'the touchdown record keeps the MR sink rate');
   const later = replayAt('102:49:00');
   assert.ok(later.landed && later.throttle === 0);
   assert.ok(Math.abs(later.mass - LM.massAtLanding) < 10, 'MR landed mass 7,327 kg');

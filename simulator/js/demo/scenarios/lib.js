@@ -46,6 +46,21 @@ export function rrFaultOn(at) {
   return crew(at, 'rrFault', true, 'RR mode switch out of LGC: RR CDUs steal memory cycles');
 }
 
+// For a replay that starts after the fifth alarm (102:42:58): the alarm is
+// still showing — FAILREG = 01202 and the PROG lamp on — as in the replays
+// that run through it, where nothing clears it before the landing. When the
+// crew cleared the last PROG light is not recorded (no V05N09 or RSET is
+// logged after the fifth alarm, research web-1202-b §2.5). Sets the state
+// directly, without logging a new alarm; an `action`, so a seek re-applies it.
+export function lastAlarmShowing(at) {
+  const action = (sim) => {
+    sim.agc.alarms.failreg[0] = 0o1202; // CHKFAIL1: the first register
+    sim.agc.dsky.setLight('prog', true); // PROGLARM
+  };
+  action.label = 'Fifth alarm (102:42:58) still showing: FAILREG 01202, PROG lit';
+  return { at, action };
+}
+
 // Apollo 11's PDI ignition time (Mission Report Table 9.6-V). From it
 // follows the 2-second rhythm of navigation for the whole descent: the
 // TIG-30 task runs PREREAD at TIG − 29.9 s (D29.9SEC, BURN_BABY_BURN--

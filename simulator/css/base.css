@@ -15,7 +15,7 @@
 
   --text: #dde2e8;
   --text-dim: #9aa4b0;
-  --text-faint: #6b7581;
+  --text-faint: #8a94a0;        /* ≥ 4.5:1 on every panel colour (WCAG AA) */
 
   --el-green: #7dff8a;        /* DSKY electroluminescent digits */
   --el-green-dim: #1f3a24;
@@ -47,6 +47,14 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+html {
+  /* Keep a focused element clear of the sticky top bar and timeline when
+     the browser scrolls it into view (WCAG 2.4.11). app.js publishes their
+     rendered heights; the fallbacks are their minimum heights. */
+  scroll-padding-top: calc(var(--sticky-top, var(--topbar-h)) + 12px);
+  scroll-padding-bottom: calc(var(--sticky-bottom, var(--timeline-h)) + 12px);
 }
 
 html,
@@ -94,6 +102,12 @@ pre {
 
 .skip-link:focus {
   left: 8px;
+}
+
+/* The skip link's target: focusable so the link can move focus there, but
+   the whole page outlined would only be noise. */
+main:focus {
+  outline: none;
 }
 
 .noscript {
@@ -144,6 +158,8 @@ pre {
 }
 
 .brand-title {
+  margin: 0;
+  font-size: inherit;
   font-weight: 650;
   letter-spacing: 0.02em;
 }
@@ -307,6 +323,16 @@ select {
   border-bottom: 1px solid var(--border);
 }
 
+/* A .panel-title is a row: the heading holds only the panel's name, its
+   buttons, counters and clocks sit beside it. */
+.panel-title > h2 {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+
 .panel-body {
   padding: 12px 14px;
 }
@@ -381,27 +407,65 @@ select {
 
 /* ---------- Responsive ---------- */
 
+/* Two columns: the explanation goes beside the DSKY, above the
+   visualisation (it is what makes the replay readable); the source listing
+   gets the full width below. */
 @media (max-width: 1280px) {
   .layout {
     grid-template-columns: minmax(330px, 380px) minmax(0, 1fr);
   }
 
   .col-right {
+    display: contents;
+  }
+
+  .col-left {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  #narration-root {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .col-center {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  #source-root {
     grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-row: 3;
   }
 }
 
+/* One column: DSKY, explanation, visualisation, transcript, then the rest. */
 @media (max-width: 860px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
     padding: 10px;
   }
 
-  .col-right {
-    grid-column: auto;
-    display: flex;
+  .col {
+    display: contents;
+  }
+
+  #main > .col > .panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  #dsky-root { order: 1; }
+  #narration-root { order: 2; }
+  .panel-viz { order: 3; }
+  #transcript-root { order: 4; }
+  #instruments-root { order: 5; }
+  #crew-root { order: 6; }
+  #source-root { order: 7; }
+
+  html {
+    scroll-padding-top: 12px; /* the top bar is not sticky here */
   }
 
   .topbar {

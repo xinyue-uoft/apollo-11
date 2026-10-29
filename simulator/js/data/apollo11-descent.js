@@ -25,10 +25,17 @@
 // ≈6,570 ft above the site radius (TRW) — research §5.1, §8. Before the
 // radar was incorporated the computer's own altitude was ≈2,900 ft too high
 // (ΔH −2,900 at 102:38:11, ALSJ); that is a navigation error the AGC model
-// adds (js/agc/nav.js), not part of this track. The contact light (probes
-// 67 in below the footpads) came on at 102:45:39.9 (MR §5.4 "touchdown"),
-// i.e. at alt ≈ 5.6 ft; the footpads reached the surface about two
-// seconds later, after engine cutoff at 102:45:41.4 [DER].
+// adds (js/agc/nav.js), not part of this track. 102:45:39.9 is the landing
+// itself: "Landing on the surface occurred at 102:45:39.9 … Body rate
+// transients (motions after first footpad touchdown) … indicate that the
+// right and the forward landing gear touched almost simultaneously" (MR
+// §5.4), with the engine still running until cutoff at 102:45:41.4 ("engine
+// shutdown occurring almost simultaneously with touchdown", MR §3;
+// Armstrong: "We actually had the engine running until touchdown", ALSJ).
+// So the footpads reach alt 0 at 102:45:39.9, and the lunar contact light
+// (probes 67 in below the footpads) came on earlier, at ≈102:45:36.6 [DER:
+// where this track passes 5.6 ft at ≈1.6 ft/s]; Aldrin's "Contact Light" at
+// 102:45:40 is the voice, a few seconds behind the lamp.
 //
 // WHAT "RANGE" MEANS HERE. `range` is the distance along the surface to the
 // point the computer was steering for (its landing site LAND, the automatic
@@ -80,8 +87,14 @@ export const SOURCE_NOTES = Object.freeze({
     + 'deceleration: ≈5° while overflying the boulder field, ≈16° to slow down near 102:43:55 '
     + '(ALSJ: "pitch ~5–6°", "back to ~16°"). Throttle [DER] ≈26–30 % (AER-DPS: ≈26 % ± 7.5 % over '
     + 'the last 140 s [ACT]).',
-  touchdown: 'Contact light 102:45:39.9 at 1.7 ft/s down [ACT MR §5.4], engine cutoff 102:45:41.4 '
-    + '[ACT MR Table 9.6-V]; footpads on the surface ≈102:45:42.3 [DER: free fall from ≈3 ft].',
+  touchdown: 'Footpads on the surface 102:45:39.9 at 1.7 ft/s down, 2.1 ft/s to the left, negligible '
+    + 'forward velocity [ACT MR §5.4]; the last 18 s of the altitude fit are lowered smoothly (≤ 5.6 ft, '
+    + 'rate change ≤ 0.5 ft/s) from 102:45:22 so that alt reaches 0 there with that rate [DER]. Lunar '
+    + 'contact light (67-in probes) ≈102:45:36.6, where the track passes 5.6 ft [DER]. Engine still '
+    + 'running on the surface until cutoff 102:45:41.4 [ACT MR Table 9.6-V; MR §3; Armstrong in ALSJ]. '
+    + 'At rest ≈102:45:40.2 [DER: MR §5.4 postflight simulation, footpads penetrated 2.5–3.5 in, struts '
+    + 'stroked < 1 in, slide-out 1–3 in — a few tenths of a second at 1.7 ft/s]. Range: the P66-phase '
+    + 'drift correction (see range) now ends at 102:45:39.9 [DER].',
   surface: 'On the surface. LM mass at landing 16,153.2 lb [ACT MR Table A-I]; 770 lb of DPS '
     + 'propellant left at cutoff [ACT MR §9.13.1].',
   fuel: 'Fuel % = DPS propellant remaining / 18,184 lb loaded [DER]: 17,916 lb at PDI (loaded '
@@ -92,10 +105,10 @@ export const SOURCE_NOTES = Object.freeze({
     + '(102:44:00) and "Five percent" (102:44:45) — read 1–2 % lower than this tank average '
     + '(single gauges; they differed by up to 3 % at landing, AER-DPS p.27).',
   range: 'Range to the computer\'s aim point [DER]: the horizontal velocity integrated backward '
-    + 'from the footpads (−1,100 ft, i.e. beyond the aim point, BEN70 p.23/MR §5.3) and corrected '
-    + 'linearly onto two anchors: 26,000 ft at P64 (MR Fig. 5-2, −346 ft) and 1,900 ft at P66 '
-    + '(BEN70 Fig. 22, +374 ft). PDI comes out at 261.7 nmi (research: ≈260 nmi; TLB integration '
-    + '261 nmi).',
+    + 'from the footpads at 102:45:39.9 (−1,100 ft, i.e. beyond the aim point, BEN70 p.23/MR §5.3) and '
+    + 'corrected linearly onto two anchors: 26,000 ft at P64 (MR Fig. 5-2, −346 ft) and 1,900 ft at P66 '
+    + '(BEN70 Fig. 22, +374 ft, tapering to 0 at the footpads). PDI comes out at 261.7 nmi (research: '
+    + '≈260 nmi; TLB integration 261 nmi).',
 });
 
 // ---------- keyframes ----------
@@ -110,9 +123,11 @@ export const YAW = Object.freeze([
 ]);
 
 // Lateral velocity (positive = to the crew's right): 2.1 ft/s to the left
-// at touchdown [ACT MR §5.4]; not recorded before (taken as 0) [DER].
+// at touchdown [ACT MR §5.4]; not recorded before (taken as 0) [DER];
+// stopped by the footpads within a few tenths of a second (1–3 in of
+// slide-out, MR §5.4) [DER].
 export const VCROSS = Object.freeze([
-  ['102:45:25', 0], ['102:45:39.9', -2.1], ['102:45:42.3', 0],
+  ['102:45:25', 0], ['102:45:39.9', -2.1], ['102:45:40.2', 0],
 ]);
 
 // Discrete states as [start, end) intervals (end null = to the end).
@@ -127,8 +142,11 @@ export const INTERVALS = Object.freeze({
   // lost 102:44:11–21 and 102:44:59–45:03 [ACT MR Table 5-I].
   lrAlt: [['102:37:51', '102:44:11'], ['102:44:21', '102:44:59'], ['102:45:03', null]],
   lrVel: [['102:38:48', '102:44:11'], ['102:44:21', '102:44:59'], ['102:45:03', null]],
-  contact: [['102:45:39.9', null]],
-  landed: [['102:45:42.3', null]],
+  // Lunar contact light ≈102:45:36.6 [DER, see the header]; `landed` = at
+  // rest on the surface, ≈0.3 s after the footpads touched at 102:45:39.9
+  // (SOURCE_NOTES.touchdown) — the engine runs on to 102:45:41.4.
+  contact: [['102:45:36.6', null]],
+  landed: [['102:45:40.2', null]],
 });
 
 function k(t, alt, altRate, vHoriz, range, throttle, fuel, mass, pitch, source) {
@@ -256,42 +274,41 @@ export const KEYFRAMES = Object.freeze([
   k('102:43:22', 433.7, -10.81, 60.1, 1900, 30.7, 11.47, 7930, 5, 'manual'),
   k('102:43:26', 394.9, -8.61, 58, 1653, 30.4, 11.24, 7910, 5, 'manual'),
   k('102:43:30', 364.5, -6.6, 56, 1415, 29.9, 11.01, 7891, 4.8, 'manual'),
-  k('102:43:34', 341.1, -5.06, 54.1, 1184, 29.2, 10.78, 7872, 5, 'manual'),
-  k('102:43:38', 322.7, -4.14, 52.1, 961, 28.5, 10.56, 7854, 5.6, 'manual'),
-  k('102:43:42', 307.4, -3.54, 49.8, 746, 28.3, 10.34, 7836, 6.6, 'manual'),
-  k('102:43:46', 294.2, -3.03, 47, 542, 28.4, 10.13, 7818, 9, 'manual'),
-  k('102:43:50', 283.3, -2.44, 42.8, 351, 28.6, 9.91, 7799, 12.7, 'manual'),
-  k('102:43:54', 274.5, -1.95, 37.1, 180, 28.7, 9.69, 7781, 15.5, 'manual'),
-  k('102:43:58', 267.2, -1.73, 30.8, 33, 28.3, 9.47, 7763, 16.1, 'manual'),
-  k('102:44:02', 260.2, -1.76, 24.8, -88, 27.7, 9.26, 7745, 14.4, 'manual'),
-  k('102:44:06', 252.6, -2.02, 19.9, -188, 27.1, 9.05, 7727, 11, 'manual'),
-  k('102:44:10', 243.8, -2.41, 16.6, -271, 26.6, 8.84, 7710, 8.1, 'manual'),
-  k('102:44:14', 233.1, -2.93, 13.9, -343, 26.3, 8.64, 7693, 5.9, 'manual'),
-  k('102:44:18', 220.1, -3.56, 12.3, -405, 26, 8.44, 7676, 3.7, 'manual'),
-  k('102:44:22', 204.4, -4.28, 11.2, -463, 25.9, 8.24, 7660, 2.9, 'manual'),
-  k('102:44:26', 185.9, -4.98, 10.2, -517, 26.1, 8.04, 7643, 2.7, 'manual'),
-  k('102:44:30', 165.2, -5.36, 9.3, -566, 26.5, 7.84, 7626, 1.7, 'manual'),
-  k('102:44:34', 144.1, -5.21, 9, -613, 27, 7.63, 7609, 0.4, 'manual'),
-  k('102:44:38', 124.4, -4.63, 9, -660, 27.4, 7.43, 7592, 0, 'manual'),
-  k('102:44:42', 107.5, -3.82, 9, -707, 27.5, 7.22, 7574, 0.1, 'manual'),
-  k('102:44:46', 94, -2.91, 8.9, -753, 27.6, 7, 7557, 1.8, 'manual'),
-  k('102:44:50', 84.2, -1.99, 7.6, -797, 27.4, 6.79, 7539, 3.8, 'manual'),
-  k('102:44:54', 77.6, -1.33, 6, -835, 26.9, 6.59, 7522, 4, 'manual'),
-  k('102:44:58', 72.6, -1.16, 4.6, -867, 26.3, 6.38, 7505, 3.9, 'manual'),
-  k('102:45:02', 67.5, -1.37, 3.1, -893, 25.9, 6.18, 7488, 3.3, 'manual'),
-  k('102:45:06', 61.3, -1.77, 2.1, -914, 25.7, 5.99, 7471, 1.4, 'manual'),
-  k('102:45:10', 53.5, -2.11, 2.1, -933, 25.8, 5.79, 7455, -0.6, 'manual'),
-  k('102:45:14', 44.8, -2.24, 2.6, -953, 26, 5.59, 7438, -1.6, 'manual'),
-  k('102:45:18', 36.1, -2.11, 3.3, -975, 26.3, 5.39, 7422, -1.7, 'manual'),
-  k('102:45:22', 28.5, -1.71, 3.8, -1000, 26.4, 5.19, 7405, -0.9, 'manual'),
-  k('102:45:26', 22.6, -1.22, 4, -1027, 26.2, 4.99, 7388, 0.8, 'manual'),
-  k('102:45:30', 18.1, -1.03, 3.2, -1052, 25.9, 4.79, 7371, 2.7, 'manual'),
-  k('102:45:34', 13.8, -1.13, 2, -1073, 25.5, 4.59, 7355, 3.6, 'manual'),
-  k('102:45:38', 8.6, -1.48, 0.6, -1089, 25.3, 4.4, 7339, 2.9, 'manual'),
-  k('102:45:39.9', 5.6, -1.68, 0, -1094, 25.3, 4.31, 7331, 2.6, 'touchdown'),
-  k('102:45:41.4', 3.1, -1.7, 0, -1098, 25.3, 4.23, 7325, 2.6, 'touchdown'),
-  k('102:45:41.9', 1.9, -3.0, 0, -1099, 0, 4.23, 7325, 2.6, 'touchdown'),
-  k('102:45:42.3', 0, -4.5, 0, -1100, 0, 4.23, 7325, 2.6, 'touchdown'),
+  k('102:43:34', 341.1, -5.06, 54.1, 1183, 29.2, 10.78, 7872, 5, 'manual'),
+  k('102:43:38', 322.7, -4.14, 52.1, 960, 28.5, 10.56, 7854, 5.6, 'manual'),
+  k('102:43:42', 307.4, -3.54, 49.8, 745, 28.3, 10.34, 7836, 6.6, 'manual'),
+  k('102:43:46', 294.2, -3.03, 47, 541, 28.4, 10.13, 7818, 9, 'manual'),
+  k('102:43:50', 283.3, -2.44, 42.8, 350, 28.6, 9.91, 7799, 12.7, 'manual'),
+  k('102:43:54', 274.5, -1.95, 37.1, 179, 28.7, 9.69, 7781, 15.5, 'manual'),
+  k('102:43:58', 267.2, -1.73, 30.8, 31, 28.3, 9.47, 7763, 16.1, 'manual'),
+  k('102:44:02', 260.2, -1.76, 24.8, -90, 27.7, 9.26, 7745, 14.4, 'manual'),
+  k('102:44:06', 252.6, -2.02, 19.9, -190, 27.1, 9.05, 7727, 11, 'manual'),
+  k('102:44:10', 243.8, -2.41, 16.6, -273, 26.6, 8.84, 7710, 8.1, 'manual'),
+  k('102:44:14', 233.1, -2.93, 13.9, -345, 26.3, 8.64, 7693, 5.9, 'manual'),
+  k('102:44:18', 220.1, -3.56, 12.3, -408, 26, 8.44, 7676, 3.7, 'manual'),
+  k('102:44:22', 204.4, -4.28, 11.2, -466, 25.9, 8.24, 7660, 2.9, 'manual'),
+  k('102:44:26', 185.9, -4.98, 10.2, -520, 26.1, 8.04, 7643, 2.7, 'manual'),
+  k('102:44:30', 165.2, -5.36, 9.3, -569, 26.5, 7.84, 7626, 1.7, 'manual'),
+  k('102:44:34', 144.1, -5.21, 9, -616, 27, 7.63, 7609, 0.4, 'manual'),
+  k('102:44:38', 124.4, -4.63, 9, -664, 27.4, 7.43, 7592, 0, 'manual'),
+  k('102:44:42', 107.5, -3.82, 9, -711, 27.5, 7.22, 7574, 0.1, 'manual'),
+  k('102:44:46', 94, -2.91, 8.9, -757, 27.6, 7, 7557, 1.8, 'manual'),
+  k('102:44:50', 84.2, -1.99, 7.6, -801, 27.4, 6.79, 7539, 3.8, 'manual'),
+  k('102:44:54', 77.6, -1.33, 6, -839, 26.9, 6.59, 7522, 4, 'manual'),
+  k('102:44:58', 72.6, -1.16, 4.6, -871, 26.3, 6.38, 7505, 3.9, 'manual'),
+  k('102:45:02', 67.5, -1.37, 3.1, -898, 25.9, 6.18, 7488, 3.3, 'manual'),
+  k('102:45:06', 61.3, -1.77, 2.1, -919, 25.7, 5.99, 7471, 1.4, 'manual'),
+  k('102:45:10', 53.5, -2.11, 2.1, -938, 25.8, 5.79, 7455, -0.6, 'manual'),
+  k('102:45:14', 44.8, -2.24, 2.6, -958, 26, 5.59, 7438, -1.6, 'manual'),
+  k('102:45:18', 36.1, -2.11, 3.3, -980, 26.3, 5.39, 7422, -1.7, 'manual'),
+  k('102:45:22', 28.5, -1.71, 3.8, -1006, 26.4, 5.19, 7405, -0.9, 'manual'),
+  k('102:45:26', 21.9, -1.55, 4, -1033, 26.2, 4.99, 7388, 0.8, 'manual'),
+  k('102:45:30', 15.7, -1.49, 3.2, -1058, 25.9, 4.79, 7371, 2.7, 'manual'),
+  k('102:45:34', 9.6, -1.54, 2, -1079, 25.5, 4.59, 7355, 3.6, 'manual'),
+  k('102:45:38', 3.2, -1.66, 0.6, -1095, 25.3, 4.4, 7339, 2.9, 'manual'),
+  k('102:45:39.9', 0, -1.68, 0, -1100, 25.3, 4.31, 7331, 2.6, 'touchdown'),
+  k('102:45:41.4', 0, 0, 0, -1100, 25.3, 4.23, 7325, 2.6, 'touchdown'),
+  k('102:45:41.9', 0, 0, 0, -1100, 0, 4.23, 7325, 2.6, 'touchdown'),
   k('102:46:00', 0, 0, 0, -1100, 0, 4.23, 7325, 2.6, 'surface'),
   k('102:50:00', 0, 0, 0, -1100, 0, 4.23, 7325, 2.6, 'surface'),
 ]);
@@ -336,7 +353,8 @@ export const MILESTONES = Object.freeze([
   ms('102:44:28', 'low-level', 'Low-level (quantity) light', 'MR Table 5-I (§9.8.3: 102:44:30.4)', 'event', true),
   ms('102:44:59', 'lr-dropout-2', 'Radar data lost (ALT/VEL lights)', 'MR Table 5-I', 'radar'),
   ms('102:45:03', 'lr-regain-2', 'Radar data good again', 'MR Table 5-I', 'radar'),
-  ms('102:45:39.9', 'touchdown', 'Touchdown — lunar contact light', 'MR §5.4', 'event', true),
+  ms('102:45:36.6', 'contact-light', 'Lunar contact light (≈102:45:37, derived)', 'Derived: 67-in probes at ≈1.6 ft/s before the MR §5.4 touchdown; Aldrin calls it at 102:45:40 (ALSJ)', 'event'),
+  ms('102:45:39.9', 'touchdown', 'Touchdown (MR §5.4)', 'MR §5.4', 'event', true),
   ms('102:45:41.4', 'engine-off', 'Engine cutoff', 'MR Table 9.6-V', 'event'),
 ]);
 export const milestones = MILESTONES;
@@ -344,8 +362,9 @@ export const milestones = MILESTONES;
 // ---------- DSKY readings called out by the crew [ACT-crew] ----------
 
 // From research/web-trajectory-b.md §5.2 (ALSJ, as transcribed there): the
-// DSKY N63/N64/N60 altitude (ft), altitude rate (ft/s), forward velocity
-// (ft/s) and LPD angle (deg). `check: false` marks entries the replay does
+// DSKY N63/N64/N60 altitude (ft), altitude rate (ft/s), horizontal velocity
+// (ft/s; Noun 60 R1 is VHORIZ, the magnitude, which Aldrin called "N
+// forward") and LPD angle (deg). `check: false` marks entries the replay does
 // not try to match: their time or meaning is doubtful (research §9 and
 // web-timeline-b.md D21). Voice runs ≈±2 s around the display in P64/P66.
 function co(t, quote, { alt = null, altRate = null, vHoriz = null, lpd = null, check = true, note = null } = {}) {
@@ -382,7 +401,7 @@ export const CALLOUTS = Object.freeze([
   co('102:45:17', '40 feet, down 2½. Picking up some dust.', { alt: 40, altRate: -2.5 }),
   co('102:45:21', '30 feet, 2½ down', { alt: 30, altRate: -2.5 }),
   co('102:45:25', '4 forward … 20 feet, down a half', { alt: 20, altRate: -0.5, vHoriz: 4 }),
-  co('102:45:40', 'Contact Light', { alt: 5.6, note: 'probe length 5.6 ft (67 in)' }),
+  co('102:45:40', 'Contact Light', { alt: 5.6, check: false, note: 'a panel light, not a DSKY reading: the 67-in (5.6 ft) probes touched at ≈102:45:36.6 [DER]; the call came a few seconds later, the footpads touched at 102:45:39.9 (MR §5.4)' }),
 ]);
 
 // ---------- sites and range checks ----------
@@ -405,7 +424,7 @@ export const RANGE_ANCHORS = Object.freeze([
   Object.freeze({ t: '102:33:05.01', range: 260 * 6076.12, tol: 3 * 6076.12, source: 'MR §5.1/Fig. 5-2; BEN70 p.6; PK: ≈260 nmi' }),
   Object.freeze({ t: '102:41:32', range: 26000, tol: 200, source: 'MR Fig. 5-2 (high gate ≈26,000 ft to the automatic landing point)' }),
   Object.freeze({ t: '102:43:22', range: 1900, tol: 200, source: 'BEN70 Fig. 22 (P66 ≈1,900 ft before the aim point)' }),
-  Object.freeze({ t: '102:45:42.3', range: -1100, tol: 50, source: 'BEN70 p.23; MR §5.3 (≈1,100 ft beyond the aim point)' }),
+  Object.freeze({ t: '102:45:39.9', range: -1100, tol: 50, source: 'BEN70 p.23; MR §5.3 (≈1,100 ft beyond the aim point)' }),
 ]);
 
 // ---------- the track ----------
@@ -424,9 +443,11 @@ export const APOLLO11_DESCENT = Object.freeze({
   throttleDownGET: parseGET('102:39:31'),      // MR Table 5-I
   p64GET: parseGET('102:41:32'),               // MR Table 5-I
   p66GET: parseGET('102:43:22'),               // MR Table 5-I
-  touchdownGET: parseGET('102:45:39.9'),       // MR §5.4 (contact light)
+  contactLightGET: parseGET('102:45:36.6'),    // [DER] probes touch (see the header)
+  touchdownGET: parseGET('102:45:39.9'),       // MR §5.4: footpads on the surface
   engineOffGET: parseGET('102:45:41.4'),       // MR Table 9.6-V
-  footpadsGET: parseGET('102:45:42.3'),        // [DER]
+  footpadsGET: parseGET('102:45:39.9'),        // MR §5.4 (= touchdownGET)
+  restGET: parseGET('102:45:40.2'),            // [DER] at rest: `landed` from here
   keyframes: KEYFRAMES,
   yaw: YAW,
   vCross: VCROSS,

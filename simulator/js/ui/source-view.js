@@ -241,14 +241,14 @@ export function mountSource(root, ctx = {}) {
   root.dataset.spot = 'source';
   root.classList.add('src');
   root.innerHTML = `
-    <h2 class="panel-title src-titlebar">
-      <span class="src-titletext">Source code</span>
+    <div class="panel-title src-titlebar">
+      <h2 class="src-titletext">Source code</h2>
       <span class="src-titlebtns">
         <button type="button" class="btn src-follow" aria-pressed="true"
           title="When on, the panel jumps to the code each demo step points at">Follow demo</button>
         <button type="button" class="btn src-browse" aria-expanded="false" aria-controls="src-browser">Files</button>
       </span>
-    </h2>
+    </div>
     <div class="src-chips" role="group" aria-label="Code for this step" hidden></div>
     <div class="src-main">
       <header class="src-head" data-spot="source.header">

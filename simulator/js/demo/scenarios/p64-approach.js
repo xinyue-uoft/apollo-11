@@ -87,7 +87,7 @@ export default defineScenario({
     say('looking-great-go'),
     { at: '102:42:43.4', narrate: {
       title: '1202, and again 1202',
-      body: '<p>Two more Executive overflows follow, both <b>1202</b> (no core sets): at 102:42:43 and 102:42:58, at about 1,400 and 770 feet. Aldrin reads the first with V05N09 (Cherry: 102:42:45). Each restart takes a fraction of a second; guidance, throttle and the LPD display come straight back.</p>',
+      body: '<p>Two more Executive overflows follow, both <b>1202</b> (no core sets): at 102:42:43 and 102:42:58, at about 1,400 and 770 feet. Aldrin reads the first with V05N09 (Cherry: 102:42:45). Each restart takes a fraction of a second; guidance, throttle and the LPD display come straight back. PROG stays lit after the last one: when the crew cleared it is not recorded.</p>',
       anchors: ['exec.nextcore'],
     } },
     { at: '102:42:43.6', spotlight: 'dsky.light.prog' },

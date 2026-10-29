@@ -104,9 +104,9 @@ export default defineScenario({
     { at: '102:38:38', chapter: 'Houston' },
     { at: '102:38:38.5', narrate: {
       title: 'Meanwhile, in Mission Control',
-      body: '<p>Days before launch (5 July, by most accounts) a training run had ended in an unnecessary abort over a 1201. The controllers then studied every alarm; the handwritten list under the glass of Jack Garman’s console (NASA) says that for 1201 and 1202 the abort cue was <i>continuing occurrence</i>. Now, Eyles writes, “Garman said, ‘go’. Larson gave a thumbs-up” — Russ Larson of MIT — so guidance officer Steve Bales said go, Flight Director Gene Kranz said go, and CAPCOM Charlie Duke passed it up, about half a minute after the alarm.</p>',
+      body: '<p>Days before launch (5 July, by most accounts) a training run had ended in an unnecessary abort over a program alarm (a 1201 in most retellings; Dick Koos, who ran it, recalled “1202, or 1201”). The controllers then studied every alarm. The handwritten list under the glass of Jack Garman’s console (NASA) groups 1201 and 1202 with the “BAILOUT” alarms that matter on <i>continuing occurrence</i>: then the PGNCS may be degraded, watch for other cues, switching to AGS may help. One alarm alone was not a reason to abort. Now, Eyles writes, “Garman said, ‘go’. Larson gave a thumbs-up” — Russ Larson of MIT — so guidance officer Steve Bales said go, Flight Director Gene Kranz said go, and CAPCOM Charlie Duke passed it up, about half a minute after the alarm.</p>',
     } },
-    { at: '102:38:40', hold: 5 },
+    { at: '102:38:40', hold: 8 },
     say('give-reading'),
     { at: '102:38:45.5', narrate: {
       title: 'V57: let the radar in',
@@ -192,26 +192,26 @@ export default defineScenario({
     // 4th and 5th alarms: 1202 at 102:42:43 and 102:42:58.
     { at: '102:42:43.4', narrate: {
       title: 'Fourth: 1202',
-      body: '<p>Twenty-five seconds later the core sets run out again: <b>1202</b>. Aldrin reads it with V05N09 (Cherry: 102:42:45). There is no voice call for this one — the crew is busy: 1,400 ft, LPD 47°, a boulder field ahead. The flashing display is gone since the PRO at 102:42:33; the essential P64 work alone is more than the computer has time for.</p>',
+      body: '<p>Twenty-five seconds later the core sets run out again: <b>1202</b>. Aldrin reads it with V05N09 (Cherry: 102:42:45). No crew voice call this time — the crew is busy: about 1,400 ft, LPD about 40°, a boulder field ahead. The flashing display is gone since the PRO at 102:42:33; the essential P64 work alone is more than the computer has time for.</p>',
       anchors: ['exec.nextcore'],
     } },
     { at: '102:42:43.6', spotlight: 'dsky.light.prog' },
     { at: '102:42:58.4', narrate: {
       title: 'Fifth and last: 1202',
-      body: '<p>770 feet, 27 ft/s down (Eyles): the last alarm of the descent. Five alarms, and each time navigation, guidance, throttle and attitude came back from their last checkpoint within a fraction of a second; the engine never stopped. The relief came from the crew: at 102:43:13 Armstrong switched to attitude hold, “forestalling the next alarm”, and ten seconds later to P66, whose load was lighter (Eyles). No alarm followed.</p>',
+      body: '<p>770 feet, 27 ft/s down (Eyles): the last alarm of the descent. Houston’s “Roger. 1202. We copy it.” is logged in this same second (TEC 102:42:58), so it most likely acknowledges the previous alarm, seen on telemetry. After all five alarms navigation, guidance, throttle and attitude came back from their last checkpoint within a fraction of a second; the engine never stopped. The relief came, as a side effect, from the crew: at 102:43:13 Armstrong switched to attitude hold to fly past the boulders of West crater — “forestalling the next alarm” (Eyles) — and ten seconds later to P66, whose load was lighter. PROG stays lit: when the crew cleared the last alarm is not recorded.</p>',
       anchors: ['exec.nextcore', 'guid.guildenstern'],
     } },
     say('copy-1202'),
-    { at: '102:43:00', hold: 4 },
+    { at: '102:43:00', hold: 6 },
     { at: '102:43:02', chapter: 'Myths and the record' },
     { at: '102:43:02', narrate: {
       title: 'Myths and the record (1)',
-      body: '<ul><li><b>“The computer rebooted.”</b> No: a software restart; memory, state vector and engine were untouched, and the RESTART lamp stayed dark by design.</li><li><b>“Radar data overloaded it.”</b> No radar data were involved: the counts came from the radar’s angle counters, even with the radar switched off.</li><li><b>“The checklist error did it.”</b> The checklist put the switch in AUTO TRACK — the trigger; the cause was an 800 Hz phase mismatch found in LM-3 testing and never fixed.</li><li><b>“The master alarm sounded.”</b> No primary record we found confirms it.</li></ul>',
+      body: '<ul><li><b>“The computer rebooted.”</b> No: a software restart; memory, state vector and engine were untouched, and the RESTART lamp stayed dark by design.</li><li><b>“Radar data overloaded it.”</b> No radar data were involved: the counts came from the RR CDUs, which fed the computer’s angle counters, and would have come even with the radar powered down (Eyles); on Apollo 11 it was powered.</li><li><b>“The checklist error did it.”</b> The checklist put the switch in AUTO TRACK — the trigger; the cause was an 800 Hz phase mismatch found in LM-3 testing and never fixed.</li><li><b>“The master alarm sounded.”</b> No primary record we found confirms it.</li></ul>',
     } },
     { at: '102:43:10', hold: 5 },
     { at: '102:43:14', narrate: {
       title: 'Myths and the record (2)',
-      body: '<ul><li><b>“Priority scheduling saved the landing.”</b> The priority Executive was Hal Laning’s design. What saved the landing was restart protection by <b>phase tables</b> (described by E. M. Copps of MIT in 1968): it brought back SERVICER, the <i>lowest</i>-priority job, and dropped the higher-priority monitor. It was the flight software of Margaret Hamilton’s team, built by many people.</li><li><b>“Aldrin’s display caused it.”</b> It tipped P63 over the edge; the three P64 alarms came with no monitor running.</li></ul>',
+      body: '<ul><li><b>“Margaret Hamilton’s priority scheduling saved the landing.”</b> Two designs worked together. Hal Laning’s priority-driven Executive let the short, urgent work run, so the shortfall fell on SERVICER: “there was no collapse” (Eyles). The restart with <b>phase-table</b> protection (E. M. Copps of MIT, 1968) then shed the backlog: it brought back SERVICER, the <i>lowest</i>-priority job, and dropped the higher-priority monitor — by restart group, not by priority. It was the flight software of Margaret Hamilton’s team, built by many people.</li><li><b>“Aldrin’s display caused it.”</b> It tipped P63 over the edge; the three P64 alarms came with no monitor running.</li></ul>',
     } },
     say('540-feet'),
     { at: '102:43:24', spotlight: 'dsky.prog' },

@@ -20,24 +20,26 @@
   <header class="topbar" id="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">AGC</span>
-      <span class="brand-text">
-        <span class="brand-title">Apollo Guidance Computer</span>
+      <div class="brand-text">
+        <h1 class="brand-title">Apollo Guidance Computer</h1>
         <span class="brand-sub" id="software-label">Luminary 099 · Lunar Module · Apollo 11</span>
-      </span>
+      </div>
     </div>
     <nav class="mode-switch" id="mode-switch" aria-label="Mode"></nav>
     <div class="controls" id="controls-root"></div>
   </header>
 
-  <main class="layout" id="main">
-    <section class="col col-left" aria-label="DSKY and instruments">
-      <div class="panel panel-dsky" id="dsky-root"></div>
-      <div class="panel" id="instruments-root"></div>
-      <div class="panel" id="crew-root"></div>
-    </section>
+  <!-- The columns are plain wrappers (at narrow widths they are display:
+       contents and the panels reflow); each panel is its own region. -->
+  <main class="layout" id="main" tabindex="-1">
+    <div class="col col-left">
+      <div class="panel panel-dsky" id="dsky-root" role="region" aria-label="DSKY"></div>
+      <div class="panel" id="instruments-root" role="region" aria-label="Instruments"></div>
+      <div class="panel" id="crew-root" role="region" aria-label="Crew station"></div>
+    </div>
 
-    <section class="col col-center" aria-label="Visualisation">
-      <div class="panel panel-viz">
+    <div class="col col-center">
+      <div class="panel panel-viz" role="region" aria-label="Visualisation">
         <div class="tabs" role="tablist" id="viz-tabs">
           <button role="tab" id="tab-trajectory" aria-controls="trajectory-root" aria-selected="true" data-tab="trajectory">Trajectory</button>
           <button role="tab" id="tab-exec" aria-controls="exec-root" aria-selected="false" data-tab="exec">Executive</button>
@@ -49,13 +51,13 @@
           <div role="tabpanel" id="ignition-root" aria-labelledby="tab-ignition" hidden></div>
         </div>
       </div>
-      <div class="panel panel-transcript" id="transcript-root"></div>
-    </section>
+      <div class="panel panel-transcript" id="transcript-root" role="region" aria-label="Transcript"></div>
+    </div>
 
-    <section class="col col-right" aria-label="Explanation and source code">
-      <div class="panel panel-narration" id="narration-root"></div>
-      <div class="panel panel-source" id="source-root"></div>
-    </section>
+    <div class="col col-right">
+      <div class="panel panel-narration" id="narration-root" role="region" aria-label="Explanation"></div>
+      <div class="panel panel-source" id="source-root" role="region" aria-label="Source code"></div>
+    </div>
   </main>
 
   <footer class="timeline" id="timeline-root"></footer>

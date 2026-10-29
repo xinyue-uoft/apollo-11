@@ -120,6 +120,7 @@ export const ANCHORS = {
   'burn.blank': {
     file: BBB, label: 'BLANKDEX', start: 784, end: 788,
     title: '“THE DSKY IS BLANKED FOR 5 SECONDS AT TIG-35 TO INDICATE THAT AVERAGE G IS STARTING.”',
+    note: 'CLEANDSP ends in ENDRET’s “BLANK EVERYTHING EXCEPT MM” (CLEANEND → JAMTERM → ENDRET, DISPLAY_INTERFACE_ROUTINES.agc:1171-1176, 1272-1273): the program number stays lit.',
   },
   'burn.responses': {
     file: BBB, label: 'STOPCLOK', start: 790, end: 877,
@@ -364,7 +365,8 @@ export const ANCHORS = {
   },
   'p66.vertdisp': {
     file: LLGE, label: 'VERTDISP', start: 889, end: 890,
-    title: 'VERTDISP: V06N60 — forward velocity, altitude rate, altitude',
+    title: 'VERTDISP: V06N60 — horizontal velocity (magnitude), altitude rate, altitude',
+    note: 'Noun 60 R1 is VHORIZ, the magnitude of the horizontal velocity, cross-range included (VHORCOMP, :1100-1110); the forward and lateral components (FORVEL, LATVEL) drive the cross-pointer meter, not the DSKY.',
   },
 
   // ---------- P68: landing confirmation ----------

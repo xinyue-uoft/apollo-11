@@ -203,7 +203,7 @@ export function mountInstruments(root, ctx) {
   const { bus, app } = ctx;
 
   root.innerHTML = `
-    <h2 class="panel-title"><span>Instruments</span><span class="inst-get" data-k="get">GET —</span></h2>
+    <div class="panel-title"><h2>Instruments</h2><span class="inst-get" data-k="get">GET —</span></div>
     <div class="inst" data-spot="inst">
       <p class="inst-empty" data-role="empty" hidden></p>
       <div class="inst-lm" data-role="lm">
@@ -290,6 +290,7 @@ export function mountInstruments(root, ctx) {
         </div>
         <p class="inst-foot"><span data-k="cmProg">—</span><span class="inst-tig" data-k="cmTig" hidden></span></p>
       </div>
+      <p class="inst-note inst-nonav" data-k="noNav" hidden></p>
       <p class="inst-note">Truth = the simulated vehicle; AGC = the computer’s own navigated estimate (what the DSKY shows).</p>
     </div>`;
 
@@ -356,15 +357,18 @@ export function mountInstruments(root, ctx) {
     bus.on('app:mode', () => { run = freshRun(); }),
   ];
 
-  function vehicleKind() {
+  function simVehicleKind() {
     try {
       return app?.currentSim?.()?.options?.vehicle ?? null;
     } catch {
       return null;
     }
   }
+  let ui = null;
+  const vehicleKind = () => ui?.vehicleKind ?? simVehicleKind();
 
-  function render(snap) {
+  function render(snap, uiState) {
+    ui = uiState || null;
     if (!snap) {
       set('get', 'GET —');
       setHidden(el.empty, 'empty', false);
@@ -374,6 +378,7 @@ export function mountInstruments(root, ctx) {
       }
       setHidden(el.lm, 'lm', true);
       setHidden(el.cm, 'cm', true);
+      setHidden(K.noNav, 'noNav', true);
       return;
     }
     set('get', `GET ${formatGET(snap.t)}`);
@@ -382,7 +387,8 @@ export function mountInstruments(root, ctx) {
     const isCm = snap.software === 'Comanche055';
     const v = snap.vehicle || {};
     const parked = vehicleKind() === 'static';
-    const msg = parked ? 'Vehicle parked: this preset drives the DSKY only, so there are no flight readouts.' : null;
+    const demo = (ui?.mode ?? app?.mode) === 'demo';
+    const msg = parked ? `Vehicle parked: this ${demo ? 'scenario' : 'starting point'} drives the DSKY only, so there are no flight readouts.` : null;
     setHidden(el.empty, 'empty', !msg);
     if (msg && cache.get('emptyMsg') !== msg) {
       cache.set('emptyMsg', msg);
@@ -390,6 +396,7 @@ export function mountInstruments(root, ctx) {
     }
     setHidden(el.lm, 'lm', isCm || parked);
     setHidden(el.cm, 'cm', !isCm || parked);
+    if (parked || isCm) setHidden(K.noNav, 'noNav', true);
     if (parked) return;
     if (isCm) renderCm(snap, v);
     else renderLm(snap, v);
@@ -400,19 +407,28 @@ export function mountInstruments(root, ctx) {
     const nav = agc.nav || {};
     const er = agc.erasable || {};
 
-    // Table.
+    // Table. Without a navigated state (nav.t null — P00, before SERVICER
+    // runs) the AGC's zeros mean "no estimate", not "on the ground".
+    const hasNav = Number.isFinite(nav.t);
+    setHidden(K.noNav, 'noNav', hasNav);
+    if (!hasNav) {
+      set('noNav', agc.mode === 0 ? 'AGC not navigating (P00): the computer keeps no estimate yet, so its column shows —.'
+        : 'AGC not navigating yet: its estimate starts with Average-G at TIG−30 s.');
+    }
     const altFt = toFt(v.alt);
-    const altAgcFt = toFt(nav.alt);
+    const altAgcFt = hasNav ? toFt(nav.alt) : null;
+    const rateAgcFps = hasNav ? toFps(nav.altRate) : null;
+    const vhAgcFps = hasNav ? toFps(nav.vHoriz) : null;
     set('alt', fmtNum(altFt));
     set('altAgc', fmtNum(altAgcFt));
     set('rate', fmtSigned(toFps(v.altRate), Math.abs(toFps(v.altRate)) < 10 ? 1 : 0));
-    set('rateAgc', fmtSigned(toFps(nav.altRate), Math.abs(toFps(nav.altRate)) < 10 ? 1 : 0));
+    set('rateAgc', fmtSigned(rateAgcFps, Math.abs(rateAgcFps) < 10 ? 1 : 0));
     set('vh', fmtNum(toFps(v.vHoriz), Math.abs(toFps(v.vHoriz)) < 10 ? 1 : 0));
-    set('vhAgc', fmtNum(toFps(nav.vHoriz), Math.abs(toFps(nav.vHoriz)) < 10 ? 1 : 0));
+    set('vhAgc', fmtNum(vhAgcFps, Math.abs(vhAgcFps) < 10 ? 1 : 0));
     const rg = formatRangeShort(v.range);
     set('rangeU', rg.u || 'nmi');
     set('range', rg.v);
-    const rgA = Number.isFinite(nav.range) ? (rg.u === 'nmi' ? fmtNum(nav.range / NMI, Math.abs(nav.range / NMI) >= 100 ? 0 : 1) : fmtNum(toFt(nav.range))) : '—';
+    const rgA = hasNav && Number.isFinite(nav.range) ? (rg.u === 'nmi' ? fmtNum(nav.range / NMI, Math.abs(nav.range / NMI) >= 100 ? 0 : 1) : fmtNum(toFt(nav.range))) : '—';
     set('rangeAgc', rgA);
     // ΔH (LR − AGC altitude, N68 R3): meaningful only while the radar has
     // altitude data. The erasable DELTAH (display units, ft) when the program
@@ -422,14 +438,14 @@ export function mountInstruments(root, ctx) {
     if (v.lr?.altValid) {
       dh = pick(er, ['DELTAH']);
       if (dh !== null && Math.abs(dh) >= 99999) dh = null;
-      if (dh === null && Number.isFinite(v.lr.alt) && Number.isFinite(nav.alt)) dh = toFt(v.lr.alt - nav.alt);
+      if (dh === null && hasNav && Number.isFinite(v.lr.alt) && Number.isFinite(nav.alt)) dh = toFt(v.lr.alt - nav.alt);
     }
     set('dh', dh === null ? '— (no LR data)' : fmtSigned(dh));
 
     // Tapes.
-    moveTape(tapes.alt, 'alt', tapeY(altTapePos(altFt)), tapeY(altTapePos(altAgcFt)), TAPE.bottom);
+    moveTape(tapes.alt, 'alt', tapeY(altTapePos(altFt)), hasNav ? tapeY(altTapePos(altAgcFt)) : null, TAPE.bottom);
     const yr = (fps) => rateTicks.mid - rateTapePos(fps) * rateTicks.half;
-    moveTape(tapes.rate, 'rate', yr(toFps(v.altRate)), yr(toFps(nav.altRate)), rateTicks.mid);
+    moveTape(tapes.rate, 'rate', yr(toFps(v.altRate)), hasNav ? yr(rateAgcFps) : null, rateTicks.mid);
 
     // Throttle.
     const act = Number.isFinite(v.throttle) ? Math.max(0, Math.min(1, v.throttle)) : null;
@@ -469,14 +485,17 @@ export function mountInstruments(root, ctx) {
     set('accel', Number.isFinite(v.thrust) && v.mass > 0 ? fmtNum(v.thrust / v.mass / FPS, 1) : '—');
     set('pgns', pgnsModeLabel(agc.crew?.pgnsMode));
 
-    // Landing radar: data-good discretes (the DSKY ALT/VEL lamps are the
-    // inverse — lit when the data are NOT good).
+    // Landing radar: data-good discretes. The DSKY ALT/VEL lamps are not
+    // simply their inverse: R12LITES lights a lamp only after a read the
+    // AGC requested has failed (RADMODES bits set by DATAFAIL, P20-P25.agc
+    // :3048-3056, :5115-5177) — so the tooltip quotes the DSKY lamp itself.
     const lrA = !!v.lr?.altValid;
     const lrV = !!v.lr?.velValid;
+    const lamps = agc.dsky?.lights || {};
     setAttr(K.lrAlt, 'lrAltOn', 'data-on', String(lrA));
     setAttr(K.lrVel, 'lrVelOn', 'data-on', String(lrV));
-    setAttr(K.lrAlt, 'lrAltT', 'title', lrA ? 'LR altitude data good' : 'No LR altitude data (DSKY ALT light on)');
-    setAttr(K.lrVel, 'lrVelT', 'title', lrV ? 'LR velocity data good' : 'No LR velocity data (DSKY VEL light on)');
+    setAttr(K.lrAlt, 'lrAltT', 'title', lrA ? 'LR altitude data good' : `No LR altitude data${lamps.alt ? ' (DSKY ALT light on)' : ''}`);
+    setAttr(K.lrVel, 'lrVelT', 'title', lrV ? 'LR velocity data good' : `No LR velocity data${lamps.vel ? ' (DSKY VEL light on)' : ''}`);
     const inc = nav.lrIncorporating;
     set('lrInc', inc === true ? 'AGC incorporating (V57)' : inc === false ? (lrA ? 'not incorporated (V57 not keyed)' : 'no data') : '—');
 

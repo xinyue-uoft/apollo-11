@@ -22,18 +22,23 @@
 // - Landing-radar processing follows SERVICER (research src-landing.md
 //   §10): LR altitude reads once the computed altitude is below 50,000 ft
 //   (35KCHK uses ALTCRIT+2 = 50KFT despite its name, SERVICER.agc:899-932);
-//   velocity reads below 2,000 ft/s (VALTCHK, :1375-1394); data must be good
-//   on two consecutive reads (STILBADH/STILBADV); DELTAH = LR altitude −
-//   HCALC (POSUPDAT, :1110-1142, shown in N68 R3); after high gate a
+//   velocity reads below 2,000 ft/s (VALTCHK, :1375-1394); after any bad
+//   read (and at SETPOS1, :1657-1660) the next two good reads are discarded
+//   (STILBADH/STILBADV = 2, "JUST GOOD -- MUST WAIT 4 SECONDS", :1485-1486,
+//   :1538-1539, :1518-1519, :1570-1571) and the third is used; DELTAH = LR
+//   altitude − HCALC (POSUPDAT, :1110-1142, shown in N68 R3); after high gate a
 //   reasonableness test |DELTAH| < DELQFIX + HCALC/8 (:1145-1162); only with
 //   V57 (LRINH set, EXTENDED_VERBS.agc:431-434) is the estimate corrected,
 //   with weight W = LRWH·(1 − HCALC/LRHMAX) (:1164-1204; LRWH 0.35,
 //   LRHMAX 50,000 ft pad loads); velocity updates (VELUPDAT :1212-1372,
 //   weights LRWV 0.3 · (1 − V/LRVMAX), LRWVF 0.2 below 200 ft/s, LRWVFF 0.1
 //   in P65-P67) shrink the error growth `errPerFt`.
-// - The ALT / VEL lamps (R12LITES, P20-P25.agc:5115-5180): steady on while
-//   reads are requested but the data are not good; the "flashing" state for
-//   unreasonable data is not modelled.
+// - The ALT / VEL lamps (R12LITES, P20-P25.agc:5115-5180): each is on only
+//   after a requested read of its own quantity has failed — RADMODES bit 5
+//   (ALT) / bit 8 (VEL), set by DATAFAIL (:3048-3056) and cleared by GOODRAD
+//   on the next good read (:2882-2888). So VEL stays dark until velocity
+//   reads begin (below 2,000 ft/s) and one fails; it does not light at PDI.
+//   The "flashing" state for unreasonable data is not modelled.
 // - DVTOTAL (N62 R3) accumulates |ΔV| each pass (MOONSPOT, SERVICER.agc:
 //   219-233); ABVEL is the inertial speed (:1061-1062).
 
@@ -61,7 +66,7 @@ export const NAV_MODEL = Object.freeze({
   lrwvf: 0.2,                  // LRWVFZ/Y/X
   lrwvff: 0.1,                 // LRWVFF (P65, P66, P67)
   delqfix: 200 * FT,           // DELQFIX
-  goodReads: 2,                // STILBADH / STILBADV
+  goodReads: 3,                // STILBADH/STILBADV = 2: the third good read is used
   deltaHInit: 99999 * FT,      // 99999CON "FOR V16N68 DISPLAY" (THE_LUNAR_LANDING.agc:267)
 });
 
@@ -253,10 +258,11 @@ export class NavState {
         this.velIncorporating = w > 0;
       }
     }
-    // R12LITES: lamps on while the data are requested but not good.
+    // R12LITES: a lamp is on while the last requested read of its quantity
+    // failed (RADMODES bit 5 / bit 8, DATAFAIL ↔ GOODRAD).
     if (agc.dsky && !agc.dsky.lampTest) {
       agc.dsky.setLight('alt', this.readLr && this.goodH === 0);
-      agc.dsky.setLight('vel', this.readLr && (!this.readVel || this.goodV === 0));
+      agc.dsky.setLight('vel', this.readVel && this.goodV === 0);
     }
   }
 

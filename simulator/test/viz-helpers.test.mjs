@@ -10,7 +10,7 @@ import { parseGET } from '../js/util/time.js';
 import { FT, FPS, NMI } from '../js/util/units.js';
 import {
   niceStep, niceTicks, niceCeil, linearScale, phaseForMode, programTitle,
-  formatAlarmCode, formatRange, fmtInt, classifyMilestone, shortLabel,
+  formatAlarmCode, formatRange, fmtInt, fmtTick, landingWord, classifyMilestone, shortLabel,
   normalizeMilestones, modeTransitions, modeAt, lastIndexAtOrBefore, pointAtTime,
   PathRecorder, computeZoomWindow, layoutLabels, TrajectoryModel, mergeAlarms,
   clusterLabel, curvatureFlattening, summarizeTrajectory, sampleReplayPath,
@@ -68,6 +68,29 @@ test('formatting: alarm codes are octal, DSKY style', () => {
   assert.equal(formatAlarmCode('nothing'), '');
   assert.equal(fmtInt(-2900), '−2,900');
   assert.equal(fmtInt(49376), '49,376');
+});
+
+test('axis ticks keep the decimals their step needs', () => {
+  // A 1.1 nmi axis (DSKY-only scenario, low-gate sandbox) ticks every
+  // 0.25 nmi: fmtInt alone read "0 0 1 1 1".
+  const ticks = niceTicks(0, 1.1, 5);
+  const step = ticks[1] - ticks[0];
+  assert.deepEqual(ticks.map((v) => fmtTick(v, step)), ['0.00', '0.25', '0.50', '0.75', '1.00']);
+  assert.deepEqual([0.2, 0.4, 0.6].map((v) => fmtTick(v, 0.2)), ['0.2', '0.4', '0.6']);
+  assert.equal(fmtTick(7.5, 2.5), '7.5');
+  assert.equal(fmtTick(0.75, 0.25), '0.75');
+  assert.equal(fmtTick(120, 20), '120');
+  assert.equal(fmtTick(12000, 2000), '12,000');
+  assert.equal(fmtTick(-0.4, 0.2), '−0.4');
+  assert.equal(fmtTick(NaN, 1), '—');
+});
+
+test('landing outcome wording follows the touchdown verdict', () => {
+  assert.equal(landingWord('crash'), 'Crashed');
+  assert.equal(landingWord('hard'), 'Hard landing');
+  assert.equal(landingWord('safe'), 'Landed');
+  assert.equal(landingWord(undefined), 'Landed');
+  assert.equal(landingWord(null, 'Eagle landed'), 'Eagle landed');
   assert.equal(formatRange(260 * NMI), '260 nmi');
   assert.equal(formatRange(4.45 * NMI), '4.5 nmi');
   assert.equal(formatRange(3 * NMI), '18,228 ft');
@@ -304,6 +327,11 @@ test('text alternative', () => {
     [{ label: 'PDI' }, { label: 'Throttle up' }]);
   assert.match(s, /P63 · braking phase\. Altitude 10,000 feet, 30\.0 nautical miles to the targeted site, descending 120 feet per second\. Recent milestones: PDI; Throttle up\./);
   assert.match(summarizeTrajectory({ software: 'Comanche055', vehicle: {} }), /Command Module/);
+  const landed = (verdict) => summarizeTrajectory({ software: 'Luminary099', vehicle: { landed: true, touchdown: verdict ? { verdict } : null }, agc: { mode: 64 } });
+  assert.match(landed('crash'), /\. Crashed\.$/);
+  assert.match(landed('hard'), /\. Hard landing\.$/);
+  assert.match(landed('safe'), /\. Landed\.$/);
+  assert.match(landed(null), /\. Landed\.$/);
 });
 
 test('replay sampling steps the provider in order', () => {
@@ -406,15 +434,58 @@ test('crew view model', () => {
   assert.equal(fmtRate(-3), '−3.0');
   assert.equal(fmtRate(1.04), '+1.0');
   assert.equal(fmtRate(null), '—');
-  assert.match(crewHint({ ...m, mode: 64, pgnsMode: 'attHold' }), /ROD click switches to P66/);
+  assert.match(crewHint({ ...m, mode: 64, pgnsMode: 'attHold' }), /click ROD now to switch to P66/);
   assert.match(crewHint({ ...m, mode: 64, pgnsMode: 'auto' }), /LPD clicks redesignate/);
   assert.match(crewHint({ ...m, landed: true }), /surface/);
+  assert.equal(m.touchdown, null);
+  assert.equal(m.engineStop, false);
   // LPD steps match AZEACH / ELEACH in the listing.
   const src = lines('Luminary099/LUNAR_LANDING_GUIDANCE_EQUATIONS.agc');
   assert.match(src[1211 - 1], /^AZEACH\s+DEC\s+\.03491\s+# 2 DEGREES/);
   assert.match(src[1212 - 1], /^ELEACH\s+DEC\s+\.00873\s+# 1\/2 DEGREE/);
   assert.equal(LPD_AZ_STEP_DEG, 2);
   assert.equal(LPD_EL_STEP_DEG, 0.5);
+});
+
+test('crew hints: landing outcome, ENGINE STOP, P65, ATT HOLD', () => {
+  const lm = (vehicle = {}, agc = {}) => crewModel({ software: 'Luminary099', vehicle, agc }, 'interactive');
+  // LmPhysics' verdicts get their own wording (vVert in m/s, shown in ft/s).
+  const td = (verdict, vVert) => lm({ landed: true, touchdown: { verdict, vVert: -vVert * FPS, vHoriz: 2 * FPS } });
+  assert.deepEqual(td('crash', 281.7).touchdown, { verdict: 'crash', vVert: 281.7, vHoriz: 2 });
+  assert.match(crewHint(td('crash', 281.7)), /^Crashed: the LM hit the surface at 281\.7 ft\/s down, 2\.0 ft\/s across/);
+  assert.match(crewHint(td('hard', 12)), /^Hard landing: 12\.0 ft\/s down/);
+  assert.match(crewHint(td('safe', 1.7)), /^Landed: 1\.7 ft\/s down/);
+  assert.match(crewHint(lm({ landed: true })), /^On the surface/);   // replay: no evaluation
+  // ENGINE STOP is a toggle: the hint says how to release it.
+  const stopped = lm({}, { mode: 64, crew: { engineStop: true } });
+  assert.equal(stopped.engineStop, true);
+  assert.match(crewHint(stopped), /click ENGINE STOP again to release/);
+  // P65: ATT HOLD + ROD takes over (P66NOW?).
+  assert.match(crewHint(lm({}, { mode: 65, crew: { pgnsMode: 'auto' } })), /^P65: .*3 ft\/s.*ATT HOLD and click ROD/);
+  assert.match(crewHint(lm({}, { mode: 65, crew: { pgnsMode: 'attHold' } })), /ROD click switches to P66/);
+  // ATT HOLD in P63/P64 freezes the attitude (no hand controller).
+  assert.match(crewHint(lm({}, { mode: 64, crew: { pgnsMode: 'attHold' } })), /attitude is frozen/);
+  assert.match(crewHint(lm({}, { mode: 63, crew: { pgnsMode: 'attHold' } })), /attitude is frozen.*return to AUTO/);
+  assert.match(crewHint(lm({}, { mode: 0 })), /P64, P65, P66/);
+});
+
+test('crew view: DSKY-only vehicle and the CM ΔV THRUST switch', () => {
+  const stat = crewModel({ software: 'Luminary099', vehicle: { landed: true }, agc: {} }, 'demo', 'static');
+  assert.equal(stat.visible, 'static');
+  assert.match(crewHint(stat), /^This scenario drives the DSKY only/);
+  assert.match(crewHint({ ...stat, readOnly: false }), /^This starting point drives the DSKY only/);
+  assert.equal(crewModel({ software: 'Luminary099', vehicle: {}, agc: {} }, 'demo', 'physics').visible, 'lm');
+  const cm = crewModel({ software: 'Comanche055', vehicle: { engineOn: true }, agc: { mode: 40, crew: { engineStop: false } } }, 'interactive');
+  assert.deepEqual(cm, { visible: 'cm', readOnly: false, mode: 40, engineOn: true, engineStop: false });
+  assert.match(crewHint(cm), /OFF during the burn.*V97N40/);
+  assert.match(crewHint({ ...cm, engineStop: true }), /^ΔV THRUST OFF: .*V97N40.*NORMAL again, then PRO/);
+  assert.equal(crewHint({ ...cm, mode: 0 }), '');
+  // The V97 responses quoted in the hint: FAILDSP (Comanche055 P40-P47.agc).
+  const src = lines('Comanche055/P40-P47.agc');
+  assert.match(src[939 - 1], /^FAILDSP\s+CAF\s+V06N40\s+# SPS ENGINE-FAILED V97 FLASH/);
+  assert.match(src[942 - 1], /TCF\s+V97T\s+# TERMINATE/);
+  assert.match(src[943 - 1], /TCF\s+V97P\s+# PROCEED/);
+  assert.match(src[944 - 1], /TCF\s+V97E\s+# ENTER/);
 });
 
 // ---------------- ignition ----------------

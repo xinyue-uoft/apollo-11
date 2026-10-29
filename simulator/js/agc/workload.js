@@ -316,6 +316,24 @@ export class Workload {
     this._scheduleReadaccs(this.params.cycleS);
   }
 
+  // A sim that starts in mid-flight (scenario or preset) starts Average-G at
+  // its first instant, so by itself the 2-s READACCS rhythm — and with it
+  // the Executive load at any GET — would depend on the start time. Put it
+  // back on the grid of the flight whose PREREAD ran at `epoch` (TIG − 29.9 s,
+  // BURN_BABY_BURN--MASTER_IGNITION_ROUTINE.agc:292-343; READACCS re-arms
+  // itself every 2 s, SERVICER.agc:72-74): TBASE5 becomes the last grid
+  // point at or before now. BURNBABY's mid-flight restore calls this.
+  alignCycle(epoch) {
+    const exec = this.exec;
+    if (!exec || !this.averageG || !Number.isFinite(epoch)) return;
+    const now = exec.now();
+    if (now <= epoch) return;
+    const c = this.params.cycleS;
+    const k = Math.floor((now - epoch) / c + 1e-9);
+    this.tbase5 = Math.round((epoch + k * c) * 100) / 100;
+    this._scheduleReadaccs(0, this.tbase5 + c);
+  }
+
   // AVEGFLAG down -> AVGEND (SERVICER.agc:141-147, :350-379).
   stopAverageG() {
     this.averageG = false;

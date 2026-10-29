@@ -104,8 +104,8 @@ export default defineScenario({
     { at: '075:50:14', hold: 3 },
     { at: '075:50:18', chapter: 'Six minutes' },
     { at: '075:50:18', narrate: {
-      title: 'The longest burn',
-      body: '<p>This was the longest engine firing of the mission: 357.5 seconds (Mission Report). We fast-forward at 8× while the computer steers and the crew watch the chamber pressure and the propellant gauges. The spacecraft gets lighter by about 64 lb every second (the code’s <code>3MDOT</code> comment: 63.8 lb/s), so the same thrust pushes it harder and harder.</p>',
+      title: 'The longest SPS burn',
+      body: '<p>This was the longest firing of Columbia’s SPS engine on the mission: 357.5 seconds (Mission Report §8.8); Eagle’s descent engine would later burn for 756 s. We fast-forward at 8× while the computer steers and the crew watch the chamber pressure and the propellant gauges. The spacecraft gets lighter by about 64 lb every second (the code’s <code>3MDOT</code> comment: 63.8 lb/s), so the same thrust pushes it harder and harder.</p>',
       anchors: ['cm.p40.feng'],
     } },
     { at: '075:50:20', speed: 8 },

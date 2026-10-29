@@ -35,8 +35,10 @@
 //     'NAME+k' first; if `erasable.NAME` is an array, element k (SP) or
 //     k/2 (DP) is used — so programs may store vectors as arrays
 //     (VGBODY = [x, y, z] serves N85).
-//   - TIME2 (N36) is the AGC clock: `agc.t` (the model sets the clock to
-//     GET, as the ground did with the clock updates).
+//   - TIME2 (N36) is the AGC clock: GET (`agc.t`, as the ground's clock
+//     updates kept it) plus `agc.clockOffset`. Loading N36 (V25N36) sets
+//     that offset, so the clock keeps counting from the loaded value (the
+//     hardware counter TIME2/TIME1 never stops; Agc.clock).
 //   - SAMPTIME (N65) is the time PINBALL snatched at the last keystroke or
 //     monitor cycle (KEYRUPT1 / MONREQ: TC LODSAMPT,
 //     Luminary099/KEYRUPT_UPRUPT.agc:38, PINBALL :2373).
@@ -443,6 +445,26 @@ function failreg(agc, k) {
   return v === null ? 0 : v;
 }
 
+// TIME2/TIME1 (N36): GET plus the offset of the last clock load. The
+// present time is the Executive's (inside a job, the job's own instant).
+function clockNow(agc) {
+  const t = agc && agc.exec && typeof agc.exec.now === 'function' ? agc.exec.now() : agc && agc.t;
+  return num(t);
+}
+
+function readClock(agc) {
+  const t = clockNow(agc);
+  if (t === null) return readErasable(agc, 'TIME2');
+  return t + (num(agc.clockOffset) ?? 0);
+}
+
+// V25N36: the counter is set and counts on from the loaded value.
+function loadClock(agc, value) {
+  const t = clockNow(agc);
+  if (t === null) writeErasable(agc, 'TIME2', value, { dp: true });
+  else agc.clockOffset = value - t;
+}
+
 // The reader for one component.
 function makeReader(software, noun, name, routine, k, dp) {
   if (name === 0 || name === '0' || name === null) {
@@ -451,12 +473,7 @@ function makeReader(software, noun, name, routine, k, dp) {
     if (software === 'Luminary099' && routine === 6) return (agc) => readErasable(agc, 'LRPOS');
     return () => null;
   }
-  if (name === 'TIME2') {
-    return (agc) => {
-      const v = readErasable(agc, 'TIME2');
-      return v !== null ? v : num(agc && agc.t);
-    };
-  }
+  if (name === 'TIME2') return (agc) => readClock(agc);
   if (name === 'SAMPTIME') {
     return (agc) => {
       const p = agc && agc.pinball;
@@ -615,7 +632,8 @@ function decode(software, row) {
       return toWord(v);
     };
     comp.write = (agc, value) => {
-      if (comp.key) writeErasable(agc, comp.key, value, { dp });
+      if (comp.key === 'TIME2') loadClock(agc, value);
+      else if (comp.key) writeErasable(agc, comp.key, value, { dp });
     };
     components.push(Object.freeze(comp));
   }

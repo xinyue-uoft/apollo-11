@@ -6,6 +6,16 @@
   display: none !important;
 }
 
+/* Panel titles: the h2 holds only the label; badges, clocks and buttons
+   are its siblings in the .panel-title row (base.css), which styles both. */
+.panel-title > h2 {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+
 .inst .u {
   font-size: 10.5px;
   font-weight: 500;
@@ -386,7 +396,8 @@
   padding: 10px 12px 12px;
 }
 
-.crew-lm {
+.crew-lm,
+.crew-cmbox {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -557,7 +568,8 @@
   cursor: default;
 }
 
-.crew-rr {
+.crew-rr,
+.crew-dv {
   align-items: stretch;
 }
 
@@ -569,7 +581,8 @@
   gap: 6px;
 }
 
-.crew-rr h3 {
+.crew-rr h3,
+.crew-dv h3 {
   align-self: auto;
   text-align: left;
 }
@@ -657,6 +670,7 @@
 
 .crew-note,
 .crew-cm,
+.crew-static,
 .crew-empty {
   margin: 0;
   font-size: 12px;

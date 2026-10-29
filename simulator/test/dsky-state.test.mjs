@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DskyState, LIGHT_NAMES, LIGHT_LEGENDS, DSKY_LAMP_LAYOUT, RELAY_CODES, RELAY_SEGMENTS,
-  segmentsFor, lampsOn, dskySummary, FLASH_PERIOD_S, FLASH_DUTY,
+  segmentsFor, lampsOn, dskySummary, dskyAnnounceKey, FLASH_PERIOD_S, FLASH_DUTY,
 } from '../js/agc/dsky-state.js';
 
 const CONTRACT_LIGHTS = [
@@ -286,4 +286,33 @@ test('dskySummary reads the display like a person would', () => {
   assert.match(dskySummary(d.snapshot()), /^Display blanked\./);
   d.setLampTest(true);
   assert.match(dskySummary(d.snapshot()), /^Lamp test\. Display blanked\./);
+});
+
+test('dskyAnnounceKey ignores register digits and COMP ACTY', () => {
+  const d = new DskyState();
+  assert.equal(dskyAnnounceKey(null), 'off');
+  d.setProg('00');
+  d.setVerb('16');
+  d.setNoun('36');
+  d.setRegister(2, '+', '03854');
+  const k0 = dskyAnnounceKey(d.snapshot());
+  // A monitor verb ticking the clock (V16N36 R3) is not news.
+  d.setRegister(2, '+', '03954');
+  d.setLight('compActy', true);
+  assert.equal(dskyAnnounceKey(d.snapshot()), k0);
+  assert.notEqual(dskySummary(d.snapshot()), '');
+  // PROG/VERB/NOUN, the flash, blanking and lamps are.
+  for (const change of [
+    () => d.setNoun('68'), () => d.setVerb('06'), () => d.setProg('63'), () => d.setFlash(true),
+    () => d.setBlanked(true), () => d.setLampTest(true), () => d.setLight('prog', true),
+  ]) {
+    const before = dskyAnnounceKey(d.snapshot());
+    change();
+    assert.notEqual(dskyAnnounceKey(d.snapshot()), before, String(change));
+  }
+  // Lamps without a window on this DSKY (ALT/VEL on the CM) do not count.
+  const cmKey = dskyAnnounceKey(d.snapshot(), { software: 'Comanche055' });
+  d.setLight('alt', true);
+  assert.equal(dskyAnnounceKey(d.snapshot(), { software: 'Comanche055' }), cmKey);
+  assert.notEqual(dskyAnnounceKey(d.snapshot()), cmKey);
 });

@@ -58,7 +58,7 @@ export const PHASES = Object.freeze({
   p63: { label: 'P63 braking', token: '--phase-p63', fallback: '#4c8dff' },
   p64: { label: 'P64 approach', token: '--phase-p64', fallback: '#2fc7a8' },
   p66: { label: 'P66 rate of descent', token: '--phase-p66', fallback: '#ffb52e' },
-  other: { label: 'Coast / other', token: '--text-faint', fallback: '#6b7581' },
+  other: { label: 'Coast / other', token: '--text-faint', fallback: '#8a94a0' },
 });
 
 // Major mode → colour family. P65 (auto landing) and P67 (manual) are the
@@ -151,6 +151,24 @@ export function fmtInt(v) {
 
 function fmtNum1(v) {
   return Number.isFinite(v) ? v.toFixed(1) : '—';
+}
+
+// Axis tick label with as many decimals as the tick step needs (0.2 nmi
+// steps read 0.2, 0.4 … rather than rounding to 0, 0, 1 …; 2.5 → 7.5).
+export function fmtTick(v, step) {
+  if (!Number.isFinite(v)) return '—';
+  let dp = 0;
+  while (dp < 6 && step > 0 && Math.abs(step * 10 ** dp - Math.round(step * 10 ** dp)) > 1e-6) dp += 1;
+  if (dp === 0) return fmtInt(v);
+  const s = Math.abs(v).toFixed(dp);
+  return v < 0 && Number(s) !== 0 ? `−${s}` : s;
+}
+
+// "Landed" / "Hard landing" / "Crashed", per LmPhysics' touchdown verdict.
+export function landingWord(verdict, who = 'Landed') {
+  if (verdict === 'crash') return 'Crashed';
+  if (verdict === 'hard') return 'Hard landing';
+  return who;
 }
 
 // Range for humans: nmi far out, feet close in (AGC displays use both).
@@ -535,7 +553,7 @@ export function summarizeTrajectory(snap, passed = []) {
   if (snap.software === 'Comanche055') return 'Trajectory: the Command Module chapter has no landing trajectory.';
   const parts = [];
   parts.push(`${programTitle(snap.agc?.mode, snap.agc?.programName)}.`);
-  if (v.landed) parts.push('Landed.');
+  if (v.landed) parts.push(`${landingWord(v.touchdown?.verdict)}.`);
   else {
     parts.push(`Altitude ${fmtInt(toFt(v.alt))} feet,`);
     const dist = formatRange(Math.abs(v.range)).replace('nmi', 'nautical miles').replace('ft', 'feet');
@@ -859,7 +877,7 @@ export function mountTrajectory(root, ctx) {
   root.innerHTML = `
     <div class="traj" data-spot="trajectory">
       <div class="viz-head">
-        <ul class="viz-legend" aria-label="Path colour by program">
+        <ul class="viz-legend" data-role="legend" aria-label="Path colour by program">
           <li><span class="swatch swatch-p63" aria-hidden="true"></span>P63 braking</li>
           <li><span class="swatch swatch-p64" aria-hidden="true"></span>P64 approach</li>
           <li><span class="swatch swatch-p66" aria-hidden="true"></span>P66 rate of descent</li>
@@ -889,6 +907,7 @@ export function mountTrajectory(root, ctx) {
     histLegend: root.querySelector('[data-role="hist-legend"]'),
     histText: root.querySelector('[data-role="hist-text"]'),
     note: root.querySelector('[data-role="note"]'),
+    legend: root.querySelector('[data-role="legend"]'),
   };
   const g = el.canvas.getContext('2d');
   const model = new TrajectoryModel();
@@ -908,7 +927,7 @@ export function mountTrajectory(root, ctx) {
   let ariaAt = -Infinity;
   let pendingAria = null;
   const textCache = new Map();
-  const cache = { phase: '', empty: null, histLegend: null, histText: '', spotLm: '', spotSite: '' };
+  const cache = { phase: '', empty: null, histLegend: null, histText: '', spotLm: '', spotSite: '', chrome: null };
 
   // Lazy data: the track registry and the vehicle factory (written by
   // another engineer; loaded dynamically so this module imports in Node).
@@ -953,7 +972,7 @@ export function mountTrajectory(root, ctx) {
       borderStrong: v('--border-strong', '#3a434e'),
       text: v('--text', '#dde2e8'),
       dim: v('--text-dim', '#9aa4b0'),
-      faint: v('--text-faint', '#6b7581'),
+      faint: v('--text-faint', '#8a94a0'),
       amber: v('--amber', '#ffb52e'),
       red: v('--red', '#ff6257'),
       blue: v('--blue', '#6cb6ff'),
@@ -1005,6 +1024,7 @@ export function mountTrajectory(root, ctx) {
   }
 
   function currentVehicleKind() {
+    if (lastUi?.vehicleKind) return lastUi.vehicleKind;
     try {
       return app?.currentSim?.()?.options?.vehicle ?? null;
     } catch {
@@ -1093,6 +1113,15 @@ export function mountTrajectory(root, ctx) {
     el.empty.textContent = val || '';
   }
 
+  // The P63/P64/P66 legend and the LM caption belong to a descent: hidden
+  // for the Command Module, a DSKY-only vehicle and no simulation.
+  function setChrome(on) {
+    if (cache.chrome === on) return;
+    cache.chrome = on;
+    el.legend.hidden = !on;
+    el.note.hidden = !on;
+  }
+
   function setText(node, key, text) {
     if (cache[key] === text) return;
     cache[key] = text;
@@ -1127,6 +1156,7 @@ export function mountTrajectory(root, ctx) {
     hits = [];
 
     if (!snap) {
+      setChrome(false);
       setEmpty('No simulation running.');
       setText(el.phase, 'phase', '—');
       placeSpot(el.spotLm, 'spotLm', NaN, NaN);
@@ -1135,6 +1165,7 @@ export function mountTrajectory(root, ctx) {
       return;
     }
     if (snap.software === 'Comanche055') {
+      setChrome(false);
       setEmpty('The trajectory view shows the Lunar Module’s powered descent. In the Command Module chapter, follow the SPS burn on the Ignition tab and the instruments on the left.');
       setText(el.phase, 'phase', programTitle(snap.agc?.mode, snap.agc?.programName));
       placeSpot(el.spotLm, 'spotLm', NaN, NaN);
@@ -1143,16 +1174,22 @@ export function mountTrajectory(root, ctx) {
       return;
     }
     const v = snap.vehicle;
-    if (!v || !Number.isFinite(v.alt) || !Number.isFinite(v.range)) {
-      setEmpty('No flight state: this preset parks the vehicle (DSKY only). Choose a descent preset to fly.');
+    const kind = currentVehicleKind();
+    if (!v || kind === 'static' || !Number.isFinite(v.alt) || !Number.isFinite(v.range)) {
+      setChrome(false);
+      setEmpty(ui?.mode === 'demo'
+        ? 'No flight state: this scenario drives the DSKY only, so there is no trajectory to show.'
+        : 'No flight state: this starting point parks the vehicle (DSKY only). Choose a descent preset to fly.');
       setText(el.phase, 'phase', programTitle(snap.agc?.mode, snap.agc?.programName));
+      placeSpot(el.spotLm, 'spotLm', NaN, NaN);
+      placeSpot(el.spotSite, 'spotSite', NaN, NaN);
       updateAria('Trajectory: no flight state.', now);
       return;
     }
+    setChrome(true);
     setEmpty(null);
     setText(el.phase, 'phase', programTitle(snap.agc?.mode, snap.agc?.programName));
 
-    const kind = currentVehicleKind();
     const rp = ensureReplay(ui, snap);
     const isReplay = kind === 'replay' && rp && rp.pts.length > 1;
 
@@ -1431,7 +1468,7 @@ export function mountTrajectory(root, ctx) {
       c.stroke();
       c.setLineDash([]);
       c.fillStyle = theme.faint;
-      const label = hv >= 1000 ? `${fmtInt(hv / 1000)}k ft` : `${fmtInt(hv)} ft`;
+      const label = hv >= 1000 ? `${Number.isInteger(hv / 1000) ? fmtInt(hv / 1000) : +(hv / 1000).toFixed(2)}k ft` : `${fmtInt(hv)} ft`;
       c.fillText(label, plot.x + 2, surfY(s.rMax) - hv * k - 2);
     }
     c.restore();
@@ -1444,6 +1481,7 @@ export function mountTrajectory(root, ctx) {
     c.fillStyle = theme.dim;
     c.strokeStyle = theme.groundLine;
     const xTicks = niceTicks(0, rMaxN, Math.max(3, Math.min(7, Math.floor(plot.w / 90))));
+    const xStep = xTicks.length > 1 ? xTicks[1] - xTicks[0] : 1;
     for (const xv of xTicks) {
       const x = sx(xv * NMI);
       const y = surfY(xv * NMI);
@@ -1451,7 +1489,7 @@ export function mountTrajectory(root, ctx) {
       c.moveTo(x, y);
       c.lineTo(x, y + 4);
       c.stroke();
-      const label = xv === 0 ? '0' : `${fmtInt(xv)}`;
+      const label = xv === 0 ? '0' : fmtTick(xv, xStep);
       c.fillText(label, Math.min(Math.max(x, plot.x + 8), plot.x + plot.w - 8), A.y + A.h - 2);
     }
     c.restore();
@@ -1609,13 +1647,13 @@ export function mountTrajectory(root, ctx) {
     if (s.landed) {
       const lx = sx(toFt(s.landed.r));
       const d = toFt(s.landed.r);
-      const who = s.isReplay ? 'Eagle landed' : 'Landed';
+      // LmPhysics evaluates the touchdown (vertical/horizontal speed, tilt).
+      const td = s.isReplay ? null : s.snap?.vehicle?.touchdown;
+      const who = s.isReplay ? 'Eagle landed' : landingWord(td?.verdict);
       let txt = Math.abs(d) < 50 ? `${who} at the aim point`
         : d < 0 ? `${who} ${fmtInt(-d)} ft beyond the aim point` : `${who} ${fmtInt(d)} ft short of the aim point`;
-      // LmPhysics evaluates the touchdown (vertical/horizontal speed, tilt).
-      const td = s.snap?.vehicle?.touchdown;
-      if (!s.isReplay && td && Number.isFinite(td.vVert)) {
-        txt += ` · ${fmtNum1(Math.abs(toFps(td.vVert)))} ft/s down, ${fmtNum1(Math.abs(toFps(td.vHoriz)))} ft/s across — ${td.verdict}`;
+      if (td && Number.isFinite(td.vVert)) {
+        txt += ` · ${fmtNum1(Math.abs(toFps(td.vVert)))} ft/s down, ${fmtNum1(Math.abs(toFps(td.vHoriz)))} ft/s across`;
       }
       g.save();
       g.font = s.font;
@@ -1626,7 +1664,7 @@ export function mountTrajectory(root, ctx) {
       g.fillStyle = 'rgba(22,26,31,0.86)';
       roundRect(g, x - 5, y - 2, tw + 10, 17, 4);
       g.fill();
-      g.fillStyle = theme.amber;
+      g.fillStyle = td?.verdict === 'crash' ? theme.red : theme.amber;
       g.textBaseline = 'top';
       g.fillText(txt, x, y + 1);
       // Replay: how far from the planned (map) site — ≈6.6 km for Apollo 11

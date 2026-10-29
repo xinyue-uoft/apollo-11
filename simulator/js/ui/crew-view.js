@@ -1,13 +1,15 @@
 // Crew controls view: the LM crew-station controls the simulator supports
 // (ARCHITECTURE §11.3) — ROD switch, LPD hand-controller clicks, PGNS mode
 // (AUTO / ATT HOLD), the rendezvous-radar switch fault that reproduces
-// Apollo 11's CDU cycle stealing, and ENGINE STOP.
+// Apollo 11's CDU cycle stealing, and ENGINE STOP (a toggle: press to
+// command the engine off, press again to release it).
 //
 // Interactive mode: live buttons → `ctx.app.crewInput(name, value)`.
 // Demo mode: the same controls, disabled, showing the replay's state (and
 // briefly highlighting any control the crew operates).
-// The Command Module has none of these (they are LM-only), so the view
-// shows a short note instead.
+// The Command Module has none of these (they are LM-only); it gets the SPS
+// ΔV THRUST switch (crewInput 'engineStop'), which P40 reads as an engine
+// failure. A DSKY-only (static) vehicle gets a one-line note.
 //
 // Everything above `mountCrew` is DOM-free (node:test imports it).
 
@@ -28,7 +30,13 @@ import { toFps } from '../util/units.js';
 // - LPD: each left/right click moves the site 2° in azimuth, each fore/aft
 //   click 0.5° in elevation (AZEACH / ELEACH, :1211-1212); clicks are
 //   ignored in attitude hold (COUNT'EM, :1174-1178) and outside P64
-//   (PITFALL, :1130-1134).
+//   (PITFALL, :1130-1134). The LPD angle/time (N64 R1) is meaningful in
+//   P64 only.
+// - P65 (P65START / P65VERT, :252-258, :897-913): nulls the horizontal
+//   velocity and descends at 3 ft/s; ATT HOLD + a ROD click → P66.
+// - CM: with the ΔV THRUST switches off, P40's thrust check (S40.8, LOTHRUST)
+//   flashes V97N40; its responses are V34 terminate, PRO proceed, ENTR
+//   re-ignite (FAILDSP, Comanche055/P40-P47.agc:939-944, :1007-1135).
 export const ROD_STEP_FPS = 1.0;
 export const LPD_AZ_STEP_DEG = 2;
 export const LPD_EL_STEP_DEG = 0.5;
@@ -46,16 +54,28 @@ export function fmtRate(fps) {
   return r > 0 ? `+${s}` : r < 0 ? `−${s}` : '0.0';
 }
 
-// Pure view model of the crew panel.
-export function crewModel(snap, appMode) {
+// Pure view model of the crew panel. `vehicleKind` is the simulation's
+// vehicle ('static' = DSKY only, no flight).
+export function crewModel(snap, appMode, vehicleKind = null) {
   if (!snap) return { visible: 'none', readOnly: true };
-  if (snap.software === 'Comanche055') return { visible: 'cm', readOnly: appMode !== 'interactive' };
+  const readOnly = appMode !== 'interactive';
   const crew = snap.agc?.crew || {};
+  if (snap.software === 'Comanche055') {
+    return {
+      visible: 'cm',
+      readOnly,
+      mode: snap.agc?.mode ?? null,
+      engineOn: !!snap.vehicle?.engineOn,
+      engineStop: crew.engineStop === true,
+    };
+  }
+  if (vehicleKind === 'static') return { visible: 'static', readOnly };
   const lpd = snap.agc?.guidance?.lpd || null;
   const clicks = crew.lpdClicks || { dx: 0, dy: 0 };
+  const td = snap.vehicle?.touchdown || null;
   return {
     visible: 'lm',
-    readOnly: appMode !== 'interactive',
+    readOnly,
     mode: snap.agc?.mode ?? null,
     rodFps: rodRateFps(crew.rodRate),
     pgnsMode: crew.pgnsMode === 'attHold' ? 'attHold' : crew.pgnsMode === 'auto' ? 'auto' : null,
@@ -69,26 +89,68 @@ export function crewModel(snap, appMode) {
     engineOn: !!snap.vehicle?.engineOn,
     engineStop: crew.engineStop === true,
     landed: !!snap.vehicle?.landed,
+    // LmPhysics' touchdown evaluation (null in replays and before contact).
+    touchdown: td && td.verdict ? {
+      verdict: td.verdict,
+      vVert: Number.isFinite(td.vVert) ? Math.abs(toFps(td.vVert)) : null,
+      vHoriz: Number.isFinite(td.vHoriz) ? Math.abs(toFps(td.vHoriz)) : null,
+    } : null,
   };
 }
 
-// One-line context hint for the ROD/LPD controls, per program and mode.
+const fps1 = (v) => (Number.isFinite(v) ? v.toFixed(1) : '—');
+
+// The landing outcome, worded per LmPhysics' verdict.
+function landedHint(td) {
+  const speeds = td ? `${fps1(td.vVert)} ft/s down, ${fps1(td.vHoriz)} ft/s across` : '';
+  if (td?.verdict === 'crash') return `Crashed: the LM hit the surface at ${speeds}. Restart to fly it again.`;
+  if (td?.verdict === 'hard') return `Hard landing: ${speeds} — outside the landing-gear limits. The descent controls no longer do anything.`;
+  if (td?.verdict === 'safe') return `Landed: ${speeds} — within the landing-gear limits. The descent controls no longer do anything.`;
+  return 'On the surface: the descent controls no longer do anything.';
+}
+
+// ATT HOLD freezes the attitude: this simulator has no hand controller.
+const ATT_FROZEN = 'the attitude is frozen (this simulator has no hand controller)';
+
+// One-line context hint for the crew controls, per program and mode.
 export function crewHint(model) {
+  if (model.visible === 'static') {
+    return `This ${model.readOnly ? 'scenario' : 'starting point'} drives the DSKY only — no vehicle is simulated, so there is nothing to fly.`;
+  }
+  if (model.visible === 'cm') {
+    if (model.engineStop) {
+      return 'ΔV THRUST OFF: the SPS cannot fire. In a P40 burn the computer sees the thrust fail and flashes V97N40 — set NORMAL again, then PRO continues the burn (ENTR re-ignites through V99, V34 ends it).';
+    }
+    return model.mode === 40
+      ? 'Set ΔV THRUST to OFF during the burn to see P40’s engine-fail logic (flashing V97N40).'
+      : '';
+  }
   if (model.visible !== 'lm') return '';
-  if (model.landed) return 'On the surface: the descent controls no longer do anything.';
+  if (model.landed) return landedHint(model.touchdown);
+  if (model.engineStop) return 'ENGINE STOP is pressed: the descent engine is commanded off (in powered flight the LM falls) — click ENGINE STOP again to release it.';
   if (model.mode === 66) return 'P66: each ROD click changes the commanded descent rate by 1 ft/s; the AGC throttles to hold it while the commander flies the attitude.';
+  if (model.mode === 65) {
+    return model.pgnsMode === 'attHold'
+      ? 'P65 in ATT HOLD: a ROD click switches to P66.'
+      : 'P65: the computer nulls the horizontal velocity and descends at 3 ft/s. To take over, select ATT HOLD and click ROD (P66).';
+  }
   if (model.mode === 64) {
     return model.pgnsMode === 'attHold'
-      ? 'P64 in ATT HOLD: a ROD click switches to P66 (as Armstrong did at 102:43:22). LPD clicks are ignored in attitude hold.'
+      ? `P64 in ATT HOLD: ${ATT_FROZEN}, so nothing steers the descent — click ROD now to switch to P66 (as Armstrong did at 102:43:22), or return to AUTO. LPD clicks are ignored in attitude hold.`
       : 'P64: after PRO on the flashing V06N64, LPD clicks redesignate the landing site. For P66, select ATT HOLD and click ROD.';
   }
   if (model.mode === 63) {
     return model.pgnsMode === 'attHold'
-      ? 'P63 in ATT HOLD: once landing guidance runs, a ROD click would start P66. LPD clicks work only in P64.'
+      ? `P63 in ATT HOLD: ${ATT_FROZEN} — return to AUTO. Once landing guidance runs, a ROD click would start P66; LPD clicks work only in P64.`
       : 'P63: the computer flies the braking phase. In AUTO the ROD clicks are discarded; LPD clicks work only in P64.';
   }
-  return 'These controls matter in the landing programs (P64, P66).';
+  return 'These controls matter in the landing programs (P64, P65, P66).';
 }
+
+const RO_TEXT = {
+  lm: 'Replay: the controls show what the crew did. Switch to <b>Interactive</b> to fly the descent yourself.',
+  cm: 'Replay: the switch shows the crew’s setting. Switch to <b>Interactive</b> to try it yourself.',
+};
 
 // research/src-executive.md §10.1 (Eyles 2004) and research/web-timeline-b.md
 // D12 (Mission Report §16.2.5).
@@ -106,10 +168,11 @@ export function mountCrew(root, ctx) {
   const { bus, app } = ctx;
 
   root.innerHTML = `
-    <h2 class="panel-title"><span>Crew station</span><span class="crew-badge" data-k="badge">—</span></h2>
+    <div class="panel-title"><h2>Crew station</h2><span class="crew-badge" data-k="badge">—</span></div>
     <div class="crew" data-spot="crew">
-      <p class="crew-ro" data-role="ro" hidden>Replay: the controls show what the crew did. Switch to <b>Interactive</b> to fly the descent yourself.</p>
+      <p class="crew-ro" data-role="ro" hidden>${RO_TEXT.lm}</p>
       <p class="crew-empty" data-role="empty" hidden>No simulation running.</p>
+      <p class="crew-static" data-role="static" hidden></p>
       <div class="crew-lm" data-role="lm">
         <div class="crew-row">
           <section class="crew-ctl crew-rod" data-spot="crew.rod" aria-labelledby="crew-rod-h">
@@ -142,7 +205,7 @@ export function mountCrew(root, ctx) {
             </div>
           </section>
           <section class="crew-ctl crew-stop" aria-label="Engine stop">
-            <button type="button" class="btn crew-stop-btn" data-act="engineStop">ENGINE<br>STOP</button>
+            <button type="button" class="btn crew-stop-btn" data-act="engineStop" aria-pressed="false" aria-label="Engine stop" title="Command the descent engine off (click again to release)">ENGINE<br>STOP</button>
           </section>
         </div>
         <section class="crew-ctl crew-rr" data-spot="crew.rr" aria-labelledby="crew-rr-h">
@@ -162,13 +225,26 @@ export function mountCrew(root, ctx) {
             <li><b>ROD</b> (rate of descent) — a spring-loaded toggle on the thrust/translation controller. Each click changes P66’s commanded descent rate by ${ROD_STEP_FPS} ft/s (RODSCALE, Apollo 11 pad load). Up = slower, down = faster.</li>
             <li><b>LPD</b> — in P64, after PRO on the flashing V06N64, clicks of the attitude hand controller move the landing site: ${LPD_AZ_STEP_DEG}° per left/right click, ${LPD_EL_STEP_DEG}° per fore/aft click. The DSKY’s N64 R1 shows the time left for redesignation and the LPD angle to read against the window reticle.</li>
             <li><b>ATT HOLD</b> — attitude hold (manual attitude). With ATT HOLD selected, the first ROD click switches the computer to P66, as on Apollo 11 at 102:43:22.</li>
-            <li><b>ENGINE STOP</b> — shuts the descent engine down (after touchdown, or to stop a burn).</li>
+            <li><b>ENGINE STOP</b> — commands the descent engine off (after touchdown, or to stop a burn). In flight the LM then falls: click it again to release it and let the computer throttle the engine back up.</li>
             <li><b>RR switch fault</b> — ${RR_MORE}</li>
           </ul>
           <p class="crew-note">Simplified: switch positions are modelled as the discretes the AGC reads; the real panel had more positions and interlocks.</p>
         </details>
       </div>
-      <p class="crew-cm" data-role="cm" hidden>The Command Module’s crew-station controls are not modelled. Fly the CM chapter from the DSKY: the P40 burn needs only <kbd>PRO</kbd> on the flashing V99.</p>
+      <div class="crew-cmbox" data-role="cm" hidden>
+        <section class="crew-ctl crew-dv" data-spot="crew.dvThrust" aria-labelledby="crew-dv-h">
+          <div class="crew-rr-head">
+            <h3 id="crew-dv-h">SPS ΔV THRUST</h3>
+            <button type="button" class="switch" role="switch" aria-checked="true" data-act="dvThrust" aria-labelledby="crew-dv-h" aria-describedby="crew-dv-help">
+              <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+              <span data-k="dvText" aria-hidden="true">NORMAL</span>
+            </button>
+          </div>
+          <p class="crew-help" id="crew-dv-help">The SPS thrust-enable switches (ΔV THRUST A/B). OFF keeps the engine from firing; during a P40 burn the computer then sees the thrust fail and flashes V97N40.</p>
+        </section>
+        <p class="crew-hint" data-k="cmHint" aria-live="polite"></p>
+        <p class="crew-cm">The Command Module’s other crew-station controls are not modelled. Fly the CM chapter from the DSKY: the P40 burn needs only <kbd>PRO</kbd> on the flashing V99.</p>
+      </div>
     </div>`;
 
   const q = (s) => root.querySelector(s);
@@ -176,13 +252,17 @@ export function mountCrew(root, ctx) {
   for (const n of root.querySelectorAll('[data-k]')) K[n.dataset.k] = n;
   const btn = {};
   for (const b of root.querySelectorAll('[data-act]')) btn[b.dataset.act] = b;
-  const el = { ro: q('[data-role="ro"]'), empty: q('[data-role="empty"]'), lm: q('[data-role="lm"]'), cm: q('[data-role="cm"]') };
+  const el = {
+    ro: q('[data-role="ro"]'), empty: q('[data-role="empty"]'), static: q('[data-role="static"]'),
+    lm: q('[data-role="lm"]'), cm: q('[data-role="cm"]'),
+  };
   const sections = {
     rod: q('[data-spot="crew.rod"]'),
     lpd: q('[data-spot="crew.lpd"]'),
     pgns: q('.crew-pgns'),
     rr: q('[data-spot="crew.rr"]'),
     stop: q('.crew-stop'),
+    dv: q('[data-spot="crew.dvThrust"]'),
   };
 
   const cache = new Map();
@@ -215,7 +295,9 @@ export function mountCrew(root, ctx) {
     pgnsAuto: () => send('pgnsMode', 'auto'),
     pgnsAtt: () => send('pgnsMode', 'attHold'),
     rr: () => send('rrFault', !(model?.rrFault)),
-    engineStop: () => send('engineStop', true),
+    // Toggles: true commands the engine off, false releases it.
+    engineStop: () => send('engineStop', !model?.engineStop),
+    dvThrust: () => send('engineStop', !model?.engineStop),
   };
   const onClick = (ev) => {
     const b = ev.target.closest('[data-act]');
@@ -243,17 +325,34 @@ export function mountCrew(root, ctx) {
     flashTimers.set(section, win.setTimeout(() => section.classList.remove('crew-changed'), 1600));
   }
 
+  function vehicleKind() {
+    try {
+      return app?.currentSim?.()?.options?.vehicle ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   function render(snap, ui) {
     const appMode = ui?.mode ?? app?.mode ?? 'demo';
-    model = crewModel(snap, appMode);
+    model = crewModel(snap, appMode, ui?.vehicleKind ?? vehicleKind());
     once('vis', model.visible, (v) => {
       el.lm.hidden = v !== 'lm';
       el.cm.hidden = v !== 'cm';
       el.empty.hidden = v !== 'none';
+      el.static.hidden = v !== 'static';
     });
-    once('ro', model.readOnly && model.visible === 'lm', (ro) => { el.ro.hidden = !ro; });
+    const ro = model.readOnly && RO_TEXT[model.visible] ? model.visible : null;
+    once('ro', ro, (v) => {
+      el.ro.hidden = !v;
+      if (v) el.ro.innerHTML = RO_TEXT[v];
+    });
     set('badge', model.visible === 'none' ? '—' : model.readOnly ? 'Replay · read-only' : 'Interactive');
-    if (model.visible !== 'lm') return;
+    if (model.visible === 'static') {
+      once('static', crewHint(model), (text) => { el.static.textContent = text; });
+      return;
+    }
+    if (model.visible !== 'lm' && model.visible !== 'cm') return;
 
     once('disabled', model.readOnly, (ro) => {
       for (const b of Object.values(btn)) {
@@ -262,10 +361,21 @@ export function mountCrew(root, ctx) {
       }
     });
 
+    if (model.visible === 'cm') {
+      once('dv', model.engineStop, (off) => {
+        btn.dvThrust.setAttribute('aria-checked', String(!off));
+        K.dvText.textContent = off ? 'OFF' : 'NORMAL';
+      });
+      set('cmHint', crewHint(model));
+      return;
+    }
+
     set('rod', model.rodFps === null ? '—' : `${fmtRate(model.rodFps)} ft/s`);
     const { dx, dy, angle, time } = model.lpd;
     set('lpdClicks', `az ${dx > 0 ? '+' : ''}${dx} · el ${dy > 0 ? '+' : ''}${dy}`);
-    set('lpdAngle', angle === null ? 'LPD —' : `LPD ${Math.round(angle)}°${time !== null ? ` · ${Math.max(0, Math.round(time))} s left` : ''}`);
+    // The LPD angle and redesignation time (N64 R1) exist in P64 only; the
+    // guidance keeps the last values afterwards.
+    set('lpdAngle', model.mode !== 64 || angle === null ? 'LPD —' : `LPD ${Math.round(angle)}°${time !== null ? ` · ${Math.max(0, Math.round(time))} s left` : ''}`);
     once('pgns', model.pgnsMode, (m) => {
       btn.pgnsAuto.setAttribute('aria-checked', String(m === 'auto'));
       btn.pgnsAtt.setAttribute('aria-checked', String(m === 'attHold'));
@@ -283,7 +393,8 @@ export function mountCrew(root, ctx) {
 
     once('stopped', model.engineStop, (on) => {
       btn.engineStop.dataset.stopped = String(!!on);
-      btn.engineStop.setAttribute('aria-label', on ? 'Engine stop (pressed: the engine is commanded off)' : 'Engine stop');
+      btn.engineStop.setAttribute('aria-pressed', String(!!on));
+      btn.engineStop.title = on ? 'Engine commanded off — click again to release' : 'Command the descent engine off (click again to release)';
     });
   }
 
@@ -292,8 +403,9 @@ export function mountCrew(root, ctx) {
   const SECTION_FOR = { rodClick: 'rod', lpd: 'lpd', pgnsMode: 'pgns', rrFault: 'rr', engineStop: 'stop' };
   const offs = [
     bus.on('crew', ({ name } = {}) => {
-      if (!model?.readOnly || model.visible !== 'lm') return;
-      flash(sections[SECTION_FOR[name]]);
+      if (!model?.readOnly) return;
+      if (model.visible === 'lm') flash(sections[SECTION_FOR[name]]);
+      else if (model.visible === 'cm' && name === 'engineStop') flash(sections.dv);
     }),
   ];
 

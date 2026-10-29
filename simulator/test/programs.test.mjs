@@ -16,7 +16,8 @@ import {
   IGNITION_TABLES, indexWhich, decodeVN, BURN_TIMING, TIG_APOLLO11, DISPDEX,
 } from '../js/agc/programs/lm/burnbaby.js';
 import { APOLLO11_LANDING } from '../js/agc/programs/lm/landing.js';
-import { NAV_MODEL } from '../js/agc/nav.js';
+import { NAV_MODEL, NavState } from '../js/agc/nav.js';
+import { DskyState } from '../js/agc/dsky-state.js';
 
 const TIG = TIG_APOLLO11;
 const track = TRACKS.apollo11Descent;
@@ -82,7 +83,7 @@ test('BURNBABY: every event at the listing’s time relative to TIG (±0.05 s), 
   const sim = make({ startGET: '102:32:00' });
   const burn = on(sim, ['burn']);
   const seen = {};
-  const grab = (name, at) => { if (!seen[name] && sim.t >= TIG + at) seen[name] = { vn: vn(sim), prog: d(sim).prog, r2: d(sim).r[1].digits, alt: d(sim).lights.alt }; };
+  const grab = (name, at) => { if (!seen[name] && sim.t >= TIG + at) seen[name] = { vn: vn(sim), prog: d(sim).prog, r2: d(sim).r[1].digits, alt: d(sim).lights.alt, vel: d(sim).lights.vel }; };
   runTo(sim, '102:33:02.5', (s) => {
     grab('blank', -31);
     grab('back', -28);
@@ -103,6 +104,7 @@ test('BURNBABY: every event at the listing’s time relative to TIG (±0.05 s), 
   assert.equal(seen.back.vn, 'V06N62');
   assert.equal(seen.v99.vn, 'V99N62*', 'V99N62 flashing at TIG-5');
   assert.equal(seen.v99.alt, true, 'ALT lamp on: LR reads requested below 50,000 ft, no data');
+  assert.equal(seen.v99.vel, false, 'VEL lamp dark: no velocity read is requested above 2,000 ft/s');
   assert.equal(seen.after.vn, 'V06N63', 'P63IGN: V06N63 after ignition');
   // Events carry source anchors; snapshot.burn §6.9.1.
   const snap = sim.snapshot().agc.burn;
@@ -419,6 +421,119 @@ test('nav: DELTAH ≈ −2,900 ft at 102:38:09; V57 corrects the estimate with W
   near(inc.weight, NAV_MODEL.lrwh * (1 - h / NAV_MODEL.lrhmax), 0.02, 'SERVICER weight');
   runTo(sim, '102:38:45');
   assert.ok(Math.abs(sim.agc.nav.errAlt) < 700 * FT, `converging: ${(sim.agc.nav.errAlt / FT).toFixed(0)} ft`);
+});
+
+test('R12: ALT lights after a failed altitude read, VEL only after a failed velocity read; the third good read is used (STILBAD)', () => {
+  const state = { alt: 40000 * FT, altRate: -100 * FPS, vHoriz: 3000 * FPS, lr: { altValid: false, velValid: false, alt: 0 } };
+  const agc = { vehicle: { state }, flags: { LRBYPASS: false, LRINH: false }, erasable: {}, dsky: new DskyState(), mode: 63 };
+  const nav = new NavState(agc);
+  let t = 0;
+  const pass = () => nav.servicerPass((t += 2));
+  const lamps = () => [agc.dsky.lights.alt, agc.dsky.lights.vel];
+  pass();
+  assert.equal(nav.readLr, true, 'altitude reads below 50,000 ft');
+  assert.deepEqual(lamps(), [true, false], 'no LR lock: ALT on; VEL dark — no velocity read above 2,000 ft/s');
+  state.lr = { altValid: true, velValid: false, alt: 39000 * FT };
+  pass();
+  assert.deepEqual(lamps(), [false, false], 'GOODRAD: ALT out on the first good read');
+  assert.equal(nav.deltaH, null, 'first good read discarded ("JUST GOOD -- MUST WAIT 4 SECONDS")');
+  pass();
+  assert.equal(nav.deltaH, null, 'second good read discarded');
+  pass();
+  near(nav.deltaH / FT, -1000, 1e-6, 'third good read used: DELTAH');
+  state.lr = { altValid: false, velValid: false, alt: 0 };
+  pass();
+  assert.deepEqual(lamps(), [true, false], 'a bad read: ALT on again, STILBAD back to 2');
+  state.lr = { altValid: true, velValid: false, alt: 38000 * FT };
+  pass();
+  pass();
+  near(nav.deltaH / FT, -1000, 1e-6, 'two good reads after the bad one are discarded');
+  pass();
+  near(nav.deltaH / FT, -2000, 1e-6, 'the third is used');
+  state.vHoriz = 1500 * FPS;
+  agc.flags.LRINH = true;       // V57: LR updates permitted
+  pass();
+  assert.equal(nav.readVel, true, 'velocity reads below 2,000 ft/s');
+  assert.deepEqual(lamps(), [false, true], 'DATAFAIL on a velocity read: VEL on');
+  state.lr = { altValid: true, velValid: true, alt: 38000 * FT };
+  pass();
+  assert.deepEqual(lamps(), [false, false], 'VEL out on the first good velocity read');
+  assert.equal(nav.velIncorporating, false);
+  pass();
+  assert.equal(nav.velIncorporating, false);
+  pass();
+  assert.equal(nav.velIncorporating, true, 'velocity data used from the third good read');
+});
+
+test('replay: VEL stays dark from PDI until the radar drops out in P66 (Luminary099 lights it only on a failed velocity read)', () => {
+  const sim = make({ startGET: '102:32:50' });
+  runTo(sim, '102:33:02');
+  sim.agc.keys('P');
+  let velOn = null;
+  let altOn = false;
+  runTo(sim, '102:39:30', (s) => {
+    if (d(s).lights.alt) altOn = true;
+    if (velOn === null && d(s).lights.vel) velOn = s.t;
+  });
+  assert.ok(altOn, 'ALT lit while the radar had no lock');
+  assert.equal(velOn, null, `VEL lit at ${velOn !== null ? formatGET(velOn, { tenths: true }) : ''}`);
+});
+
+test('a mid-flight start runs SERVICER on the flight’s 2-s grid (TIG − 29.9 s), whatever the start GET', () => {
+  const epoch = TIG - BURN_TIMING.D29_9SEC;
+  for (const start of [parseGET('102:36:00'), parseGET('102:36:00.37'), parseGET('102:36:01'), TIG - 12.3]) {
+    const sim = make({ startGET: start });
+    sim.step(5);
+    const wl = sim.agc.workload;
+    assert.equal(wl.averageG, true);
+    const phase = (((wl.tbase5 - epoch) % 2) + 2) % 2;
+    assert.ok(Math.min(phase, 2 - phase) < 0.006, `start ${formatGET(start, { tenths: true })}: READACCS ${phase.toFixed(3)} s off the grid`);
+  }
+});
+
+test('a clock load moves TIME2: TTOGO = TIME2 − TIG as in CLOKJOB; the burn keeps its GET; TIG and TEVENT := TIME2', () => {
+  const sim = make({ vehicle: 'static', startGET: '102:32:00' });
+  const agc = sim.agc;
+  const burn = on(sim, ['burn']);
+  runTo(sim, '102:32:10');
+  near(agc.erasable.TTOGO, parseGET('102:32:10') - TIG, 1.05, 'TTOGO before the load');
+  agc.setClock(agc.t + 3600);   // V25N36: the clock one hour ahead
+  runTo(sim, '102:32:20');
+  near(agc.erasable.TTOGO, agc.clock() - agc.erasable.TIG, 1.05, 'TTOGO = TIME2 − TIG');
+  assert.ok(agc.erasable.TTOGO > 3000, 'TIG not reloaded: the countdown is an hour off, as it would be on the AGC');
+  agc.erasable.TIG += 3600;     // V25N33: TIG in the clock's new frame
+  runTo(sim, '102:32:25');
+  near(agc.erasable.TTOGO, parseGET('102:32:25') - TIG, 1.05, 'countdown consistent again');
+  runTo(sim, '102:33:02');
+  agc.keys('P');
+  runTo(sim, '102:33:10');
+  const at = Object.fromEntries(burn.map((e) => [e.id, e.t]));
+  near(at.tig35, TIG - 34.9, 0.05, 'TIG−35 at its GET (the task was on the waitlist)');
+  near(at.ignition, TIG, 0.05, 'ignition at its GET');
+  near(agc.erasable.TEVENT, agc.clock(TIG), 0.05, 'TEVENT := TIME2');
+  near(agc.erasable.TIG, agc.clock(TIG), 0.05, 'P63IGN: TIG := TIME2');
+});
+
+test('ENGINE STOP is a switch until touchdown: released, the DPS relights and the LM lands; after touchdown the stop stays', () => {
+  const sim = fromPreset('lm-highgate');
+  runTo(sim, '102:41:37');
+  sim.agc.crewInput('engineStop', true);
+  runTo(sim, '102:41:40');
+  assert.equal(sim.vehicle.state.engineOn, false, 'engine commanded off');
+  assert.equal(sim.snapshot().agc.crew.engineStop, true);
+  sim.agc.crewInput('engineStop', false);
+  runTo(sim, '102:41:43');
+  assert.equal(sim.snapshot().agc.crew.engineStop, false);
+  assert.equal(sim.vehicle.state.engineOn, true, 'released: the descent engine lights again');
+  let td = null;
+  runTo(sim, '102:46:30', (s) => { if (!td && s.vehicle.state.touchdown) td = s.vehicle.state.touchdown; });
+  assert.ok(td, 'touched down');
+  assert.notEqual(td.verdict, 'crash', `touchdown at ${(td.vVert / FPS).toFixed(1)} ft/s`);
+  assert.equal(sim.agc.crew.engineStop, true, 'the stand-in pressed ENGINE STOP after touchdown');
+  sim.agc.crewInput('engineStop', false);
+  runTo(sim, '102:46:33');
+  assert.equal(sim.agc.vehicleCommands().engineOn, false, 'after touchdown the stop stays');
+  assert.equal(sim.vehicle.state.engineOn, false);
 });
 
 test('the first V06N63 after ignition reads like Eyles’ 5559.7 / −2.2 / 49,971', () => {

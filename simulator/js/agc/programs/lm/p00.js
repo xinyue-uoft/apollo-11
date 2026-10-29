@@ -11,7 +11,7 @@ import { LmProgram } from './common.js';
 export default class P00 extends LmProgram {
   static number = 0;
   static name = 'LGC IDLING';
-  static anchor = 'src.gotopooh';
+  static anchor = 'src.pooh';
 
   enter() {
     super.enter();

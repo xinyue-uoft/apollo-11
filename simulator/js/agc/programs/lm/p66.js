@@ -4,7 +4,8 @@
 // has been clicked (P66NOW?, :194-208). The desired altitude rate starts at
 // the present rate and each click changes it by 1 ft/s (RODSCALE pad load;
 // DESCENT+ slows the descent, :1218-1228); RODCOMP throttles for it every
-// second and shows V06N60 (forward velocity, altitude rate, altitude).
+// second and shows V06N60 (horizontal velocity — the magnitude VHORIZ —,
+// altitude rate, altitude).
 // Luminary099's P66 has no attitude channel: the commander flies attitude
 // with the hand controller (in the physics sandbox a labelled stand-in does
 // that). The listing has no touchdown logic: after "Contact light" the crew

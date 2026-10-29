@@ -62,6 +62,8 @@ export class Agc {
     this.vehicle = vehicle;
     this.options = options;
     this.t = parseGET(startGET);
+    // TIME2/TIME1 − GET (s): 0 until the crew loads the clock (V25N36).
+    this.clockOffset = 0;
 
     this.mode = null;            // MODREG; null = −0 (blank PROG digits)
     this.program = null;
@@ -316,6 +318,31 @@ export class Agc {
   // GOJAM path (e.g. V69): RESTART lamp, GOPROG.
   hardwareRestart(cause = 'hardware restart') {
     this.restart.hardware(cause);
+  }
+
+  // ---------- the AGC clock (TIME2/TIME1) ----------
+
+  // TIME2/TIME1 is a hardware counter pair that keeps counting (TIME1 every
+  // 10 ms, overflowing into TIME2). The model starts it at GET, as the
+  // ground's clock updates kept it; loading N36 (V25N36, ECADR TIME2,
+  // Luminary099/PINBALL_NOUN_TABLES.agc:248; Comanche055 :227) sets it, and
+  // it counts on from the loaded value: the model keeps the difference.
+  // Erasable times the listing takes from or compares with TIME2 (TIG,
+  // TEVENT, SAMPTIME) are in the clock's frame; the model's time axis
+  // (tasks, jobs, the vehicle) stays GET. With no clock load they agree.
+  clock(t = this.exec.now()) {
+    return t + this.clockOffset;
+  }
+
+  // Load the clock: TIME2/TIME1 := value (s) now.
+  setClock(value, t = this.exec.now()) {
+    this.clockOffset = Number(value) - t;
+  }
+
+  // The GET at which the clock reads `time` — where a WAITLIST call with
+  // the delay time − TIME2 lands.
+  fromClock(time) {
+    return time - this.clockOffset;
   }
 
   // ---------- simulation ----------

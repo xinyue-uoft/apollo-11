@@ -16,7 +16,7 @@
 
 import { KEYBOARD_MAP } from '../util/keys.js';
 import {
-  DSKY_LAMP_LAYOUT, FLASHING_LIGHTS, LIGHT_LEGENDS, segmentsFor, dskySummary,
+  DSKY_LAMP_LAYOUT, FLASHING_LIGHTS, LIGHT_LEGENDS, segmentsFor, dskySummary, dskyAnnounceKey,
 } from '../agc/dsky-state.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -140,6 +140,14 @@ const VARIANTS = {
 
 const PRESS_MS = { crew: 420, user: 150 };
 const LIVE_MIN_INTERVAL_MS = 1000;
+// Register-only changes are announced just after the user's own keystroke
+// (the echo of a V21 load); a running monitor verb is otherwise silent.
+const USER_ECHO_MS = 1500;
+
+// Focusable scrolling panels (source listing, transcript, file list): Enter
+// and the letter keys keep their own meaning there. The replay shortcuts
+// (controls-view.js) skip the same regions for Space and the arrows.
+const SCROLL_REGIONS = '[role="region"][tabindex], [role="log"], .src-code, .tr-feed, .src-files';
 
 let mountCount = 0;
 
@@ -186,6 +194,10 @@ function isActivatable(el) {
   if (!el || el === document.body) return false;
   return /^(BUTTON|A|SUMMARY)$/.test(el.tagName)
     || /^(button|tab|link|menuitem|option|switch|checkbox|radio)$/.test(el.getAttribute?.('role') || '');
+}
+
+function inScrollRegion(el) {
+  return !!(el && el.nodeType === 1 && el.closest(SCROLL_REGIONS));
 }
 
 const fieldText = (s) => s.trim() || 'blank';
@@ -426,10 +438,17 @@ export function mountDsky(root, ctx = {}) {
   }
 
   // ----- live summary (at most once per second, only on change) -----
+  // Interactive mode only: during a replay the narration explains the DSKY.
+  // The summary is announced when PROG/VERB/NOUN, the flash or a lamp
+  // changes, or within USER_ECHO_MS of the user's own key; the registers
+  // stay readable on demand through the display's field labels.
   let liveText = '';
   let livePending = null;
   let liveLast = -Infinity;
   let liveTimer = null;
+  let liveKey = null;
+  let userKeyAt = -Infinity;
+  let mode = null;
 
   function announce(text) {
     if (text === liveText && livePending === null) return;
@@ -449,6 +468,34 @@ export function mountDsky(root, ctx = {}) {
       liveLast = performance.now();
     }
     livePending = null;
+  }
+
+  function silenceLive() {
+    clearTimeout(liveTimer);
+    liveTimer = null;
+    livePending = null;
+    liveText = '';
+    live.textContent = '';
+  }
+
+  // Demo: the keys only show the crew's keystrokes (a click explains why
+  // with a toast), so they leave the tab order and read as unavailable.
+  function applyMode(m) {
+    if (m === mode) return;
+    mode = m;
+    const demo = m === 'demo';
+    for (const { el } of keyButtons.values()) {
+      if (demo) {
+        el.tabIndex = -1;
+        el.setAttribute('aria-disabled', 'true');
+      } else {
+        el.removeAttribute('tabindex');
+        el.removeAttribute('aria-disabled');
+      }
+    }
+    keysBox.setAttribute('aria-label', demo ? 'DSKY keyboard (read-only during a replay)' : 'DSKY keyboard');
+    liveKey = null;
+    if (demo) silenceLive();
   }
 
   // ----- render -----
@@ -514,10 +561,16 @@ export function mountDsky(root, ctx = {}) {
     }
     setSpotLabel('compacty', `COMP ACTY: ${ca ? 'lit' : 'off'}`);
 
-    announce(dskySummary(d, { software: variant }));
+    if (mode === 'demo') return;
+    const key = dskyAnnounceKey(d, { software: variant });
+    if (key !== liveKey || performance.now() - userKeyAt < USER_ECHO_MS) {
+      announce(dskySummary(d, { software: variant }));
+    }
+    liveKey = key;
   }
 
-  function render(snapshot) {
+  function render(snapshot, ui) {
+    applyMode(ui?.mode ?? ctx.app?.mode ?? 'demo');
     const software = snapshot?.software || snapshot?.agc?.software || variant || 'Luminary099';
     applyVariant(software);
     const d = snapshot?.agc?.dsky || null;
@@ -562,6 +615,8 @@ export function mountDsky(root, ctx = {}) {
     if (!key) return;
     // Enter on a focused button/link keeps activating that control.
     if (e.key === 'Enter' && (isActivatable(target) || isActivatable(document.activeElement))) return;
+    if ((e.key === 'Enter' || /^[a-z]$/i.test(e.key))
+      && (inScrollRegion(target) || inScrollRegion(document.activeElement))) return;
     e.preventDefault();
     userPress(key);
   }
@@ -570,14 +625,20 @@ export function mountDsky(root, ctx = {}) {
   // only animate a key the computer actually received.
   function userPress(key) {
     const accepted = ctx.app?.pressKey?.(key);
-    if (accepted !== false) pressVisual(key, 'user');
+    if (accepted !== false) {
+      userKeyAt = performance.now();
+      pressVisual(key, 'user');
+    }
   }
   document.addEventListener('keydown', onKeyDown);
 
   if (bus) {
     offs.push(bus.on('key', (p = {}) => {
       if (p.source === 'crew') pressVisual(p.key, 'crew');
-      else if (p.source === 'user' || p.source === undefined) pressVisual(p.key, 'user');
+      else if (p.source === 'user' || p.source === undefined) {
+        userKeyAt = performance.now();
+        pressVisual(p.key, 'user');
+      }
     }));
     // A new Simulation starts a new DskyState whose version restarts at 0:
     // force the next frame to redraw.
@@ -601,7 +662,22 @@ export function mountDsky(root, ctx = {}) {
   };
 }
 
-// Shortcut legend generated from KEYBOARD_MAP so it never drifts from it.
+// Replay shortcuts (controls-view.js and the timeline slider in
+// timeline-view.js handle them; listed here so they are documented).
+const REPLAY_KEYS = [
+  ['Play / pause', ['Space']],
+  ['Prev / next chapter', ['←', '→']],
+  ['Slower / faster', ['[', ']']],
+];
+const TIMELINE_KEYS = [
+  ['±5 s', ['←', '→']],
+  ['±30 s', ['Shift ←', 'Shift →']],
+  ['Prev / next chapter', ['PgDn', 'PgUp']],
+  ['Start / end', ['Home', 'End']],
+];
+
+// Shortcut legend: the DSKY part is generated from KEYBOARD_MAP so it never
+// drifts from it.
 function buildLegend(container) {
   const order = ['VERB', 'NOUN', '+', '-', 'DIGITS', 'CLR', 'PRO', 'KEY REL', 'ENTR', 'RSET'];
   const names = {
@@ -616,18 +692,26 @@ function buildLegend(container) {
     byKey.get(group)?.push(label);
   }
   byKey.set('DIGITS', ['0–9']);
-  const dl = htmlEl('dl', {}, container);
-  for (const k of order) {
-    const row = htmlEl('div', {}, dl);
-    htmlEl('dt', { text: names[k] }, row);
-    const dd = htmlEl('dd', {}, row);
-    byKey.get(k).forEach((label, i) => {
-      if (i) dd.append(' ');
-      htmlEl('kbd', { text: label }, dd);
-    });
-  }
+  const section = (title, rows) => {
+    htmlEl('p', { class: 'dsky-legend-h', text: title }, container);
+    const dl = htmlEl('dl', {}, container);
+    for (const [name, keys] of rows) {
+      const row = htmlEl('div', {}, dl);
+      htmlEl('dt', { text: name }, row);
+      const dd = htmlEl('dd', {}, row);
+      keys.forEach((label, i) => {
+        if (i) dd.append(' ');
+        htmlEl('kbd', { text: label }, dd);
+      });
+    }
+  };
+  section('DSKY keys', order.map((k) => [names[k], byKey.get(k)]));
+  section('Replay', REPLAY_KEYS);
+  section('Timeline slider (focused)', TIMELINE_KEYS);
   htmlEl('p', {
     class: 'dsky-legend-note',
-    text: 'Keys work anywhere on the page except in text fields. Ctrl, Alt and Cmd combinations are ignored.',
+    text: 'DSKY keys work anywhere on the page except in text fields; in the source listing and the transcript, '
+      + 'Enter, letters, Space and the arrows keep their usual meaning. Ctrl, Alt and Cmd combinations are ignored. '
+      + 'In Interactive mode, Space pauses the simulation and [ ] change its speed.',
   }, container);
 }

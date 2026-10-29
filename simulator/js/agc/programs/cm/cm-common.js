@@ -130,6 +130,18 @@ export function getVector(agc, name, { dp = false } = {}) {
   return v.every(Number.isFinite) ? v : null;
 }
 
+// TIME2/TIME1 at GET t: GET plus the offset of a V25N36 clock load
+// (Agc.clock); GET itself for a stand-in agc without a clock.
+export function time2(agc, t) {
+  return typeof agc.clock === 'function' ? agc.clock(t) : t;
+}
+
+// The GET at which the clock reads `time` (Agc.fromClock): where a WAITLIST
+// delay of time − TIME2 lands.
+export function fromTime2(agc, time) {
+  return typeof agc.fromClock === 'function' ? agc.fromClock(time) : time;
+}
+
 export function vehicleState(agc) {
   return agc.vehicle?.state || null;
 }

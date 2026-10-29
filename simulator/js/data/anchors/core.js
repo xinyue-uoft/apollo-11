@@ -161,7 +161,12 @@ export const ANCHORS = {
     title: 'The same Shakespeare quotation in the Command Module’s PINBALL',
   },
   'src.gotopooh': {
-    file: 'Luminary099/FRESH_START_AND_RESTART.agc', start: 617, end: 650,
-    title: 'GOTOPOOH: back to P00 (“POOH”), with a flashing V37 request',
+    file: 'Luminary099/FRESH_START_AND_RESTART.agc', start: 617, end: 671,
+    title: 'GOTOPOOH: flash V37 — the crew picks the next program (P00 only if they key 00)',
+    note: 'GOP00FIX loops on GOFLASH of V37N99 and leaves the major mode alone: the program number does not change until the crew answers.',
+  },
+  'src.pooh': {
+    file: 'Luminary099/FRESH_START_AND_RESTART.agc', label: 'POOH', start: 850, end: 899,
+    title: 'POOH: P00, LGC idling — release the display, engine off, kill the restart groups, MODREG := 00',
   },
 };

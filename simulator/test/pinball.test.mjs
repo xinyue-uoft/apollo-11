@@ -712,3 +712,29 @@ test('integration: V37E63E from P00 in the real Simulation; V16N68 MONDO jobs re
   assert.equal(agc.dsky.prog, '63');
   assert.equal(agc.pinball.state.monitor, null, 'V37 (GOPROG2/STARTSB2) killed the monitor');
 });
+
+test('V25N36 loads the AGC clock: TIME2 counts on from the loaded value; N65 samples the same clock (LM and CM)', { skip: !Simulation && 'sim.js does not import yet' }, () => {
+  for (const software of ['Luminary099', 'Comanche055']) {
+    const sim = new Simulation({ software, vehicle: 'static', startGET: '100:00:00', initialProgram: 0 });
+    const agc = sim.agc;
+    const r = () => agc.dsky.r.map((x) => x.sign + x.digits);
+    sim.step(1);
+    agc.keys('V25N36E+00101E+00002E+03000E', { gapMs: 200 });
+    sim.step(6);
+    // The GET of the load: when the clock read 101:02:30.00.
+    const loadedAt = 101 * 3600 + 2 * 60 + 30 - agc.clockOffset;
+    assert.ok(loadedAt > 100 * 3600 + 1 && loadedAt < 100 * 3600 + 7, `${software}: offset from the load (${agc.clockOffset})`);
+    agc.keys('V16N36E', { gapMs: 200 });
+    sim.step(2);
+    assert.deepEqual(r().slice(0, 2), ['+00101', '+00002'], `${software}: N36 shows the loaded clock`);
+    const s1 = Number(r()[2]);
+    sim.step(5);
+    const s2 = Number(r()[2]);
+    assert.ok(Math.abs(s2 - s1 - 500) <= 1, `${software}: the clock runs (${s1} → ${s2})`);
+    assert.equal(agc.erasable.TIME2, undefined, `${software}: no frozen copy in erasable`);
+    agc.keys('V16N65E', { gapMs: 200 });
+    sim.step(1.5);
+    assert.deepEqual(r().slice(0, 2), ['+00101', '+00002'], `${software}: N65 (LODSAMPT copies TIME2)`);
+    assert.ok(Math.abs(Number(r()[2]) / 100 - (agc.clock() % 60)) < 1.1, `${software}: N65 within the monitor second`);
+  }
+});

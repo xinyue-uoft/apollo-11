@@ -3,7 +3,7 @@
 // §1b (voice, MR event times), web-trajectory-b.md §1.3, §3, §5.2
 // (propellant, touchdown), web-1202-b.md §5.3 (ROD switch).
 
-import { defineScenario, say, rrFaultOn, alignedStart, A11_AGC_OPTIONS } from './lib.js';
+import { defineScenario, say, rrFaultOn, lastAlarmShowing, alignedStart, A11_AGC_OPTIONS } from './lib.js';
 import { crewEvents } from './crew-a11.js';
 
 const START = alignedStart('102:43:00'); // on the flight's 2-s SERVICER grid (lib.js)
@@ -25,10 +25,11 @@ export default defineScenario({
   events: [
     { at: START, chapter: 'Low gate' },
     rrFaultOn(START),
+    lastAlarmShowing(START),
     { at: START, focus: 'trajectory' },
     { at: '102:43:00.5', narrate: {
       title: '750 feet, and a boulder field',
-      body: '<p>P64 is still flying the LM toward the computer’s landing site — and that site is in a field of boulders around West crater. The last of five program alarms came two seconds ago. Watch Aldrin’s callouts in the transcript: they are the DSKY’s numbers, altitude from R3 and descent rate from R2, and the LPD angle from R1.</p>',
+      body: '<p>P64 is still flying the LM toward the computer’s landing site — and that site is in a field of boulders around West crater. The last of five program alarms came two seconds ago; its PROG lamp is still lit. When the crew cleared it is not recorded, so the replay leaves it on. Watch Aldrin’s callouts in the transcript: they are the DSKY’s numbers, altitude from R3 and descent rate from R2, and the LPD angle from R1.</p>',
       focus: 'trajectory',
     } },
     { at: '102:43:02', spotlight: 'trajectory.lm' },
@@ -94,7 +95,7 @@ export default defineScenario({
     { at: '102:44:28.3', chapter: 'Quantity light' },
     { at: '102:44:28.3', narrate: {
       title: 'The low-level light',
-      body: '<p>A sensor in a descent tank uncovers — about 5.6 % left — and the <b>DESCENT QUANTITY</b> light comes on (a panel caution light, not the computer). In Houston it starts a count of about 94 seconds to “<b>Bingo</b>”: from then on, land within 20 seconds or abort. Propellant slosh tripped it early, by roughly 20 seconds; Eagle actually had more than the light implied.</p>',
+      body: '<p>A sensor in a descent tank uncovers — about 5.6 % left — and the <b>DES QTY</b> warning light comes on (a red panel light, not the computer). In Houston it starts a count of about 94 seconds to “<b>Bingo</b>”: from then on, land within 20 seconds or abort. Propellant slosh latched the sensor early — by about 20 s (Bennett) to nearly 30 s (Fjeld, ALSJ) by later analyses; the Mission Report’s own comparison found only about 5 s — so Eagle had somewhat more than the light implied.</p>',
     } },
     { at: '102:44:29', spotlight: 'inst.fuel' },
     say('good-spot'),
@@ -106,7 +107,7 @@ export default defineScenario({
     say('sixty-seconds'),
     { at: '102:45:03', narrate: {
       title: '“60 seconds”',
-      body: '<p>Duke’s call is the time left to Bingo, not to empty tanks. At engine cutoff about 45 seconds of firing time remained (Mission Report §9.8). The radar drops out once more at about 75 feet (102:44:59 – 102:45:03), and Aldrin calls the lamp.</p>',
+      body: '<p>Duke’s call is the time left to Bingo, not to empty tanks. At engine cutoff the light-based count gave about 45 s to depletion (Mission Report §9.8; postflight, 50 s to oxidizer-tank-2 depletion). The radar drops out once more at about 75 feet (102:44:59 – 102:45:03), and Aldrin calls the lamp.</p>',
     } },
     say('vel-light'),
     say('60-feet'),
@@ -116,12 +117,13 @@ export default defineScenario({
     say('thirty-seconds'),
     say('drifting-forward'),
 
-    // Touchdown 102:45:39.9 (Mission Report §5.4).
-    { at: '102:45:39', chapter: 'Contact' },
+    // Contact light ≈102:45:36.6 [DER]; touchdown 102:45:39.9 (Mission
+    // Report §5.4), engine still running; cutoff 102:45:41.4 (apollo11-descent.js).
+    { at: '102:45:36', chapter: 'Contact' },
     say('contact-light'),
     { at: '102:45:40.2', narrate: {
       title: 'Contact light',
-      body: '<p>A probe below a footpad touches the surface and the blue <b>LUNAR CONTACT</b> lights come on — panel lights, not the DSKY. Touchdown: <b>102:45:39.9</b>, 1.7 ft/s down, 2.1 ft/s sideways (Mission Report). The engine is cut at 102:45:41.4, after 756 seconds of burning. About 770 pounds of propellant were left.</p>',
+      body: '<p>The blue <b>LUNAR CONTACT</b> lights — panel lights, not the DSKY — came on a few seconds before Aldrin’s call, when a 67-inch probe below a footpad touched the surface (about 102:45:37, derived). The footpads touched at <b>102:45:39.9</b>, 1.7 ft/s down, 2.1 ft/s sideways (Mission Report), with the engine still running. It is cut at 102:45:41.4, after 756 seconds of burning. About 770 pounds of propellant were left (Mission Report §9.13.1), not all of it usable.</p>',
     } },
     { at: '102:45:41', hold: 4 },
     say('shutdown'),

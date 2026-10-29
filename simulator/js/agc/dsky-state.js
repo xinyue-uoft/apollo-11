@@ -420,3 +420,15 @@ export function dskySummary(snap, { software = 'Luminary099' } = {}) {
   if (lit.length) parts.push(`Lamps lit: ${lit.join(', ')}.`);
   return parts.join(' ');
 }
+
+// What the DSKY view's live region announces on its own: PROG, VERB, NOUN,
+// the V/N flash, blanking, the lamp test and the lamps that exist on this
+// variant (COMP ACTY excluded) — not the register digits, which a monitor
+// verb (V16N68, V16N36) changes every second. The view announces the full
+// summary when this key changes, or shortly after the user's own keystroke.
+export function dskyAnnounceKey(snap, { software = 'Luminary099' } = {}) {
+  if (!snap) return 'off';
+  const lamps = lampsOn(software).map((n) => (snap.lights[n] ? '1' : '0')).join('');
+  return `${snap.prog}|${snap.verb}|${snap.noun}|${snap.flashVerbNoun ? 1 : 0}`
+    + `${snap.blanked ? 1 : 0}${snap.lampTest ? 1 : 0}|${lamps}`;
+}

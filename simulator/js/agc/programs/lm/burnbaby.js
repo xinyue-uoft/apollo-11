@@ -146,7 +146,7 @@ export class BurnBaby {
     this.agc = host.agc;
     this.which = which;
     this.program = Number(String(which.name).match(/P(\d\d)/)?.[1]) || host.constructor.number;
-    this.tig = null;            // TIG used by the tasks (erasable TIG)
+    this.tig = null;            // TIG on the tasks' GET axis (erasable TIG: Agc.clock frame)
     this.tigNominal = null;     // GOBLTIME: nominal TIG (BBB:169-171)
     this.dispdex = 1;           // clock not running
     this.blanking = false;
@@ -234,9 +234,11 @@ export class BurnBaby {
     this.host.schedule('CLOKTASK', next, (tt) => this.clokTask(tt), { costMs: 0.3 });
   }
 
-  // CLOKJOB: TTOGO = TIME2 − TIG, then the display DISPDEX asks for.
+  // CLOKJOB: TTOGO = TIME2 − TIG, then the display DISPDEX asks for
+  // (BBB:725-731; erasable TIG and the clock, so a clock load shows here).
   clokJob(t) {
-    this.agc.erasable.TTOGO = t - this.tig;
+    const tig = this.agc.erasable.TIG;
+    this.agc.erasable.TTOGO = this.agc.clock(t) - (Number.isFinite(tig) ? tig : this.agc.clock(this.tig));
     if (this.dispdex >= 0) return;          // +0: keep running, no display
     const d = -this.dispdex;
     const { verb, noun } = this.vn;
@@ -277,7 +279,7 @@ export class BurnBaby {
     this.armed = true;
     this.tig = tig;
     this.tigNominal = tig;          // GOBLTIME (BBB:169-171)
-    agc.erasable.TIG = tig;
+    agc.erasable.TIG = agc.clock(tig);
     agc.erasable.DVTOTAL = 0;       // "EXTIRPATE JUNK LEFT IN DVTOTAL" (BBB:162-164)
     this.flags.ENGONFLG = false;    // ENGINOF3 pre-arm (BBB:173-176)
     this.buildEvents();
@@ -306,7 +308,7 @@ export class BurnBaby {
   setTig(tig) {
     this.tig = tig;
     this.tigNominal = tig;
-    this.agc.erasable.TIG = tig;
+    this.agc.erasable.TIG = this.agc.clock(tig);
     this.buildEvents();
   }
 
@@ -400,12 +402,12 @@ export class BurnBaby {
     if (this.flags.ENGONFLG) return;
     this.flags.ENGONFLG = true;           // engine on: CHAN11 bit 13
     this.ignitionT = t;
-    this.agc.erasable.TEVENT = t;
+    this.agc.erasable.TEVENT = this.agc.clock(t);   // TEVENT := TIME2 (BBB:423-425)
     // P63IGN (BBB:442-471): AVGEXIT := P63DISPS −2, kill the clock, TIG := TIME2.
     this.avegexit = 'P63DISPS-2';
     this.dispdex = 0o7777;                // CA Z → positive: KILLCLOK at the next tick
     this.tig = t;
-    this.agc.erasable.TIG = t;
+    this.agc.erasable.TIG = this.agc.clock(t);
     // DVMONCON (BBB:520-528).
     this.flags.IGNFLAG = false;
     this.flags.ASTNFLAG = false;
@@ -478,7 +480,7 @@ export class BurnBaby {
     this.armed = true;
     this.tig = tig;
     this.tigNominal = tig;
-    this.agc.erasable.TIG = tig;
+    this.agc.erasable.TIG = this.agc.clock(tig);
     if (!Number.isFinite(this.agc.erasable.DVTOTAL)) this.agc.erasable.DVTOTAL = 0;
     this.buildEvents();
     const T = BURN_TIMING;
@@ -501,6 +503,8 @@ export class BurnBaby {
     this.avegexit = indexWhich(this.which, 0o7)['2CADR'];
     const wl = this.agc.workload;
     if (wl && !wl.averageG) wl.startAverageG?.();
+    // SERVICER on the 2-s grid this burn's PREREAD set up at TIG − 29.9 s.
+    wl?.alignCycle?.(tig - T.D29_9SEC);
     const ullAt = tig - T.D29_9SEC + indexWhich(this.which, 0o6).DEC / 100;
     if (rel < -T.FIVESEC) {
       this.task('TIG-5', tig - T.D29_9SEC + T.S24_9SEC, (tt) => this.tig5(tt));
@@ -527,7 +531,7 @@ export class BurnBaby {
     // Ignited on time (Apollo 11: PRO before TIG).
     this.flags.ENGONFLG = true;
     this.ignitionT = tig;
-    this.agc.erasable.TEVENT = tig;
+    this.agc.erasable.TEVENT = this.agc.clock(tig);
     this.avegexit = 'P63DISPS-2';
     this.dispdex = 0o7777;
     done('ignition');

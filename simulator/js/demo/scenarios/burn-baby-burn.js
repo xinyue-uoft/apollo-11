@@ -53,8 +53,8 @@ export default defineScenario({
     // that redraws the display runs once a second, so the blank shows up
     // within a second (src-ignition §17.9).
     { at: '102:32:28', narrate: {
-      title: 'TIG−35: the DSKY goes dark',
-      body: '<p>At 35 seconds before ignition the task <code>TIG-35</code> sets the display index to <code>BLANKDEX</code>, and for five seconds every digit goes out. The listing explains why: “THE DSKY IS BLANKED FOR 5 SECONDS AT TIG-35 TO INDICATE THAT AVERAGE G IS STARTING.”</p><p>Watch the DSKY: when the numbers come back at TIG−30, <b>Average-G</b> — the powered-flight navigation that integrates accelerometer readings every 2 seconds — is running.</p>',
+      title: 'TIG−35: the DSKY blanks',
+      body: '<p>At 35 seconds before ignition the task <code>TIG-35</code> sets the display index to <code>BLANKDEX</code>, and for five seconds the verb, noun and data registers go blank; only the program number stays. The listing explains why: “THE DSKY IS BLANKED FOR 5 SECONDS AT TIG-35 TO INDICATE THAT AVERAGE G IS STARTING.”</p><p>Watch the DSKY: when the numbers come back at TIG−30, <b>Average-G</b> — the powered-flight navigation that integrates accelerometer readings every 2 seconds — is running.</p>',
       anchors: ['burn.tig35', 'burn.blank'],
     } },
     { at: '102:32:31', spotlight: 'dsky' },
@@ -71,7 +71,7 @@ export default defineScenario({
     say('descent-armed'),
     { at: '102:32:52', narrate: {
       title: 'Descent armed',
-      body: '<p>Armstrong arms the descent engine with a panel switch. The ignition routine never reads that switch — it only asks the crew for permission and then sends ENGINE ON.</p><p>Watch the <b>ALT</b> lamp (Aldrin: “Altitude light’s on”). SERVICER, running since TIG−30, starts reading the landing radar below 50,000 feet of computed altitude — the check is labelled <code>35KCHK</code> but tests 50,000 — and with no radar lock the reads fail, so <code>R12LITES</code> lights ALT.</p><p>The simulator lights VEL as well, as the Lunar Surface Journal commentary describes; read strictly, the flight code would light VEL only after a failed velocity read, and those begin below 2,000 ft/s.</p>',
+      body: '<p>Armstrong arms the descent engine with a panel switch. The ignition routine never reads that switch — it only asks the crew for permission and then sends ENGINE ON.</p><p>Watch the <b>ALT</b> lamp (Aldrin: “Altitude light’s on”). SERVICER, running since TIG−30, starts reading the landing radar below 50,000 feet of computed altitude — the check is labelled <code>35KCHK</code> but tests 50,000 — and with no radar lock the reads fail, so <code>R12LITES</code> lights ALT.</p><p><b>VEL</b> stays dark, as the flight code has it: it lights only after a failed <i>velocity</i> read, and those begin below 2,000 ft/s. The Lunar Surface Journal commentary, after David Woods, says two DSKY lamps came on here; the crew called only the altitude light.</p>',
       anchors: ['lr.altcrit', 'lr.lites'],
     } },
     { at: '102:32:54', spotlight: 'dsky.light.alt' },

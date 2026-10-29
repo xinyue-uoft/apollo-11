@@ -136,7 +136,11 @@ these files; the exact ranges are the anchors in
   `BURN_BABY_BURN--MASTER_IGNITION_ROUTINE.agc:784-788` and Eyles ("At 35
   seconds the display went blank, and at 30 seconds reappeared"). The clock
   job redraws once per second, so on the real DSKY each change can appear up
-  to a second late (research src-ignition §17.9).
+  to a second late (research src-ignition §17.9). What goes blank: `BLANKDEX`
+  → `CLEANDSP`, whose path ends in `ENDRET`'s "BLANK EVERYTHING EXCEPT MM"
+  (`CLEANEND` → `JAMTERM` → `ENDRET`, `DISPLAY_INTERFACE_ROUTINES.agc:
+  1171-1176, 1272-1273`; `BLANKDSP` −3 "LEAVE MODE", PINBALL `:3043-3069`):
+  verb, noun and the three registers; the program number stays.
 - V99N62 at TIG−5 and PRO: code `:768-781`, `:816-819`; Eyles ("Now he keyed
   PROCEED"). The PRO time is not recorded to the second: it must lie between
   the flash (102:33:00) and ignition on time (102:33:05.01); ONB has
@@ -146,23 +150,32 @@ these files; the exact ranges are the anchors in
 - Fixed-throttle thrust: Eyles 9,870 lb; the LGC's own model `FMAXPOS` 9,769
   lbf (`CONTROLLED_CONSTANTS.agc`); the narration says "about 9,800 lb".
 - **ALT lamp at "Descent armed".** ALSJ commentary (Woods) says arming the
-  engine brought on the ALT and VEL lamps. The code tells a more precise
+  engine brought on "two indicator lights on the DSKY" (read as ALT and VEL;
+  the lamps are not named). The code tells a more precise
   story, which the demo follows: SERVICER, running since TIG−30, enables
   landing-radar altitude reads below 50,000 ft of computed altitude
   (`SERVICER.agc:899-932`, the check labelled `35KCHK` actually indexes
   `50KFT`); with no radar lock the reads fail and `R12LITES`
   (`P20-P25.agc:5115-5180`) lights **ALT**. Aldrin called "Altitude light's
   on" (102:33:03; ONB 102:32:58); the MR has 50,000 ft at 102:32:55.
-- **VEL lamp at PDI: sources disagree.** The ALSJ commentary says ALT *and*
-  VEL came on; the crew called only the altitude light. Read strictly, the
-  code sets the velocity data-fail bit (RADMODES bit 8, `LRVELBIT`,
-  `FLAGWORD_ASSIGNMENTS.agc:1161-1163`) only in `DATAFAIL` after a failed
-  *velocity* read (`P20-P25.agc:2875-2878, 3048-3056`), fresh start leaves
-  it clear (`RMODINIT OCT 00102`, `FRESH_START_AND_RESTART.agc:393-397, 601`),
-  and velocity reads begin only below 2,000 ft/s (research src-landing
-  §10.6). The computer model lights VEL whenever radar reads are requested
-  and no good velocity has been read, i.e. from PDI, as ALSJ describes. The
-  narration says both things.
+- **VEL lamp at PDI: the model follows the code.** `R12LITES`
+  (`P20-P25.agc:5115-5122`, run every SERVICER pass) lights VEL iff the
+  velocity data-fail bit is set (RADMODES bit 8, `LRVELBIT`,
+  `FLAGWORD_ASSIGNMENTS.agc:1161-1163`; `VLIGHT`/`BOTHLITS`, `:5173-5177`).
+  Only `DATAFAIL` sets it, after a failed *velocity* read
+  (`P20-P25.agc:2875-2878, 3048-3056`); `GOODRAD` clears it (`:2882-2888`);
+  fresh start leaves it clear (`RMODINIT OCT 00102`,
+  `FRESH_START_AND_RESTART.agc:393-397, 601`); and velocity reads are
+  requested only in `VALTCHK` below 2,000 ft/s (`SERVICER.agc:1375-1394`,
+  research src-landing §10.6). So at PDI only ALT can light, and the computer
+  model (`js/agc/nav.js`) lights each lamp only after a requested read of its
+  own quantity has failed: VEL stays dark until the 102:44:11 radar dropout
+  (the track's velocity data are good from 102:38:48, before reads start at
+  ≈102:38:56). The dissenting source is secondary: the ALSJ commentary at
+  102:33:03, after David Woods, says "two indicator lights on the DSKY come
+  on" when the engine is armed — the code ties neither lamp to engine arm —
+  while the crew called only "Altitude light's on" (102:33:03) and
+  "Altitude light's out" (102:38:11). The narration gives both.
 - The 00500 code (LR antenna not in position 1) and "PLEASE CRANK THE SILLY
   THING AROUND": `THE_LUNAR_LANDING.agc:239-255`; Aldrin's report at
   102:26:55 ("we got a 500 alarm (code) early in the program … That wasn't
@@ -261,8 +274,13 @@ these files; the exact ranges are the anchors in
   "We're go on that, Flight") was not verified against a loop transcript and
   is not used.
 - The 5 July simulation (Hersch, CBS, Kranz's book; Garman OH says "May or
-  June"); the abort criterion "continuing occurrence" (GARMAN LIST; MR §13.1:
-  "bailout-type alarms such as these would not prevent continuing the
+  June"); the alarm code is "a 1201" in Hersch and Kranz's book, while Koos,
+  who ran the simulation, recalled "a program alarm, 1202, or 1201" (Koos OH
+  2023), so the narration hedges it. The go/no-go criterion "continuing
+  occurrence" (GARMAN LIST: the BAILOUT group 1201/1202 sits under
+  "CONTINUING OCCURRENCE OF:", with "DUTY CYCLE MAY DEGRADE PGNCS … WATCH FOR
+  OTHER CUES … SWITCH TO AGS … MAY HELP" — not an abort call by itself; MR
+  §13.1: "bailout-type alarms such as these would not prevent continuing the
   flight").
 - P64: flashing displays ask for a VAC area — `GODSPRS1 … # IS THIS A
   FLASHING R DISPLAY … YES, MAKE DSPLAY JOB A VAC` → `SPVAC`
@@ -271,15 +289,30 @@ these files; the exact ranges are the anchors in
   research hypothesis consistent with Cherry ("some job like SERVICER was
   scheduled two and possibly three or four times") — the demo says what the
   code does and lets the model show the effect.
-- ATT HOLD "forestalling the next alarm" and P66 lighter (Eyles).
-- **Myths** (research web-1202-b §6): "rebooted" — no; "radar data" — no;
-  "checklist error" — the trigger, not the root cause; "master alarm" —
+- ATT HOLD "forestalling the next alarm" and P66 lighter (Eyles). Armstrong
+  switched to ATT HOLD to fly past the crater ("To avoid the crater", MR
+  §5.3; Eyles: "after deciding that he could not stop short of the
+  crater"); the load relief was a side effect, and the narration says so.
+- Duke's "Roger. 1202. We copy it." is logged at TEC 102:42:58, the fifth
+  alarm's own (computer-determined) second, so it most likely acknowledges
+  the fourth (102:42:43), seen on telemetry; neither P64 1202 has a crew
+  voice report. The quote plays at its TEC time and the fifth-alarm card says
+  so.
+- **Myths** (research web-1202-b §6): "rebooted" — no; "radar data" — no
+  (the RR CDUs fed the LGC's angle counters "regardless of whether the
+  rendezvous radar itself was powered up", Eyles — a conditional: on Apollo
+  11 the radar was powered, AFJ 102:06:24); "checklist error" — the trigger,
+  not the root cause; "master alarm" —
   unverified (Garman OH 2001 claims it; no primary C&W record found), so the
-  demo does not claim it; "priority scheduling saved it" — misattributed: the
-  priority Executive was Hal Laning's design; the saving mechanism was the
-  software restart with phase-table restart protection, which Copps described
-  in 1968; it restored SERVICER (lowest priority) and dropped the
-  higher-priority monitor. Margaret Hamilton led the flight-software effort,
+  demo does not claim it; "Margaret Hamilton's priority scheduling saved it"
+  — oversimplified and misattributed: two designs worked together. Hal
+  Laning's priority-driven Executive put the shortfall on SERVICER ("there
+  was no collapse", Eyles 2004), and the software restart with phase-table
+  restart protection, which Copps described in 1968, shed the backlog: it
+  restored SERVICER (lowest priority) and dropped the higher-priority monitor,
+  by restart group rather than by priority (research web-1202 §10 rates the
+  claim "partly true", web-1202-b §6 "misattributed / oversimplified").
+  Margaret Hamilton led the flight-software effort,
   so "her team's software" is fair, but her phrase "priority displays of 1201
   and 1202 alarms" does not match Luminary 1A (the crew keyed V05N09).
 
@@ -314,20 +347,56 @@ these files; the exact ranges are the anchors in
   102:43:22, ~400 ft (MR; Eyles 102:43:20, 430 ft). Luminary 099's P66 has
   no automatic horizontal nulling; attitude is manual (research src-landing
   §0.9).
+- V06N60 R1 is Noun 60 "HORIZONTAL VELOCITY"
+  (`ASSEMBLY_AND_OPERATION_INFORMATION.agc:399`), ECADR `VHORIZ`
+  (`PINBALL_NOUN_TABLES.agc:714`), stored by `VHORCOMP` as a magnitude
+  (`ABVAL`, `LUNAR_LANDING_GUIDANCE_EQUATIONS.agc:1102-1110`), cross-range
+  included — the narration says "horizontal velocity", even where Aldrin's
+  callouts say "N forward". The forward and lateral components (`FORVEL`,
+  `LATVEL`, `ERASABLE_ASSIGNMENTS.agc:2570-2571`) drive the cross-pointer
+  meter, not the DSKY.
+- PROG after the fifth alarm (102:42:58): no V05N09 or RSET is logged after
+  it (Cherry; research web-1202-b §2.5), so when the crew cleared the last
+  PROG light is not recorded. Every replay shows it the same way: PROG stays
+  lit with FAILREG = 01202 to the end — `p66-touchdown`, which starts after
+  the alarm, sets that state at its first instant (`lastAlarmShowing`,
+  `js/demo/scenarios/lib.js`) — and the narration says the time is not
+  recorded.
 - ~1,100 ft beyond the automatic aim point (MR §5.3; BEN70); ~2 min 28 s
   below 500 ft vs 104 s nominal (BEN70).
 - LR data not good 102:44:11–21 and 102:44:59–102:45:03 (MR Table 5-I;
   zero-Doppler, MR §9.11); lamps steady on when data fail (`P20-P25.agc:5115-5180`).
 - Low-level light 102:44:28 (MR Table 5-I; MR §9.8 102:44:30.4; Fjeld
-  102:44:31); 5.6 % sensor (AER-DPS); ~94 s to Bingo, land within 20 s or
-  abort (Fjeld in ALSJ); tripped ~20 s early by slosh (BEN72; Fjeld "nearly
-  30 s").
+  102:44:31): the DES QTY light, one of the red Warning lights at the top of
+  Panel 1, not a yellow Caution light (ALSJ commentary after 102:44:45);
+  5.6 % sensor (AER-DPS); ~94 s to Bingo, land within 20 s or abort (Fjeld in
+  ALSJ). How early slosh latched it, the sources disagree, and the narration
+  gives the range: about 20 s (BEN72), "nearly 30 seconds" / "half a minute"
+  (Fjeld in ALSJ), while MR §9.8's own comparison — "indicated time of 45
+  seconds to propellant depletion compares favorably with the postflight
+  calculated value of 50 seconds to oxidizer tank 2 depletion" — implies
+  only about 5 s.
 - "Eight percent" (102:44:00) is ALSJ's reading (from D. R. Lunsford); ONB
   hears "Wait just a minute" and TEC has nothing — flagged in the quote's
   note.
-- Touchdown 102:45:39.9, 1.7 ft/s down, 2.1 ft/s left (MR §5.4); contact
-  light call 102:45:40; engine cutoff 102:45:41.40, burn 756.39 s (MR Table
-  9.6-V); 770 lb propellant left (MR §9.13.1); ~45 s of firing time (MR §9.8).
+- Touchdown 102:45:39.9, 1.7 ft/s down, 2.1 ft/s left (MR §5.4: "Landing on
+  the surface occurred at 102:45:39.9 … (motions after first footpad
+  touchdown)") — the footpads, with the engine still running ("engine
+  shutdown occurring almost simultaneously with touchdown", MR §3; Armstrong:
+  "We actually had the engine running until touchdown", ALSJ). The lunar
+  contact light (67-in probes) is therefore earlier: ≈102:45:36.6, derived
+  where the track passes 5.6 ft at ≈1.6 ft/s; Aldrin's call at 102:45:40 is
+  the voice, which lags telemetry by 0–13 s (Armstrong's onboard "Shutdown"
+  is logged at 102:45:43 against the 102:45:41.40 cutoff). An earlier version
+  of the track read the MR time as the contact light and let the LM fall
+  ≈3 ft after cutoff, which Armstrong says did not happen. Engine cutoff
+  102:45:41.40, burn 756.39 s (MR Table 9.6-V); 770 lb propellant left (MR
+  §9.13.1), not all of it usable (≈100 lb unusable, ALSJ commentary via
+  research web-trajectory-b); "the indicated time of 45 seconds to propellant
+  depletion" is the light-based count (MR §9.8; postflight 50 s to oxidizer
+  tank 2 depletion). At hover (≈8.8 lb/s) the 770 lb would last ≈85 s
+  [DER], so the two
+  numbers are not equivalent and the narration does not equate them.
 - "413 is in": AGS DEDA address 413 = +10000, the lunar-surface flag (O'Brien
   in ALSJ). Not the AGC.
 - "The Eagle has landed": ALSJ 102:45:58 (TEC 102:45:59 / 102:46:04). Duke's
@@ -354,8 +423,9 @@ recollection, labelled as such on screen).
   ullage". LOS 075:41:23 — the burn was behind the Moon, "out of
   communications" (AFJ "Lunar Orbit Insertion").
 - Actual (MR Table 8.6-II, Table 7-V, via research src-comanche §3): ignition
-  075:49:50.37, cutoff 075:55:47.90, 357.53 s ("the longest engine firing
-  was for 357.5 seconds"), 2,917.5 ft/s, orbit 169.7 × 60.0 nmi. The model
+  075:49:50.37, cutoff 075:55:47.90, 357.53 s ("the longest [SPS] engine
+  firing was for 357.5 seconds", MR §8.8 Service Propulsion; the descent
+  engine's 756.3 s, §9.8.1, was longer), 2,917.5 ft/s, orbit 169.7 × 60.0 nmi. The model
   ignites at the PAD TIG once PRO has been given (the code's rule,
   `Comanche055/P40-P47.agc:503-516`); the 0.7 s to the Mission Report's
   ignition time is not explained by our sources.
@@ -449,6 +519,7 @@ P68; the V16 monitor, V57 and the crew responses to flashing displays.
 | ATT HOLD (manual) | 102:43:13 | MR Table 5-I |
 | P66 | 102:43:22 | MR Table 5-I |
 | Low-level light | 102:44:28 | MR Table 5-I |
-| Touchdown | 102:45:39.9 | MR §5.4 |
+| Lunar contact light | ≈102:45:36.6 (derived; called 102:45:40) | track [DER], ALSJ |
+| Touchdown (footpads) | 102:45:39.9 | MR §5.4 |
 | Engine cutoff | 102:45:41.40 (756.39 s) | MR Table 9.6-V |
-| Propellant left | 770 lb (~45 s) | MR §9.13.1, §9.8 |
+| Propellant left | 770 lb (MR §9.13.1); light-based count ~45 s to depletion (MR §9.8) | MR §9.13.1, §9.8 |

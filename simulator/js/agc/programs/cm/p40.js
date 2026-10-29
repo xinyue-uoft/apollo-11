@@ -42,7 +42,7 @@ import {
 } from './csm-math.js';
 import {
   TaskList, ResponseRouter, showDisplay, setPhase, setFlag, setErasable,
-  setVector, getVector, vehicleState, protect, unprotect, emitBus, requestJob,
+  setVector, getVector, vehicleState, protect, unprotect, emitBus, requestJob, time2, fromTime2,
 } from './cm-common.js';
 
 // ---------- Apollo 11 LOI-1 maneuver PAD ----------
@@ -307,7 +307,7 @@ export default class P40 {
     const dvLv = dvLvFps.map((x) => x * FT);
     const nav = this.navState();
     if (nav) {
-      const at = coast(nav.r, nav.v, tig - this.t);
+      const at = coast(nav.r, nav.v, tig - time2(agc, this.t));
       this.rTig = at.r;
       this.vTig = at.v;
       const delvsin = lvlhToInertial(dvLv, at.r, at.v);
@@ -404,14 +404,15 @@ export default class P40 {
     this.tasks.at(clockAt ?? this.t + 0.01, 'CLOKTASK', () => this.clokTask());
     requestJob(agc, JOBS.P40SSV);
 
-    let tig = agc.erasable.TIG;
+    // TIG on the GET axis of the tasks (erasable TIG is the clock's).
+    let tig = fromTime2(agc, agc.erasable.TIG);
     const tdec1 = tig - SEC29_96;
     if (tdec1 < this.t + TIMEDELT) {
       // NOTIME: "INSUFFICIENT TIME FOR INTEGRATION -- TIG WILL BE SLIPPED".
       agc.alarm?.(0o1703);
       const piptime1 = this.t + TIMEDELT;
       tig = piptime1 + SEC29_96;                  // P40SNEWM (:167-173)
-      this.er('TIG', tig);
+      this.er('TIG', time2(agc, tig));
     }
     this.tig0 = tig;
     this.buildEvents(tig);
@@ -435,7 +436,7 @@ export default class P40 {
 
   clockJob() {
     const tig = this.agc.erasable.TIG;
-    if (Number.isFinite(tig)) this.er('TTOGO', this.t - tig);
+    if (Number.isFinite(tig)) this.er('TTOGO', time2(this.agc, this.t) - tig);
     this.redisplay = () => this.clockDisplay();
     this.clockDisplay();
   }
@@ -592,7 +593,7 @@ export default class P40 {
     this.burnPhase = 'ignition';
     this.stage = 'burn';
     this.tIgnition = this.t;
-    this.er('TEVENT', this.t);
+    this.er('TEVENT', time2(this.agc, this.t));
     this.setF('ENGONFLG', true);
     this.engineOn = true;
     this.prot(4, PH.IGNITION);
@@ -625,7 +626,7 @@ export default class P40 {
   implBurn() {
     this.setF('STRULLSW', false);
     const tgo = Math.max(0.01, this.tgo ?? 0.01);
-    this.er('TIG', this.t + tgo);
+    this.er('TIG', time2(this.agc, this.t) + tgo);
     this.prot(3, PH.ENGINOFF);
     this.tasks.at(this.t + tgo, 'ENGINOFF', () => this.enginOff());
     this.setF('IMPULSW', false);
@@ -673,7 +674,7 @@ export default class P40 {
     this.s40_8(pguide);
     if (this.flags.IMPULSW && this.engineOn) {
       const tig = this.agc.erasable.TIG;
-      const dt = Math.max(0.01, tig - this.t);
+      const dt = Math.max(0.01, tig - time2(this.agc, this.t));
       this.prot(3, PH.ENGINOFF);
       this.tasks.cancel('ENGINOFF');
       this.tasks.at(this.t + dt, 'ENGINOFF', () => this.enginOff());
@@ -714,7 +715,7 @@ export default class P40 {
     const tgo = (SPS_VEX / accel) * (1 - Math.exp(-vgm / SPS_VEX)) + PAD_LOADS.ETDECAY;
     this.tgo = tgo;
     this.er('TGO', tgo);
-    this.er('TIG', this.lastPass + tgo);           // STODL TIG
+    this.er('TIG', time2(this.agc, this.lastPass) + tgo);   // STODL TIG
     this.updateEventTimes(tgo);
     if (tgo - FOURSEC < 0) {
       // S40.81: IMPULSW for the engine-off call, attitude hold, STEERSW off.
@@ -755,7 +756,7 @@ export default class P40 {
   }
 
   spsOff() {
-    this.er('TEVENT', this.t);
+    this.er('TEVENT', time2(this.agc, this.t));
     this.setF('ENGONFLG', false);
     this.engineOn = false;
   }
@@ -878,7 +879,7 @@ export default class P40 {
   // QUICKIGN (ASTNFLAG off, IGNFLAG on), 0.3 s, V99FLASH + S40.13 — so the
   // next PRO re-ignites immediately. Comanche055/P40-P47.agc:1075-1135
   v97e() {
-    this.er('TIG', this.t - 99 * 60);              // "FORCE R1 OF V06N40 TO READ 59X59"
+    this.er('TIG', time2(this.agc, this.t) - 99 * 60);    // "FORCE R1 OF V06N40 TO READ 59X59"
     this.nvword = NV.V06N40;
     this.spsOff();
     this.tasks.at(this.t + 2.5, 'V97E40.6', () => {

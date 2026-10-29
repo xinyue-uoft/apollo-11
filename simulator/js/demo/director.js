@@ -21,6 +21,14 @@
 // that changes the sim in demo mode comes from the script. Events exactly
 // AT the target fire live after the seek, so jumping to a chapter plays its
 // opening narration (and its hold) as if the user had arrived there.
+//
+// Reading holds (auto-pause): before a new explanation replaces the one on
+// screen, the director waits until that one has been up for its reading
+// time (readingTime(): ≈200 words a minute plus 3 s, at most 35 s). The
+// time on screen is counted in real seconds, while playing, holding or
+// paused. A hold only stops the director clock at an event time — the sim
+// is not stepped meanwhile — so holds change how long a replay takes, never
+// what it simulates. Script `hold` events still pause at least their length.
 
 import { createBus } from '../util/bus.js';
 import { parseGET } from '../util/time.js';
@@ -37,6 +45,18 @@ const CAPTURED = Object.freeze(['alarm', 'restart', 'mode', 'burn', 'oprerr']);
 
 export function clampSpeed(x) {
   return Math.min(MAX_SPEED, Math.max(MIN_SPEED, x));
+}
+
+export const READ_WPM = 200;  // reading speed assumed for an explanation card
+export const READ_BASE = 3;   // s to look over and find the card
+export const READ_MAX = 35;   // s; a longer card does not stall the replay further
+
+// Real seconds an explanation card should stay on screen: title + body
+// (markup and character references stripped) at READ_WPM, plus READ_BASE.
+export function readingTime(narration) {
+  const body = String(narration?.body ?? '').replace(/<[^>]*>/g, ' ').replace(/&[#\w]+;/g, ' ');
+  const words = `${narration?.title ?? ''} ${body}`.split(/\s+/).filter(Boolean).length;
+  return Math.min(READ_MAX, READ_BASE + (words * 60) / READ_WPM);
 }
 
 // Default way for a long seek to yield: a macrotask, so the browser can
@@ -96,7 +116,8 @@ export class Director {
   //   now        — () => ms; clock used only to size seek slices
   //   sliceMs    — work per seek slice before yielding (default 20 ms)
   //   autoplay   — start playing on load (default true; scenario.autoplay wins)
-  //   autoPause  — honour `hold` events (default true)
+  //   autoPause  — honour `hold` events and hold each explanation for its
+  //                reading time (default true)
   //   strict     — rethrow errors from scenario code instead of reporting them
   constructor({
     bus, createSim, scheduler, now, sliceMs = SEEK_SLICE_MS,
@@ -115,8 +136,8 @@ export class Director {
     this.sim = null;
     this.playing = false;
     this.speed = 1;
-    this.holding = null;   // { remaining, total } in real seconds
-    this.seeking = null;   // { target, from, progress }
+    this.holding = null;   // { remaining, total, reason: 'script'|'reading' } in real seconds
+    this.seeking = null;   // { target, from, progress, lastFocus, reading }
     this.ended = false;
     this.error = null;     // { message, what, t } of the last failure
 
@@ -132,6 +153,9 @@ export class Director {
     this._seekToken = 0;
     this._capture = null;
     this._lastFocus = null;
+    this._reading = null;        // { t, need, shown }: the card on screen (real s)
+    this._baseSpeed = 1;         // the speed before any scenario hint changed it
+    this._speedFromHint = false; // this.speed was set by a `speed` event
     this._emittedChapter = -1;
     this._dirty = false;
     this._warned = new Set();
@@ -160,7 +184,8 @@ export class Director {
       chapterIndex: this.chapterIndex,
       chapters: this.chapters,
       chapter: this.chapters[this.chapterIndex] ?? null,
-      holding: this.holding ? { remaining: this.holding.remaining, total: this.holding.total } : null,
+      holding: this.holding
+        ? { remaining: this.holding.remaining, total: this.holding.total, reason: this.holding.reason } : null,
       seeking: this.seeking ? { target: this.seeking.target, progress: this.seeking.progress } : null,
       autoPause: this.autoPause,
       ended: this.ended,
@@ -187,6 +212,7 @@ export class Director {
     this.seeking = null;
     this.ended = false;
     this.error = null;
+    this._reading = null;
     this._failures = 0;
     this._emittedChapter = -1;
 
@@ -206,6 +232,8 @@ export class Director {
       this._events = items;
       this.chapters = chapters;
       this.speed = clampSpeed(Number.isFinite(scenario.speed) ? scenario.speed : 1);
+      this._baseSpeed = this.speed;
+      this._speedFromHint = false;
       this._t = this._start;
       this.sim = this.createSim(scenario);
       this._rewind();
@@ -234,6 +262,12 @@ export class Director {
     this._next = 0;
     this.chapterIndex = this.chapters.length ? 0 : -1;
     this._lastFocus = null;
+    this._reading = null;
+    // A speed that a later `speed` hint set does not belong before it: back
+    // to the speed in force before the hints (the scenario's or the user's).
+    // The replay re-applies every hint up to the target.
+    if (this._speedFromHint && Number.isFinite(this._baseSpeed)) this.speed = this._baseSpeed;
+    this._speedFromHint = false;
     this._history = emptyHistory();
     this._attachCapture();
     // The initial program was started inside the Simulation constructor /
@@ -280,10 +314,12 @@ export class Director {
     return this.seek(this._start);
   }
 
-  // Skip the current hold (the "Continue" button); also un-pauses.
+  // Skip the current hold (the "Continue" button); also un-pauses. The card
+  // on screen counts as read: no reading hold for it afterwards.
   resume() {
     if (!this.sim) return;
     this.holding = null;
+    if (this._reading) this._reading.shown = Math.max(this._reading.shown, this._reading.need);
     if (this.ended) {
       this._emitState();
       return;
@@ -298,6 +334,8 @@ export class Director {
     const clamped = clampSpeed(speed);
     if (clamped !== this.speed) {
       this.speed = clamped;
+      this._baseSpeed = clamped;
+      this._speedFromHint = false;
       this._emitState();
     }
     return this.speed;
@@ -342,8 +380,13 @@ export class Director {
   // ---------- the frame loop ----------
 
   frame(realDt) {
-    if (!this.sim || this.seeking || !this.playing) return;
+    if (!this.sim || this.seeking) return;
     let real = Number.isFinite(realDt) && realDt > 0 ? realDt : 0;
+    if (!this.playing) {
+      // Paused, the card is still on screen: that is reading time too.
+      if (this._reading) this._reading.shown += real;
+      return;
+    }
 
     if (!this.holding) this._fireDue(false); // e.g. events left at this instant after a skipped hold
     for (let guard = 0; guard < 100000 && this.playing && !this.seeking; guard++) {
@@ -352,7 +395,11 @@ export class Director {
         const use = Math.min(real, this.holding.remaining);
         this.holding.remaining -= use;
         real -= use;
+        if (this._reading) this._reading.shown += use;
         if (this.holding.remaining > 1e-6) break;
+        if (this.holding.reason === 'reading' && this._reading) {
+          this._reading.shown = Math.max(this._reading.shown, this._reading.need); // no rounding re-hold
+        }
         this.holding = null;
         this._dirty = true;
         this._fireDue(false);
@@ -365,9 +412,10 @@ export class Director {
       if (real <= EPS) break;
       const pending = this._events[this._next];
       const goal = Math.max(this._t, Math.min(this._t + real * this.speed, pending ? pending.t : Infinity, this._end));
-      const used = (goal - this._t) / this.speed;
+      const used = Math.min(real, (goal - this._t) / this.speed);
       this._advanceTo(goal);
       real = Math.max(0, real - used);
+      if (this._reading) this._reading.shown += used;
       this._fireDue(false);
     }
     if (this._dirty) {
@@ -409,10 +457,34 @@ export class Director {
     while (this._next < this._events.length) {
       const ev = this._events[this._next];
       if (ev.t > this._t + EPS) break;
+      if (!silent && this._holdToRead()) break;
       this._next += 1;
       this._fire(ev, silent);
       if (!silent && this.holding) break;
     }
+  }
+
+  // Auto-pause's reading hold: when the events still due at this instant
+  // bring a new explanation and the card on screen has not been up for its
+  // reading time yet, hold for the rest of it — before the first of those
+  // events, so the chapter title and the card change together.
+  _holdToRead() {
+    const r = this._reading;
+    if (!this.autoPause || !r || r.shown >= r.need - 1e-6) return false;
+    const t = this._events[this._next].t;
+    let narrates = false;
+    for (let k = this._next; k < this._events.length && this._events[k].t <= t + EPS; k++) {
+      if (this._events[k].kind === 'narrate') {
+        narrates = true;
+        break;
+      }
+    }
+    if (!narrates) return false;
+    const seconds = r.need - r.shown;
+    this.holding = { remaining: seconds, total: seconds, reason: 'reading' };
+    this.bus.emit('hold', { seconds, t, reason: 'reading' });
+    this._dirty = true;
+    return true;
   }
 
   _fire(ev, silent) {
@@ -441,6 +513,7 @@ export class Director {
         this._history.narrations.push(narration);
         if (value.focus) this._lastFocus = value.focus;
         if (!silent) {
+          this._reading = { t, need: readingTime(narration), shown: 0 };
           this.bus.emit('narrate', narration);
           if (anchors.length) this.bus.emit('source:show', { anchors, primary: anchors[0], from: 'narrate' });
           if (value.focus) this.bus.emit('focus', { panel: value.focus });
@@ -483,8 +556,8 @@ export class Director {
 
       case 'hold':
         if (!silent && this.autoPause && Number.isFinite(value) && value > 0) {
-          this.holding = { remaining: value, total: value };
-          this.bus.emit('hold', { seconds: value, t });
+          this.holding = { remaining: value, total: value, reason: 'script' };
+          this.bus.emit('hold', { seconds: value, t, reason: 'script' });
           this._dirty = true;
         }
         break;
@@ -505,11 +578,13 @@ export class Director {
       case 'speed':
         // A scenario hint (e.g. fast-forward a quiet coast). Applies when it
         // fires, also silently during a seek: after seeking, the speed is the
-        // one the script asks for at that point (if it asked for any).
+        // one the script asks for at that point (if it asked for any; a
+        // backward seek first drops a hint's speed, see _rewind).
         if (Number.isFinite(value) && value > 0) {
           const s = clampSpeed(value);
           if (s !== this.speed) {
             this.speed = s;
+            this._speedFromHint = true;
             this._dirty = true;
           }
         }
@@ -539,7 +614,11 @@ export class Director {
     const token = ++this._seekToken;
     this.holding = null;
     this.ended = false;
-    const lastFocus = this._lastFocus;
+    // What the views were last told / shown. While another seek is still
+    // running, `_lastFocus` and `_reading` are that replay's, never shown.
+    const lastFocus = this.seeking ? this.seeking.lastFocus : this._lastFocus;
+    const reading = this.seeking ? this.seeking.reading : this._reading;
+    this._reading = null;
     this.sim.setMuted?.(true);
 
     if (target < this._t - EPS) {
@@ -559,9 +638,20 @@ export class Director {
       }
     }
 
-    this.seeking = { target, from: this._t, progress: 0, lastFocus };
+    this.seeking = { target, from: this._t, progress: 0, lastFocus, reading };
     this._emitState();
     return this._seekLoop(token);
+  }
+
+  // Abandon a seek in flight (the app leaves demo mode): nothing more is
+  // announced; the sim stays where the re-simulation got to, unmuted. A
+  // load() or a new seek puts the replay back in order.
+  cancelSeek() {
+    if (!this.seeking) return;
+    this._seekToken += 1;
+    this.seeking = null;
+    this.sim?.setMuted?.(false);
+    this._emitState();
   }
 
   _seekLoop(token) {
@@ -604,14 +694,22 @@ export class Director {
   }
 
   _finishSeek() {
-    const { target, lastFocus } = this.seeking;
+    const { target, lastFocus, reading } = this.seeking;
     this._t = target;
     this.sim.setMuted?.(false);
     this.seeking = null;
     this.bus.emit('director:seeked', this._historyPayload('seek'));
     this._emitChapter(true);
     if (this._lastFocus && this._lastFocus !== lastFocus) this.bus.emit('focus', { panel: this._lastFocus });
+    this._reading = null; // an explanation exactly at the target shows at once
     this._fireDue(false); // events exactly at the target fire live
+    if (!this._reading) {
+      // The card now on screen is the latest explanation before the target
+      // (the views show it from the history): give it its reading time —
+      // or what is left of it, if the seek stayed within the same card.
+      const last = this._history.narrations.at(-1);
+      if (last) this._reading = reading && reading.t === last.t ? reading : { t: last.t, need: readingTime(last), shown: 0 };
+    }
     if (this._t >= this._end - EPS && !this.holding) this._finish();
     this._dirty = false;
     this._emitState();

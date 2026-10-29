@@ -131,7 +131,7 @@ export class Pinball {
       this._proQueue.push({ at: Math.max(at, t), source });
       return true;
     }
-    this.sampTime = t;
+    this.sampTime = this._clock(t);
     return this._requestJob('CHARIN', () => this._charin(key, source), { anchor: 'pinball.charin' });
   }
 
@@ -172,7 +172,7 @@ export class Pinball {
     if (mon && now + 1e-9 >= mon.nextAt) {
       mon.nextAt += MONDEL_S;
       if (mon.nextAt <= now) mon.nextAt = now + MONDEL_S;
-      this.sampTime = now;
+      this.sampTime = this._clock(now);
       this._requestJob('MONDO', () => this._mondo(mon), { anchor: 'pinball.mondo', group: 'monitor' });
     }
     // TSTLTS2 (:3673-3678): after SHOLTS, TSTLTS3 as a CHRPRIO job.
@@ -398,6 +398,13 @@ export class Pinball {
   _now() {
     const t = this.agc.exec && typeof this.agc.exec.now === 'function' ? this.agc.exec.now() : this.agc.t;
     return fin(t) ? Math.max(t, this._t) : this._t;
+  }
+
+  // LODSAMPT (:3442-3445) copies TIME2/TIME1: GET plus the offset of the
+  // last clock load (Agc.clock).
+  _clock(t) {
+    const off = this.agc.clockOffset;
+    return fin(off) ? t + off : t;
   }
 
   _event(type, data = {}) {

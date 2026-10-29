@@ -38,7 +38,7 @@ export default defineScenario({
     { at: '102:32:28', speed: 1 },
     { at: '102:32:28.5', narrate: {
       title: 'Blank, ullage, Verb 99',
-      body: '<p>At TIG−35 the DSKY goes blank for 5 seconds: Average-G navigation is starting. At TIG−7.5 the RCS thrusters fire to settle the propellant. At TIG−5 <b>Verb 99</b> flashes — “please enable engine” — and waits for the crew’s PRO. Watch the DSKY, and the sequence on the Ignition tab.</p>',
+      body: '<p>At TIG−35 the DSKY’s verb, noun and registers go blank for 5 seconds — only the program number stays: Average-G navigation is starting. At TIG−7.5 the RCS thrusters fire to settle the propellant. At TIG−5 <b>Verb 99</b> flashes — “please enable engine” — and waits for the crew’s PRO. Watch the DSKY, and the sequence on the Ignition tab.</p>',
       anchors: ['burn.tig35', 'burn.tig5', 'burn.v99'],
     } },
     { at: '102:32:31', spotlight: 'dsky' },
@@ -140,7 +140,7 @@ export default defineScenario({
     { at: '102:43:10', chapter: 'Manual' },
     { at: '102:43:13.3', narrate: {
       title: 'Attitude hold, then P66',
-      body: '<p>Armstrong takes the attitude himself (ATT HOLD, 102:43:13) and flies over the boulder field; ten seconds later a click of the rate-of-descent switch starts <b>P66</b>. The computer holds the descent rate he selects, 1 ft/s per click, and shows V06N60: forward speed, altitude rate, altitude. No more alarms.</p>',
+      body: '<p>Armstrong takes the attitude himself (ATT HOLD, 102:43:13) and flies over the boulder field; ten seconds later a click of the rate-of-descent switch starts <b>P66</b>. The computer holds the descent rate he selects, 1 ft/s per click, and shows V06N60: horizontal speed, altitude rate, altitude. No more alarms — but PROG stays lit from the last one: when the crew cleared it is not recorded.</p>',
       anchors: ['guid.guildenstern', 'p66.rodtask'],
     } },
     { at: '102:43:14', spotlight: 'crew.rod' },
@@ -153,7 +153,7 @@ export default defineScenario({
     say('200-feet'),
     { at: '102:44:28.3', narrate: {
       title: 'Quantity light',
-      body: '<p>The descent-propellant low-level light — a tank sensor and a panel light, not the computer. It starts about 94 seconds to “Bingo”: then land within 20 seconds or abort. It tripped about 20 seconds early, because the propellant was sloshing. Duke will count down for the crew.</p>',
+      body: '<p>The DES QTY warning light — a tank sensor and a red panel light, not the computer. It starts about 94 seconds to “Bingo”: then land within 20 seconds or abort. Propellant slosh latched it early — by about 20 s (Bennett) to nearly 30 s (Fjeld, ALSJ) by later analyses; the Mission Report’s own comparison found only about 5 s. Duke will count down for the crew.</p>',
     } },
     { at: '102:44:29', spotlight: 'inst.fuel' },
     say('100-feet'),
@@ -166,11 +166,11 @@ export default defineScenario({
     say('thirty-seconds'),
     say('drifting-forward'),
 
-    { at: '102:45:38', chapter: 'Tranquility Base' },
+    { at: '102:45:36', chapter: 'Tranquility Base' },
     say('contact-light'),
     { at: '102:45:40.2', narrate: {
       title: 'Contact',
-      body: '<p>Touchdown at 102:45:39.9, 1.7 ft/s down; engine off at 102:45:41.4 after 756 seconds of burning and five program alarms, with about 770 pounds of propellant — some 45 seconds of firing — to spare. The computer never stopped navigating. Where exactly they landed, P68 works out (chapter <i>P66 and touchdown</i>).</p>',
+      body: '<p>The contact light came on a few seconds before Aldrin’s call, as a probe touched (about 102:45:37, derived). Touchdown at 102:45:39.9, 1.7 ft/s down, the engine still running; engine off at 102:45:41.4 after 756 seconds of burning and five program alarms, with about 770 pounds of propellant left (Mission Report §9.13.1), not all of it usable — by the light-based count about 45 seconds of firing. The computer never stopped navigating. Where exactly they landed, P68 works out (chapter <i>P66 and touchdown</i>).</p>',
     } },
     { at: '102:45:41', hold: 4 },
     say('shutdown'),

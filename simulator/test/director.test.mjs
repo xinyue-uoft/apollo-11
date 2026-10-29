@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createBus } from '../js/util/bus.js';
 import { parseGET } from '../js/util/time.js';
-import { Director, SPEEDS, compileEvents } from '../js/demo/director.js';
+import { Director, SPEEDS, compileEvents, readingTime, READ_MAX } from '../js/demo/director.js';
 import { validateScenario } from '../js/demo/scenario-schema.js';
 import { sanitizeHtml, findDisallowedMarkup, formatOctal } from '../js/ui/html.js';
 
@@ -375,6 +375,306 @@ test('speed clamping, stepping and scenario speed hints', () => {
   assert.equal(d2.state.speed, 1);
   d2.seek(g(30)); // past the hint
   assert.equal(d2.state.speed, 32);
+});
+
+test('seeking back drops a speed set by a later hint; a user speed is kept', () => {
+  const s = tinyScenario({ speed: 4 });
+  s.events.splice(9, 0, { at: g(25), speed: 16 });
+  const { d } = makeDirector({ autoPause: false });
+  d.load(s);
+  d.seek(g(30));
+  assert.equal(d.state.speed, 16, 'the hint applies after a forward seek past it');
+  d.seek(g(20)); // back to chapter 2, before the hint
+  assert.equal(d.state.t, at(20));
+  assert.equal(d.state.speed, 4, 'the scenario speed, not the hint\'s');
+  d.seek(g(40));
+  assert.equal(d.state.speed, 16);
+  d.restart();
+  assert.equal(d.state.speed, 4, 'restart ("Watch again") plays at the scenario speed');
+
+  // A speed the user picks is theirs: kept when seeking back.
+  d.setSpeed(2);
+  d.seek(g(10));
+  assert.equal(d.state.speed, 2);
+  d.seek(g(30));
+  assert.equal(d.state.speed, 16, 'hints still apply on the way forward');
+  d.setSpeed(8); // chosen after the hint
+  d.seek(g(5));
+  assert.equal(d.state.speed, 8);
+});
+
+test('a seek superseding a running seek still switches to the panel the target needs', async () => {
+  const bus = createBus();
+  const focus = [];
+  bus.on('focus', (p) => focus.push(p.panel));
+  let clock = 0;
+  const pending = [];
+  const d = new Director({
+    bus,
+    createSim: (sc) => new FakeSim(sc, []),
+    autoplay: false,
+    autoPause: false,
+    now: () => (clock += 7),
+    sliceMs: 20,
+    scheduler: () => new Promise((resolve) => pending.push(resolve)),
+  });
+  d.load(tinyScenario());
+  const p1 = d.seek(g(50));
+  // let the first replay get past the narration at +20 (focus: exec)
+  while (d.t < at(25) && pending.length) {
+    pending.shift()();
+    await new Promise((r) => setImmediate(r));
+  }
+  assert.ok(d.state.seeking && d.t >= at(25), 'first seek still running past +20');
+  assert.deepEqual(focus, [], 'nothing announced yet');
+  const p2 = d.seek(g(30));
+  while (pending.length) {
+    pending.shift()();
+    await new Promise((r) => setImmediate(r));
+  }
+  assert.equal(await p1, false);
+  assert.equal(await p2, true);
+  assert.equal(d.state.t, at(30));
+  assert.deepEqual(focus, ['exec'], 'the focus the views were never told about is sent');
+});
+
+test('cancelSeek abandons a running seek without announcing anything', async () => {
+  const bus = createBus();
+  const emitted = [];
+  bus.on('*', ({ type }) => emitted.push(type));
+  let clock = 0;
+  const pending = [];
+  const sims = [];
+  const d = new Director({
+    bus,
+    createSim: (sc) => {
+      const sim = new FakeSim(sc, []);
+      sims.push(sim);
+      return sim;
+    },
+    autoplay: false,
+    autoPause: false,
+    now: () => (clock += 7),
+    sliceMs: 20,
+    scheduler: () => new Promise((resolve) => pending.push(resolve)),
+  });
+  d.load(tinyScenario());
+  d.cancelSeek(); // no seek: nothing happens
+  const p = d.seek(g(50));
+  assert.ok(d.state.seeking);
+  assert.equal(sims[0].muted, true);
+  d.cancelSeek();
+  assert.equal(d.state.seeking, null);
+  assert.equal(sims[0].muted, false, 'unmuted');
+  const before = emitted.length;
+  while (pending.length) {
+    pending.shift()();
+    await new Promise((r) => setImmediate(r));
+  }
+  assert.equal(await p, false);
+  const after = emitted.slice(before);
+  for (const type of ['director:seeked', 'chapter', 'focus', 'narrate', 'say']) {
+    assert.ok(!after.includes(type), `no ${type} after the cancel`);
+  }
+});
+
+// ---------- reading holds (auto-pause) ----------
+
+test('readingTime: 200 words a minute plus 3 s, markup ignored, capped', () => {
+  assert.equal(readingTime({ title: '', body: '' }), 3);
+  // 2 + 8 words, tags and character references are not words
+  const t = readingTime({ title: 'Two words', body: '<p>one <b>two</b> three&nbsp;four</p><ul><li>five six seven eight</li></ul>' });
+  assert.ok(Math.abs(t - (3 + 10 * 0.3)) < 1e-9, `got ${t}`);
+  assert.equal(readingTime({ title: 'x', body: 'word '.repeat(1000) }), READ_MAX);
+  assert.equal(readingTime(null), 3);
+});
+
+// Alpha (11 words: 6.3 s to read) is followed 10 s later by Beta; at 4×
+// that is 2.5 s of real time.
+function readScenario() {
+  return tinyScenario({
+    events: [
+      { at: g(0), chapter: 'One' },
+      { at: g(0), narrate: { title: 'Alpha', body: 'one two three four five six seven eight nine ten' } },
+      { at: g(4), action: (sim) => sim.journal.push({ what: 'action', id: 'a1', t: sim.t }) },
+      { at: g(10), chapter: 'Two' },
+      { at: g(10), narrate: { title: 'Beta', body: 'b' } },
+      { at: g(10), action: (sim) => sim.journal.push({ what: 'action', id: 'a2', t: sim.t }) },
+      { at: g(12), hold: 2 },
+      { at: g(30), narrate: { title: 'Gamma', body: 'g' } },
+      { at: g(40), action: (sim) => sim.journal.push({ what: 'action', id: 'a3', t: sim.t }) },
+    ],
+  });
+}
+
+test('auto-pause holds the next explanation until the card on screen has been read', () => {
+  const { d, journal, emitted, sims } = makeDirector();
+  d.load(readScenario());
+  d.setSpeed(4);
+  d.play();
+  d.frame(2.5); // reaches +10
+  assert.equal(d.state.t, at(10));
+  assert.ok(d.state.holding, 'reading hold');
+  assert.equal(d.state.holding.reason, 'reading');
+  assert.ok(Math.abs(d.state.holding.total - (6.3 - 2.5)) < 1e-9, `hold ${d.state.holding.total}`);
+  assert.equal(d.state.chapterIndex, 0, 'the chapter changes together with the card');
+  assert.deepEqual(ofType(emitted, 'narrate').map((n) => n.title), ['Alpha']);
+  assert.deepEqual(actions(journal), ['a1'], 'events at the held instant wait');
+  assert.deepEqual(ofType(emitted, 'hold').map((h) => h.reason), ['reading']);
+  const stepped = sims[0].steps.reduce((a, b) => a + b, 0);
+  d.frame(3);
+  assert.equal(d.state.t, at(10), 'clock frozen');
+  assert.equal(sims[0].steps.reduce((a, b) => a + b, 0), stepped, 'the sim is not stepped while holding');
+  d.frame(0.8); // 0.8 s finishes the hold, nothing left over
+  assert.equal(d.state.holding, null);
+  assert.deepEqual(ofType(emitted, 'narrate').map((n) => n.title), ['Alpha', 'Beta']);
+  assert.equal(d.state.chapterIndex, 1);
+  assert.deepEqual(actions(journal), ['a1', 'a2']);
+  // Beta (2 words, 3.6 s) gets the 2-s script hold at +12 (a minimum) and
+  // then 4.5 s more before Gamma: no reading hold there.
+  d.frame(0.5);
+  assert.equal(d.state.holding.reason, 'script');
+  playToEnd(d, 0.25);
+  assert.deepEqual(ofType(emitted, 'hold').map((h) => h.reason), ['reading', 'script']);
+  assert.deepEqual(actions(journal), ['a1', 'a2', 'a3']);
+});
+
+test('reading holds: none without auto-pause; paused time and Continue count as read', () => {
+  {
+    const { d, emitted } = makeDirector({ autoPause: false });
+    d.load(readScenario());
+    d.setSpeed(4);
+    d.play();
+    d.frame(2.5);
+    assert.equal(d.state.holding, null);
+    assert.equal(ofType(emitted, 'narrate').length, 2);
+  }
+  {
+    const { d, emitted } = makeDirector();
+    d.load(readScenario());
+    d.setSpeed(4);
+    d.frame(5); // not playing yet: the card is on screen all the same
+    d.play();
+    d.frame(2.5);
+    assert.equal(d.state.holding, null, '5 s paused + 2.5 s playing ≥ 6.3 s');
+    assert.equal(ofType(emitted, 'narrate').length, 2);
+  }
+  {
+    const { d, emitted } = makeDirector();
+    d.load(readScenario());
+    d.setSpeed(4);
+    d.play();
+    d.frame(2.5);
+    assert.equal(d.state.holding.reason, 'reading');
+    d.resume(); // Continue
+    d.frame(0.016);
+    assert.equal(ofType(emitted, 'narrate').length, 2, 'Continue shows the next card at once');
+  }
+  {
+    // Continue on a script hold also marks the card as read.
+    const s = readScenario();
+    s.events.splice(2, 0, { at: g(1), hold: 5 });
+    const { d, emitted } = makeDirector();
+    d.load(s);
+    d.setSpeed(4);
+    d.play();
+    d.frame(0.25); // reaches the script hold at +1
+    assert.equal(d.state.holding.reason, 'script');
+    d.resume();
+    d.frame(2.25); // on to +10
+    assert.equal(d.state.holding, null, 'no reading hold after Continue');
+    assert.equal(ofType(emitted, 'narrate').length, 2);
+  }
+});
+
+test('reading holds do not change what is simulated, nor depend on the frame size', () => {
+  const run = (autoPause, dt) => {
+    const { d, journal, emitted, sims } = makeDirector({ autoPause });
+    d.load(readScenario());
+    d.setSpeed(8);
+    d.play();
+    playToEnd(d, dt);
+    return {
+      events: journal.map((j) => `${j.what}:${j.id ?? j.script}@${(j.t - at(0)).toFixed(9)}`),
+      stepped: sims[0].steps.reduce((a, b) => a + b, 0),
+      holds: ofType(emitted, 'hold').map((h) => `${h.reason}@${(h.t - at(0)).toFixed(6)}:${h.seconds.toFixed(9)}`),
+    };
+  };
+  const ref = run(false, 0.016);
+  for (const dt of [0.016, 0.1, 0.37, 2]) {
+    const on = run(true, dt);
+    assert.deepEqual(on.events, ref.events, `same actions and keystrokes at the same GETs (frame ${dt})`);
+    assert.ok(Math.abs(on.stepped - 60) < 1e-6);
+    assert.deepEqual(on.holds, run(true, 0.016).holds, `same holds whatever the frame size (${dt})`);
+    assert.ok(on.holds.some((h) => h.startsWith('reading@10.0')), on.holds.join(' '));
+  }
+});
+
+test('reading holds after a seek: the explanation at the target shows at once, the card shown gets its time', () => {
+  const { d, emitted } = makeDirector();
+  d.load(readScenario());
+  d.setSpeed(4);
+  d.play();
+  d.frame(1); // Alpha up for 1 s
+  d.seek(g(10)); // straight to Beta: no hold before it
+  assert.equal(d.state.holding, null);
+  assert.equal(ofType(emitted, 'narrate').at(-1).title, 'Beta');
+
+  // Seek to the middle of Alpha's window: Alpha (from the history) is the
+  // card on screen and gets its full reading time before Beta.
+  d.seek(g(5));
+  assert.equal(d.state.t, at(5));
+  d.frame(1.25); // reaches +10 after 1.25 s
+  assert.equal(d.state.t, at(10));
+  assert.equal(d.state.holding?.reason, 'reading');
+  assert.ok(Math.abs(d.state.holding.total - (6.3 - 1.25)) < 1e-9);
+
+  // Seeks within the same card keep the time it has already had, also
+  // when one interrupts its reading hold: 1.25 + 2 + 1 s so far.
+  d.seek(g(2));
+  d.frame(2); // +2 → +10, into the reading hold
+  assert.equal(d.state.holding?.reason, 'reading');
+  d.seek(g(6)); // still Alpha's card
+  d.frame(1); // +6 → +10
+  assert.ok(Math.abs(d.state.holding.total - (6.3 - 4.25)) < 1e-9, `hold ${d.state.holding?.total}`);
+  d.frame(2.05);
+  assert.equal(d.state.holding, null);
+  assert.equal(ofType(emitted, 'narrate').at(-1).title, 'Beta');
+});
+
+test('reading holds leave the replay deterministic with the real simulation', async () => {
+  const { Simulation } = await import('../js/sim.js');
+  const { SCENARIOS } = await import('../js/demo/scenarios/index.js');
+  const { TRACKS } = await import('../js/data/tracks.js');
+  const scenario = SCENARIOS.find((s) => s.id === 'p64-approach');
+  const play = (autoPause, dt, viaSeek = false) => {
+    const bus = createBus();
+    let holds = 0;
+    bus.on('hold', () => { holds += 1; });
+    const d = new Director({
+      bus,
+      scheduler: () => {},
+      autoplay: false,
+      autoPause,
+      createSim: (s) => new Simulation({
+        software: s.software, vehicle: s.vehicle || 'static', startGET: s.start,
+        replayTrack: s.track ? TRACKS[s.track] : null, initialProgram: s.initialProgram ?? null,
+        vehicleOptions: s.vehicleOptions || {}, agcOptions: s.agcOptions || {}, bus,
+      }),
+    });
+    d.load(scenario);
+    if (viaSeek) d.seek(d.state.end);
+    else {
+      d.play();
+      for (let i = 0; i < 1e6 && !d.ended; i++) d.frame(dt);
+    }
+    return { snap: d.sim.snapshot(), holds };
+  };
+  const held = play(true, 1 / 30);
+  assert.ok(held.holds > 0, 'auto-pause held the replay');
+  const free = play(false, 0.25);
+  assert.deepEqual(held.snap, free.snap, 'same final state with and without holds');
+  assert.deepEqual(play(false, 0, true).snap, held.snap, 'and the same as seeking to the end');
 });
 
 test('long seeks run in slices through the injected scheduler and can be superseded', async () => {
