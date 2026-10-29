@@ -8,16 +8,17 @@
 // Model (a simplification of the real 9-state Average-G + radar filter,
 // stated in the UI as such):
 // - The estimate equals the vehicle's state except for an altitude error
-//   `errAlt` (estimate − truth). Before the radar is allowed to correct it,
-//   the error grows at `errRate` from ignition on. The defaults reproduce
-//   Apollo 11: the DSKY showed DELTAH = −2,884 ft at TFI 304 s when Aldrin
-//   keyed V16N68 (Cherry's DSKY log, research web-1202-b.md §4; voice
-//   "Delta-H is minus 2,900" at 102:38:11, web-timeline-b.md), i.e. the
-//   PGNCS thought it was ≈2,900 ft higher than the radar said. On the real
-//   flight that difference was part navigation error (the PDI state was
-//   ≈18 ft/s off radially, MR §5.2) and part terrain; the model keeps one
-//   number. The error is applied to altitude only: HDOTDISP shows the true
-//   altitude rate.
+//   `errAlt` (estimate − truth). Before the radar is allowed to correct it
+//   the error grows with the altitude lost since ignition (`errPerFt`),
+//   so the displayed altitude falls whenever the LM descends. The defaults
+//   reproduce Apollo 11: 595 ft at PDI (the first N63 read 49,971 ft, Eyles
+//   via research web-timeline-b.md §2, against the reconstructed 49,376 ft,
+//   MR Table 5-III — the track's altitude) and DELTAH = −2,884 ft at TFI
+//   304 s when Aldrin keyed V16N68 (Cherry's DSKY log, research
+//   web-1202-b.md §4; voice "Delta-H is minus 2,900" at 102:38:11). On the
+//   real flight that difference came from the PDI state error (MR §5.2)
+//   and the terrain; the model keeps one calibrated number (MODEL
+//   CALIBRATION, not a navigation filter). HDOTDISP shows the true rate.
 // - Landing-radar processing follows SERVICER (research src-landing.md
 //   §10): LR altitude reads once the computed altitude is below 50,000 ft
 //   (35KCHK uses ALTCRIT+2 = 50KFT despite its name, SERVICER.agc:899-932);
@@ -29,7 +30,7 @@
 //   with weight W = LRWH·(1 − HCALC/LRHMAX) (:1164-1204; LRWH 0.35,
 //   LRHMAX 50,000 ft pad loads); velocity updates (VELUPDAT :1212-1372,
 //   weights LRWV 0.3 · (1 − V/LRVMAX), LRWVF 0.2 below 200 ft/s, LRWVFF 0.1
-//   in P65-P67) shrink the error growth `errRate`.
+//   in P65-P67) shrink the error growth `errPerFt`.
 // - The ALT / VEL lamps (R12LITES, P20-P25.agc:5115-5180): steady on while
 //   reads are requested but the data are not good; the "flashing" state for
 //   unreasonable data is not modelled.
@@ -41,10 +42,12 @@ import { MOON_ROTATION_RATE } from '../vehicle/constants.js';
 import { slantRange } from './guidance/landing-guidance.js';
 
 export const NAV_MODEL = Object.freeze({
-  // Estimate error at TIG and its growth rate until incorporated. 2,884 ft
-  // at TFI 304 s → 9.49 ft/s (see header). Model calibration.
-  errAltAtTig: 0,
-  errRate: (2884 / 304) * FPS,
+  // Estimate error at TIG and its growth per foot of altitude lost until
+  // incorporated (see header; model calibration): 595 ft at PDI, 2,884 ft
+  // at 102:38:09 when the track is at 33,147 ft (49,376 ft at PDI).
+  errAltAtTig: 595 * FT,
+  errPerFt: (2884 - 595) / (49376 - 33147),
+  altAtTig: 49376 * FT,        // BET altitude at PDI, MR Table 5-III (mid-flight starts)
   // Pad loads (LM Data Book, research src-landing.md §13.1) and SERVICER
   // constants (§13.2).
   lrhmax: 50000 * FT,          // LRHMAX
@@ -81,8 +84,9 @@ export class NavState {
     this.thrust = 0;
     this.pitch = null;
     this.errAlt = 0;
-    this.errRate = 0;
+    this.errPerFt = 0;          // error growth per unit of altitude lost
     this.growFrom = null;       // GET from which errAlt grows (ignition)
+    this.truthAlt = null;       // the truth at the last update
     this.readLr = false;        // READLR
     this.readVel = false;       // READVEL
     this.xor = false;           // XORFLG
@@ -102,17 +106,28 @@ export class NavState {
   arm({ tig, at = null, incorporated = false } = {}) {
     const m = this.model;
     this.growFrom = tig;
-    this.errRate = m.errRate;
+    this.errPerFt = m.errPerFt;
     this.errAlt = m.errAltAtTig;
+    this.truthAlt = null;
     if (at !== null && at > tig) {
       if (incorporated) {
         this.errAlt = 0;
-        this.errRate = 0;
+        this.errPerFt = 0;
       } else {
-        this.errAlt += m.errRate * (at - tig);
+        const alt = this.truth().alt;
+        this.errAlt += m.errPerFt * Math.max(0, m.altAtTig - alt);
+        this.truthAlt = alt;
       }
     }
     if (this.agc.erasable) this.agc.erasable.DELTAH = toFt(m.deltaHInit);
+  }
+
+  // Error growth from the truth's altitude change since the last update.
+  grow(t, alt) {
+    if (this.growFrom !== null && t >= this.growFrom && this.truthAlt !== null && alt < this.truthAlt) {
+      this.errAlt += this.errPerFt * (this.truthAlt - alt);
+    }
+    if (this.growFrom === null || t >= this.growFrom) this.truthAlt = alt;
   }
 
   // The vehicle's state (truth) in SI, plus the inertial speed.
@@ -133,7 +148,7 @@ export class NavState {
     return {
       alt, altRate, vHoriz, vCross: num(s.vCross), range: num(s.range),
       vInertial, mass: num(s.mass), thrust: num(s.thrust), pitch: Number.isFinite(s.pitch) ? s.pitch : null,
-      lr: s.lr || null, landed: !!s.landed,
+      lr: s.lr || null, landed: !!s.landed, engineOn: !!s.engineOn,
     };
   }
 
@@ -147,14 +162,11 @@ export class NavState {
     const dt = this.t === null ? 0 : Math.max(0, t - this.t);
     this.passes += 1;
 
-    // Error growth since the last pass (only after ignition).
-    if (this.growFrom !== null && t > this.growFrom && dt > 0) {
-      const from = Math.max(this.t, this.growFrom);
-      this.errAlt += this.errRate * (t - from);
-    }
+    this.grow(t, tr.alt);
 
-    // MOONSPOT: DVTOTAL += |ΔV| (ft/s on the DSKY).
-    if (dt > 0 && tr.thrust > 0 && tr.mass > 0) {
+    // MOONSPOT: DVTOTAL += |ΔV| (ft/s on the DSKY); the RCS ullage is not
+    // counted (the model has no PIPA reading of it).
+    if (dt > 0 && tr.engineOn && tr.thrust > 0 && tr.mass > 0) {
       e.DVTOTAL = (Number.isFinite(e.DVTOTAL) ? e.DVTOTAL : 0) + toFps((tr.thrust / tr.mass) * dt);
     }
 
@@ -182,9 +194,7 @@ export class NavState {
   // initialises ABVEL, BBB:242-245). No radar processing, no DVTOTAL.
   refresh(t) {
     const tr = this.truth();
-    if (this.growFrom !== null && this.t !== null && t > Math.max(this.t, this.growFrom)) {
-      this.errAlt += this.errRate * (t - Math.max(this.t, this.growFrom));
-    }
+    this.grow(t, tr.alt);
     this.t = t;
     this.altRate = tr.altRate;
     this.vHoriz = tr.vHoriz;
@@ -239,7 +249,7 @@ export class NavState {
         else if (v < m.lrvf) w = m.lrwvf;
         else if (v > m.lrvmax) w = 0;
         else w = m.lrwv * (1 - v / m.lrvmax);
-        this.errRate *= 1 - w;
+        this.errPerFt *= 1 - w;
         this.velIncorporating = w > 0;
       }
     }
@@ -288,7 +298,7 @@ export class NavState {
       range: this.range,
       vInertial: this.vInertial,
       errAlt: this.errAlt,
-      errRate: this.errRate,
+      errPerFt: this.errPerFt,
       deltaH: this.deltaH,
       readLr: this.readLr,
       readVel: this.readVel,

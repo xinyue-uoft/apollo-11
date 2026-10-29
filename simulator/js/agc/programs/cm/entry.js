@@ -184,8 +184,10 @@ class EntryProgram {
     this.er('LAT', e.lat);                 // N67 present latitude, deg
     this.er('LONG', e.lon);                // N67 present longitude, deg
     this.er('TTE', this.t - (this.agc.erasable.ENTRYEI + ENTRY_PAD.ret05g)); // N63 time from EMS alt.
-    this.er('XRNGERR', 0);                 // N66 cross-range error (not modelled)
-    this.er('DNRNGERR', 0);                // N66 down-range error (not modelled)
+    // N66 cross-range / down-range errors need the entry range predictor,
+    // which is not modelled: blank registers rather than invented numbers.
+    this.er('XRNGERR', null);
+    this.er('DNRNGERR', null);
   }
 
   // NEWMODEX: the next entry program (major mode change without V37).

@@ -402,6 +402,7 @@ export class TrajectoryModel {
     this.live = new Map();      // id → milestone (physics runs)
     this.landed = null;         // { t, r, h }
     this.prev = null;
+    this.lrSeen = false;
     this.domain = { r: 0, h: 0 };
   }
 
@@ -431,6 +432,7 @@ export class TrajectoryModel {
     // that starts mid-burn must not get a "PDI" marker at its start).
     if (!prev) {
       this.prev = this.flags(t, mode, v);
+      this.lrSeen = !!v.lr?.altValid;
       return;
     }
     const p = prev;
@@ -443,9 +445,12 @@ export class TrajectoryModel {
     if (this.live.has('throttle-up') && !this.live.has('throttle-down') && v.throttle < 0.75 && p.throttle >= 0.75) {
       this.addLive({ t, id: 'throttle-down', label: 'Throttle down' });
     }
-    if (v.lr?.altValid && !p.lrAlt && !this.live.has('lr-data-good')) {
+    // Lock-on = the first time the radar has data (later drop-outs and
+    // recoveries are not lock-ons).
+    if (v.lr?.altValid && !p.lrAlt && !this.lrSeen) {
       this.addLive({ t, id: 'lr-data-good', label: 'Landing radar data good' });
     }
+    if (v.lr?.altValid) this.lrSeen = true;
     if (mode !== p.mode && [64, 65, 66, 67].includes(mode) && Number.isFinite(p.mode)) {
       this.addLive({ t, id: `p${mode}`, label: `P${mode}` });
     }
@@ -1694,7 +1699,7 @@ export function mountTrajectory(root, ctx) {
     const layoutItems = items.map((it, i) => ({
       key: i, x: it.x, y: it.y, w: textW(it.m.short, font) + 8, h: 15, priority: prio[it.m.kind] ?? 1,
     }));
-    const labels = layoutLabels(layoutItems, bounds, { obstacles });
+    const labels = layoutLabels(layoutItems, bounds, { obstacles, markerR: 6 });
     // Leaders first, then markers, then label boxes on top.
     g.save();
     g.strokeStyle = 'rgba(221,226,232,0.35)';

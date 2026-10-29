@@ -271,6 +271,9 @@ test('the live model marks edges, not the first sample', () => {
   fresh.observe(snap(27, { throttle: 0.93, lr: {} }));
   fresh.observe(snap(400, { throttle: 0.6, lr: { altValid: true } }));
   assert.deepEqual([...fresh.live.keys()], ['ignition', 'throttle-up', 'throttle-down', 'lr-data-good']);
+  fresh.observe(snap(401, { throttle: 0.6, lr: { altValid: false } }));
+  fresh.observe(snap(402, { throttle: 0.6, lr: { altValid: true } }));
+  assert.equal(fresh.live.get('lr-data-good').t, 400, 'a radar drop-out and recovery is not a new lock-on');
   assert.equal(fresh.live.get('ignition').short, 'PDI');
 
   const alarms = TrajectoryModel.alarmMilestones(snap(0, {}, 63, [{ t: 10, code: 0o1202, text: 'NO CORE SETS' }]));

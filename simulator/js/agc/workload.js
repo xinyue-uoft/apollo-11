@@ -144,7 +144,7 @@ export const DEFAULT_PARAMS = Object.freeze({
     normlizeMs: 40,
     lastbiasMs: 8,
     higateWorkMs: [3, 25],
-    higateSleepMs: 5000,  // until the antenna reaches position 2 (simplified)
+    higateSleepMs: 5000,  // until the antenna reaches position 2 (102:41:32 -> :37, MR)
     charinMs: 5,          // per keystroke (for callers that want a default)
   },
   // Per-phase configuration. navMs/guidMs: the two parts of one SERVICER
@@ -200,6 +200,7 @@ export class Workload {
     this.monreqTask = null;
     this.flashJob = null;
     this.higateDone = false;
+    this.lrInhibited = false;      // LR antenna repositioning (HIGATJOB)
     this.g5 = null;                // { phase, servicer }
     this.g3 = false;
     this.copies = new Set();       // live SERVICER/GUIDANCE jobs created here
@@ -329,6 +330,7 @@ export class Workload {
   // (before the groups are re-entered).
   onRestart() {
     this._holders = this._waypointHolders();
+    this.lrInhibited = false; // simplification: HIGATJOB is not restart-protected here
     this.copies.clear();
     this.readaccsTask = null;
     this.r10Task = null;
@@ -406,7 +408,8 @@ export class Workload {
     const j = this.params.jobs;
     const steps = [];
     if (!guidanceOnly) {
-      const fullNav = (cfg.navMs || 0) + (cfg.lrAlt ? cfg.lrConvMs || 0 : 0) + (this._lrIncorporating() ? cfg.lrIncorpMs || 0 : 0);
+      const lr = this._lrOn();
+      const fullNav = (cfg.navMs || 0) + (lr ? cfg.lrConvMs || 0 : 0) + (lr && this._lrIncorporating() ? cfg.lrIncorpMs || 0 : 0);
       steps.push({
         workMs: navLeftMs === null ? fullNav : Math.min(fullNav, navLeftMs),
         label: 'Average-G',
@@ -420,7 +423,7 @@ export class Workload {
         },
         // MUNRETRN chain: READV when velocity reads are on.
         onEnd: () => {
-          if (this._lrVelocity()) {
+          if (this._lrOn() && this._lrVelocity()) {
             exec.requestJob({
               name: 'LRVJOB', prio: 0o32, vac: false, source: 'workload', anchor: 'exec.job.lrvjob',
               steps: [{ workMs: j.lrvWorkMs[0] }, { sleepMs: j.lrvSleepMs }, { workMs: j.lrvWorkMs[1] }],
@@ -537,7 +540,7 @@ export class Workload {
     // Last pass: LRHTASK (SERVICER.agc:664-687): LR altitude read job,
     // then group 2 off until the next READACCS starts the chain again.
     exec.chargeInterrupt('tasks', this.params.tasks.lrhTaskMs);
-    if (this.cfg.lrAlt) {
+    if (this._lrOn()) {
       const j = this.params.jobs;
       exec.requestJob({
         name: 'LRHJOB', prio: 0o32, vac: false, source: 'workload', anchor: 'exec.job.lrhjob',
@@ -589,13 +592,25 @@ export class Workload {
 
   // ------------------------------------------------------------ HIGATJOB
 
+  // High gate: HIGATJOB repositions the LR antenna and sleeps until it is
+  // in position 2; LR reads are inhibited meanwhile and resume when POSGOOD
+  // (at PRIO23) has set up the new beam directions. Simplified: the job is
+  // created at P64 entry and the antenna takes `higateSleepMs` (Apollo 11:
+  // antenna in position 2 at 102:41:37, MR Table 5-I).
   _higate() {
     this.higateDone = true;
     const j = this.params.jobs;
-    this.exec?.requestJob({
+    this.lrInhibited = true;
+    const job = this.exec?.requestJob({
       name: 'HIGATJOB', prio: 0o32, vac: true, source: 'workload', anchor: 'exec.job.higatjob',
-      steps: [{ workMs: j.higateWorkMs[0] }, { sleepMs: j.higateSleepMs }, { workMs: j.higateWorkMs[1] }],
+      steps: [
+        { workMs: j.higateWorkMs[0] },
+        { sleepMs: j.higateSleepMs },
+        { workMs: j.higateWorkMs[1], onStart: (t, jb) => { jb.prio = 0o23; } },
+      ],
+      onDone: () => { this.lrInhibited = false; },
     });
+    if (!job) this.lrInhibited = false;
   }
 
   // ------------------------------------------------------------ monitor
@@ -674,10 +689,24 @@ export class Workload {
     return !!crew && crew.pgnsMode === 'attHold';
   }
 
+  // P64DISPS (LUNAR_LANDING_GUIDANCE_EQUATIONS.agc:856-884): the guidance
+  // display is the flashing V06N64 (REFLASHR, an SPVAC display job) until
+  // the crew answers PRO (P64CEED sets REDFLAG), then static (REGODSPR,
+  // NOVAC). Derived from agc.flags.REDFLAG when the programs keep it,
+  // otherwise from the DSKY's flashing V/N.
   _flashing() {
     if (!this.cfg.flashable) return false;
     if (this.flashOverride !== null) return this.flashOverride;
+    const flags = this.agc.flags;
+    if (flags && typeof flags.REDFLAG === 'boolean') return !flags.REDFLAG;
     return !!this.agc.dsky?.flashVerbNoun;
+  }
+
+  // LR reads and LR data processing are on in this phase and not inhibited
+  // (HIGATASK sets the LR inhibit bit while the antenna moves to position 2;
+  // POSGOOD clears it, SERVICER.agc:695-712, :1611-1633).
+  _lrOn() {
+    return !!this.cfg.lrAlt && !this.lrInhibited;
   }
 
   _lrIncorporating() {

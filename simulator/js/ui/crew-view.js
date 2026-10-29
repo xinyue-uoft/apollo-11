@@ -65,6 +65,7 @@ export function crewModel(snap, appMode) {
       time: Number.isFinite(lpd?.time) ? lpd.time : null,
     },
     engineOn: !!snap.vehicle?.engineOn,
+    engineStop: crew.engineStop === true,
     landed: !!snap.vehicle?.landed,
   };
 }
@@ -191,7 +192,6 @@ export function mountCrew(root, ctx) {
   };
 
   let model = null;
-  let prev = null;           // previous crew state (demo highlight)
   const flashTimers = new Map();
 
   const send = (name, value) => {
@@ -247,7 +247,7 @@ export function mountCrew(root, ctx) {
     });
     once('ro', model.readOnly && model.visible === 'lm', (ro) => { el.ro.hidden = !ro; });
     set('badge', model.visible === 'none' ? '—' : model.readOnly ? 'Replay · read-only' : 'Interactive');
-    if (model.visible !== 'lm') { prev = null; return; }
+    if (model.visible !== 'lm') return;
 
     once('disabled', model.readOnly, (ro) => {
       for (const b of Object.values(btn)) {
@@ -275,18 +275,21 @@ export function mountCrew(root, ctx) {
     });
     set('hint', crewHint(model));
 
-    // In replays, highlight the control the crew just operated.
-    if (prev && model.readOnly) {
-      if (prev.rodFps !== model.rodFps && prev.rodFps !== null && model.rodFps !== null) flash(sections.rod);
-      if (prev.lpd.dx !== dx || prev.lpd.dy !== dy) flash(sections.lpd);
-      if (prev.pgnsMode !== model.pgnsMode && prev.pgnsMode !== null) flash(sections.pgns);
-      if (prev.rrFault !== model.rrFault && prev.rrFault !== null) flash(sections.rr);
-      if (prev.engineOn && !model.engineOn && model.landed) flash(sections.stop);
-    }
-    prev = { rodFps: model.rodFps, lpd: { dx, dy }, pgnsMode: model.pgnsMode, rrFault: model.rrFault, engineOn: model.engineOn };
+    once('stopped', model.engineStop, (on) => {
+      btn.engineStop.dataset.stopped = String(!!on);
+      btn.engineStop.setAttribute('aria-label', on ? 'Engine stop (pressed: the engine is commanded off)' : 'Engine stop');
+    });
   }
 
-  const offs = [bus.on('sim:reset', () => { prev = null; })];
+  // In replays, highlight the control the crew just operated (the computer
+  // model announces every crew-station input on the bus as 'crew').
+  const SECTION_FOR = { rodClick: 'rod', lpd: 'lpd', pgnsMode: 'pgns', rrFault: 'rr', engineStop: 'stop' };
+  const offs = [
+    bus.on('crew', ({ name } = {}) => {
+      if (!model?.readOnly || model.visible !== 'lm') return;
+      flash(sections[SECTION_FOR[name]]);
+    }),
+  ];
 
   return {
     render,

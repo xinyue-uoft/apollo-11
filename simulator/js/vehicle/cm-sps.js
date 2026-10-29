@@ -372,7 +372,6 @@ export class CmSpsVehicle {
 
     // SPS on/off with start and tail-off transients.
     const want = !!cmd.engineOn && this.propellant > 0;
-    if (want && !this.engineCmd) this.level = Math.max(this.level, 0);
     if (!want && this.engineCmd) {
       // A little shot-to-shot scatter of the tail-off impulse (±5 %, seeded),
       // so post-burn residuals are not exactly zero.
