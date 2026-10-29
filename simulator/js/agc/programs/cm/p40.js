@@ -117,23 +117,23 @@ export function loadExternalDeltaV(agc, pad = LOI1_PAD) {
   setFlag(agc, 'CSMDOCKD', pad.docked ?? pad === LOI1_PAD);
 }
 
-// Restart phase numbers (octal, as in the PHASCHNG/NEWPHASE operands).
+// Restart phases (group.phase as written in the listing's comments) with
+// the anchor of the code they restart.
 const PH = {
-  P40SSV: 0o23,     // 4.23 = P40S/SV (PRIO12)          P40-P47.agc:124-126
-  TIGBLNK: 0o21,    // 4.21 = TIGBLNK                    :159-160
-  TIGAVEG: 0o37,    // 4.37 = TIGAVEG (500CS)            :363-365
-  TIG5: 0o6,        // 4.6  = TIG-5 (2496CS)             :467-469
-  TIG0: 0o7,        // 4.7  = TIG-0 (500CS)              :488-490
-  IGNITION: 0o61,   // 4.61 = IGNITION                   :515-516
-  DOTVCON: 0o3,     // 4.3  = DOTVCON (40CS)             :546-548
-  DOSTRULL: 0o5,    // 4.5  = DOSTRULL (160 CS)          :572-574
-  DOSPSOFF: 0o63,   // 4.63 = DOSPSOFF                   :652-654
-  DOTVCRCS: 0o27,   // 4.27 = DOTVCRCS (250 CS)          :656-658
-  POSTBURN: 0o35,   // 4.35 = POSTBURN (NOVAC, PRIO12)   :673-674
-  TIGNOW: 0o24,     // 4.24-type display restart (TYPE C, :192-194)
-  CLOCK: 0o3,       // 6.3  = CLOKTASK (100CS)           :289,563-566
-  ENGINOFF: 0o15,   // 3.15 = ENGINOFF (TGO+1)           :859-861
-  S4013: 0o3,       // 3.3  = S40.13                     :488-490
+  P40SSV: ['4.23', 'P40S/SV integration', 'cm.p40.countdown'],          // P40-P47.agc:124-126
+  TIGBLNK: ['4.21', 'TIGBLNK at TIG-35', 'cm.p40.tigblnk'],            // :159-160
+  TIGAVEG: ['4.37', 'TIGAVEG at TIG-30', 'cm.p40.tigaveg'],              // :363-365
+  TIG5: ['4.6', 'TIG-5', 'cm.p40.tig5'],                              // :467-469
+  TIG0: ['4.7', 'TIG-0', 'cm.p40.tig0'],                                 // :488-490
+  IGNITION: ['4.61', 'IGNITION', 'cm.p40.ignition'],                     // :515-516
+  DOTVCON: ['4.3', 'DOTVCON (thrust build-up)', 'cm.p40.dotvcon'],       // :546-548
+  DOSTRULL: ['4.5', 'DOSTRULL (steering, ullage off)', 'cm.p40.dostrull'], // :572-574
+  DOTVCRCS: ['4.27', 'DOTVCRCS (SPS tail-off)', 'cm.p40.enginoff'],      // :656-658
+  POSTBURN: ['4.35', 'POSTBURN V16N40', 'cm.p40.postburn'],             // :673-674
+  TIGNOW: ['4.24', 'TIGNOW V16N85 (type C display restart)', 'cm.p40.tignow'], // :192-194
+  CLOCK: ['6.3', 'CLOKTASK', 'cm.p40.clock'],                            // :289,563-566
+  ENGINOFF: ['3.15', 'ENGINOFF (TGO+1)', 'cm.p40.steering'],             // :859-861
+  S4013: ['3.3', 'S40.13 TIMEBURN', 'cm.p40.s4013'],                     // :488-490
 };
 
 const NV = { V06N40: 'V06N40', NONE: 0, V99: 'V99', V97: 'V97', V06N85B: 'V06N85B' };
@@ -206,7 +206,7 @@ export default class P40 {
     this.tasks.clear();
     this.router.clear();
     this.setF('TIMRFLAG', false);
-    for (const g of [3, 4, 6]) unprotect(this.agc, g);
+    for (const g of [3, 4, 6]) this.unprot(g);
   }
 
   step(t) {
@@ -261,8 +261,12 @@ export default class P40 {
     setErasable(this.agc, name, value);
   }
 
-  prot(group, phase) {
-    protect(this.agc, group, phase, (...a) => this.reenter(group, ...a));
+  prot(group, [phase, label, anchor]) {
+    protect(this.agc, group, phase, (...a) => this.reenter(group, ...a), { label, anchor, owner: 'P40' });
+  }
+
+  unprot(group) {
+    unprotect(this.agc, group, 'P40');
   }
 
   totalMassKg() {
@@ -523,7 +527,7 @@ export default class P40 {
       this.setF('IMPULSW', false);                 // S40.133 "WILL STEER VEHICLE"
     }
     this.updateEventTimes();
-    unprotect(this.agc, 3);                        // S40.134 "KILL GROUP 3"
+    this.unprot(3);                        // S40.134 "KILL GROUP 3"
   }
 
   // TIG-0: set IGNFLAG; if ASTNFLAG (crew PRO on V99) clear the V99 and go
@@ -598,7 +602,7 @@ export default class P40 {
       this.burnPhase = 'burning';
     }
     this.ullage = false;                           // ULAGEOFF: CHAN5 = 0
-    unprotect(this.agc, 4);                        // "KILL GROUP 4"
+    this.unprot(4);                        // "KILL GROUP 4"
   }
 
   // IMPLBURN: TIG = TIME2 + TGO for R1 of V06N40; ENGINOFF in TGO.
@@ -725,7 +729,7 @@ export default class P40 {
     this.burnPhase = 'cutoff';
     this.spsOff();
     this.tCutoff = this.t;
-    unprotect(this.agc, 3);
+    this.unprot(3);
     this.prot(4, PH.DOTVCRCS);
     this.tasks.at(this.t + 2.5, 'DOTVCRCS', () => {
       this.tvcZap();
@@ -745,7 +749,7 @@ export default class P40 {
     this.nvword = NV.NONE;
     this.setF('TIMRFLAG', false);
     this.tasks.cancel('CLOKTASK');
-    unprotect(this.agc, 6);
+    this.unprot(6);
   }
 
   // POSTBURN: flashing V16N40 (final TTOGO, VG, ΔV). V34 → POST41,
@@ -822,7 +826,7 @@ export default class P40 {
     this.tasks.cancel('P40S/RS');
     this.tasks.cancel('TIGNOW');
     if (this.nvword !== NV.NONE || this.flags.TIMRFLAG) this.tvcZap();
-    for (const g of [3, 4]) unprotect(this.agc, g);
+    for (const g of [3, 4]) this.unprot(g);
     this.redisplay = () => showDisplay(this, {
       verb: 37, noun: 99, flash: true, id: 'GOP00FIX',
       source: 'cm.p00.gotopooh',

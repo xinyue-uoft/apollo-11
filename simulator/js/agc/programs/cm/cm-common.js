@@ -117,15 +117,19 @@ export function vehicleState(agc) {
   return agc.vehicle?.state || null;
 }
 
-// Restart protection (PHASCHNG): agc.restart.protect(group, phase, reenter).
-// Phases are passed as the octal phase number of the source, e.g. 0o21 for
-// "4.21" (group 4, phase 21).
-export function protect(agc, group, phase, reenter) {
-  agc.restart?.protect?.(group, phase, reenter);
+// Restart protection (PHASCHNG / NEWPHASE): agc.restart.protect(group,
+// phase, reenter, { label, anchor, owner }) with the phase written as in the
+// listing's comments, e.g. '4.21' (js/agc/restart.js).
+export function protect(agc, group, phase, reenter, meta = {}) {
+  agc.restart?.protect?.(group, phase, reenter, meta);
 }
 
-export function unprotect(agc, group) {
-  agc.restart?.clear?.(group);
+// Phase G.0 for a group this program owns (a newer owner is left alone).
+export function unprotect(agc, group, owner) {
+  const r = agc.restart;
+  if (!r) return;
+  if (owner && typeof r.clearIfOwner === 'function') r.clearIfOwner(group, owner);
+  else r.clear?.(group);
 }
 
 export function emitBus(agc, type, payload) {

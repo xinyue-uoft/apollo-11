@@ -271,6 +271,10 @@ export const ANCHORS = {
     file: FSR, label: 'FCADRMM1', start: 1063, end: 1075,
     title: 'Programs V37 may select (P68 = LANDJUNK, P63 = P63LM)',
   },
+  'scn.p00.gotopooh': {
+    file: FSR, start: 617, end: 671,
+    title: 'GOTOPOOH: “FLASH V 37 ON DSKY MM CHANGE REQUEST”',
+  },
   'scn.burn.v06n61': {
     file: BBB, start: 752, end: 758,
     title: 'Flashing V06N61: “reset his event timer to agree with TIG”',

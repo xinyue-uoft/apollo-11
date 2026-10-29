@@ -109,6 +109,7 @@ export function mountTranscript(root, ctx) {
   let needsIntro = false;
   let lastMode = null;
   let userKeys = null;   // the open "You keyed …" line in interactive mode
+  let busyFrames = 0;    // aria-busy after a history rebuild
   const hidden = { voice: false, sys: false };
 
   function toggleFilter(which, btn) {
@@ -152,7 +153,8 @@ export function mountTranscript(root, ctx) {
     }),
     bus.on('director:seeked', (p) => {
       if (mode !== 'demo') return;
-      rebuild = (p?.log || []).slice(-MAX_LINES);
+      // Copies: lines get view-only fields (their DOM node) attached.
+      rebuild = (p?.log || []).slice(-MAX_LINES).map((e) => ({ ...e }));
       pending = [];
     }),
     bus.on('say', (p) => {
@@ -308,12 +310,18 @@ export function mountTranscript(root, ctx) {
 
     let changed = false;
     if (rebuild) {
+      // A rebuilt history is not news: keep screen readers from reading the
+      // whole log out (aria-busy until the next frames).
+      setAttr(feed, 'aria-busy', 'true');
+      busyFrames = 2;
       list.replaceChildren();
       lines = [];
       append(rebuild, software);
       rebuild = null;
       changed = true;
       stick = true;
+    } else if (busyFrames > 0 && --busyFrames === 0) {
+      setAttr(feed, 'aria-busy', null);
     }
     if (pending.length) {
       const batch = pending;

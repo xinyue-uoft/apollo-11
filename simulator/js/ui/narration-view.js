@@ -109,6 +109,7 @@ export function mountNarration(root, ctx) {
   // ---------- state ----------
   let current = null;   // latest narration
   let earlier = [];     // older narrations, oldest first
+  let shownEarlier = 0; // how many of `earlier` are in the history list
   let dirty = true;
   let fresh = false;    // animate the next card
   let lastMode = null;
@@ -129,7 +130,6 @@ export function mountNarration(root, ctx) {
         type: 'button',
         class: 'chip',
         title: info.title,
-        aria: { label: info.title },
         data: { anchor: id },
         on: {
           click: () => {
@@ -155,6 +155,7 @@ export function mountNarration(root, ctx) {
       const list = p?.narrations || [];
       current = list.at(-1) || null;
       earlier = list.slice(0, -1);
+      shownEarlier = -1; // rebuild the history list
       fresh = false;
       dirty = true;
     }),
@@ -168,6 +169,7 @@ export function mountNarration(root, ctx) {
     bus.on('director:loaded', () => {
       current = null;
       earlier = [];
+      shownEarlier = -1;
       dirty = true;
     }),
     bus.on('app:mode', () => {
@@ -175,6 +177,7 @@ export function mountNarration(root, ctx) {
     }),
   ];
   anchorsReady.then(() => {
+    shownEarlier = -1; // re-label every chip with the anchor names
     dirty = true;
   });
 
@@ -198,7 +201,14 @@ export function mountNarration(root, ctx) {
       card.classList.add('is-fresh');
       fresh = false;
     }
-    historyList.replaceChildren(...earlier.slice().reverse().map(historyItem));
+    // Newest first. Normally narrations only accumulate, so new ones are
+    // prepended and the items a reader has expanded stay expanded.
+    if (shownEarlier < 0 || shownEarlier > earlier.length) {
+      historyList.replaceChildren(...earlier.slice().reverse().map(historyItem));
+    } else if (earlier.length > shownEarlier) {
+      historyList.prepend(...earlier.slice(shownEarlier).reverse().map(historyItem));
+    }
+    shownEarlier = earlier.length;
     setText(historyCount, `(${earlier.length})`);
     setHidden(historyBox, earlier.length === 0);
   }

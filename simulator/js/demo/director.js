@@ -364,7 +364,7 @@ export class Director {
       }
       if (real <= EPS) break;
       const pending = this._events[this._next];
-      const goal = Math.min(this._t + real * this.speed, pending ? pending.t : Infinity, this._end);
+      const goal = Math.max(this._t, Math.min(this._t + real * this.speed, pending ? pending.t : Infinity, this._end));
       const used = (goal - this._t) / this.speed;
       this._advanceTo(goal);
       real = Math.max(0, real - used);

@@ -45,7 +45,8 @@ export function mountTimeline(root, ctx) {
   const ghost = h('div', { class: 'tl-ghost', aria: { hidden: 'true' }, hidden: true });
   const tipTime = h('span', { class: 'tl-tip-time' });
   const tipChapter = h('span', { class: 'tl-tip-chapter' });
-  const tip = h('div', { class: 'tl-tip', aria: { hidden: 'true' }, hidden: true }, tipTime, tipChapter);
+  const tipEvent = h('span', { class: 'tl-tip-event' });
+  const tip = h('div', { class: 'tl-tip', aria: { hidden: 'true' }, hidden: true }, tipTime, tipChapter, tipEvent);
   const track = h('div', {
     class: 'tl-track',
     role: 'slider',
@@ -76,6 +77,7 @@ export function mountTimeline(root, ctx) {
   let start = 0;
   let end = 1;
   let scriptTicks = [];
+  let allTicks = [];         // what is drawn, for the hover tooltip
   const learned = new Map(); // scenario id → Map(key → tick)
   let ticksDirty = true;
   let segments = [];
@@ -142,11 +144,10 @@ export function mountTimeline(root, ctx) {
 
   function renderTicks() {
     ticksDirty = false;
-    const all = [...scriptTicks, ...(ui?.scenario ? learnedFor(ui.scenario.id).values() : [])];
-    ticksEl.replaceChildren(...all.map((tk) => h('span', {
+    allTicks = [...scriptTicks, ...(ui?.scenario ? learnedFor(ui.scenario.id).values() : [])];
+    ticksEl.replaceChildren(...allTicks.map((tk) => h('span', {
       class: `tl-tick ${tk.cls}`,
       style: `left:${pct((tk.t - start) / span())}`,
-      title: `${formatGET(tk.t)} — ${tk.label}`,
     })));
   }
 
@@ -181,18 +182,37 @@ export function mountTimeline(root, ctx) {
     d.seek(Math.min(end, Math.max(start, t)));
   }
 
+  // Live director state (not the last frame's copy), so that several key
+  // presses within one frame accumulate.
   function refTime() {
-    const d = ui?.director;
+    const d = director()?.state;
     return d?.seeking ? d.seeking.target : d?.t ?? start;
+  }
+
+  // The most important tick within a few pixels of `t` (alarms beat program
+  // changes beat explanations beat voice).
+  const RANK = { 'tl-tick-restart': 4, 'tl-tick-alarm': 4, 'tl-tick-mode': 3, 'tl-tick-narrate': 2, 'tl-tick-say': 1 };
+  function tickNear(t) {
+    const slack = (5 / Math.max(1, track.clientWidth)) * span();
+    let best = null;
+    for (const tk of allTicks) {
+      if (Math.abs(tk.t - t) > slack) continue;
+      if (!best || (RANK[tk.cls] || 0) > (RANK[best.cls] || 0)
+        || ((RANK[tk.cls] || 0) === (RANK[best.cls] || 0) && Math.abs(tk.t - t) < Math.abs(best.t - t))) best = tk;
+    }
+    return best;
   }
 
   function showTip(t, x) {
     const c = chapterAt(t);
-    setText(tipTime, formatGET(t));
+    const tk = tickNear(t);
+    setText(tipTime, formatGET(tk ? tk.t : t));
     setText(tipChapter, c ? c.title : '');
+    setText(tipEvent, tk ? tk.label : '');
+    setHidden(tipEvent, !tk);
     setHidden(tip, false);
     const w = track.clientWidth || 1;
-    const half = Math.min(110, (tip.offsetWidth || 120) / 2);
+    const half = Math.min(140, (tip.offsetWidth || 120) / 2);
     setStyle(tip, 'left', `${Math.min(w - half, Math.max(half, x))}px`);
   }
 
@@ -216,7 +236,10 @@ export function mountTimeline(root, ctx) {
     dragging = null;
     toggleClass(track, 'is-dragging', false);
     setHidden(ghost, true);
-    if (commit) seekTo(t);
+    // Releasing right on an explanation, program change or alarm tick snaps
+    // to it (an explanation exactly at the seek target then plays live).
+    const tk = tickNear(t);
+    if (commit) seekTo(tk && (RANK[tk.cls] || 0) >= 2 ? tk.t : t);
   };
   track.addEventListener('pointerup', (e) => endDrag(e, true));
   track.addEventListener('pointercancel', (e) => endDrag(e, false));

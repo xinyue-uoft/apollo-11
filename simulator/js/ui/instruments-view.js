@@ -131,6 +131,15 @@ export function pgnsModeLabel(mode) {
   return '—';
 }
 
+// "169.7 × 60.0" (apocynthion × pericynthion altitudes, nmi) or
+// "hyperbolic · peri 61.5" before orbit insertion.
+export function orbitText(orbit) {
+  if (!orbit || !Number.isFinite(orbit.peri)) return '—';
+  const nmi = (m) => fmtNum(m / NMI, 1);
+  if (!Number.isFinite(orbit.apo)) return `hyperbolic · peri ${nmi(orbit.peri)}`;
+  return `${nmi(orbit.apo)} × ${nmi(orbit.peri)}`;
+}
+
 // First finite value among `names` in an object (erasable name variants).
 export function pick(obj, names) {
   if (!obj) return null;
@@ -270,6 +279,9 @@ export function mountInstruments(root, ctx) {
           <div><dt>Mass <span class="u">lb</span></dt><dd data-k="cmMass">—</dd></div>
           <div><dt>SPS thrust <span class="u">lbf</span></dt><dd data-k="cmThrust">—</dd></div>
           <div><dt>Engine</dt><dd data-k="cmEngine">—</dd></div>
+          <div><dt>Altitude <span class="u">nmi</span></dt><dd data-k="cmAlt">—</dd></div>
+          <div><dt>Speed <span class="u">ft/s</span></dt><dd data-k="cmSpeed">—</dd></div>
+          <div class="inst-wide"><dt>Orbit <span class="u">apo × peri, nmi</span></dt><dd data-k="cmOrbit">—</dd></div>
         </dl>
         <div class="inst-bar-row">
           <div class="inst-bar-head"><span class="inst-label">VG to go</span><span class="inst-val" data-k="cmVgPct">—</span></div>
@@ -487,12 +499,17 @@ export function mountInstruments(root, ctx) {
     // VG / ΔV accumulated) — names per the noun tables, values in display
     // units (ft/s); the vehicle's own fields are a fallback.
     const vg = pick(er, ['VGDISP', 'VG', 'VGTIG']) ?? (Number.isFinite(v.vg) ? toFps(v.vg) : null);
-    const dv = pick(er, ['DVTOTAL', 'DELVTOT', 'DV']) ?? (Number.isFinite(v.dv) ? toFps(v.dv) : null);
+    // ΔV: the AGC's accumulated value when kept; else the vehicle's sensed
+    // ΔV (CmSpsVehicle.dvSensed, m/s).
+    const dv = pick(er, ['DVTOTAL', 'DELVTOT', 'DV']) ?? (Number.isFinite(v.dvSensed) ? toFps(v.dvSensed) : null);
     if (vg !== null && ignT !== null && run.vgAtIgn === null) run.vgAtIgn = Math.max(vg, 1);
     if (vg !== null && run.vgAtIgn === null && !v.engineOn) run.vgPre = vg;
     set('cmVg', vg === null ? '—' : fmtNum(vg, 1));
     set('cmDv', dv === null ? '—' : fmtNum(dv, 1));
-    if (ignT !== null && snap.t >= ignT) {
+    if (Number.isFinite(v.burnTime) && v.burnTime > 0) {
+      set('cmTimeLabel', v.engineOn ? 'Burn time' : 'Burn length');
+      set('cmTime', `${fmtNum(v.burnTime, 1)} s`);
+    } else if (ignT !== null && snap.t >= ignT) {
       set('cmTimeLabel', v.engineOn ? 'Burn time' : 'Burn length');
       const end = v.engineOn ? snap.t : (run.cutoffT ?? snap.t);
       if (!v.engineOn && run.cutoffT === undefined) run.cutoffT = snap.t;
@@ -504,6 +521,9 @@ export function mountInstruments(root, ctx) {
     set('cmMass', Number.isFinite(v.mass) ? fmtNum(v.mass / LB) : '—');
     set('cmThrust', Number.isFinite(v.thrust) ? fmtNum(v.engineOn ? v.thrust / LBF : 0) : '—');
     set('cmEngine', v.engineOn ? 'SPS ON' : 'off');
+    set('cmAlt', Number.isFinite(v.alt) ? fmtNum(v.alt / NMI, 1) : '—');
+    set('cmSpeed', Number.isFinite(v.speed) ? fmtNum(toFps(v.speed)) : '—');
+    set('cmOrbit', orbitText(v.orbit));
     const ref = run.vgAtIgn ?? run.vgPre ?? null;
     const frac = vg !== null && ref ? Math.max(0, Math.min(1, vg / ref)) : null;
     set('cmVgPct', frac === null ? '—' : pct(frac));

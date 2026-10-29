@@ -54,7 +54,7 @@ export default defineScenario({
     { at: '102:43:23', spotlight: 'crew.rod' },
     { at: '102:43:25', narrate: {
       title: 'Verb 06 Noun 60',
-      body: '<p>The display is now <b>V06N60</b> (<code>VERTDISP</code>): R1 horizontal velocity, R2 altitude rate, R3 altitude. Aldrin’s “N forward” callouts start here. Watch the three registers against his voice.</p>',
+      body: '<p>The display is now <b>V06N60</b> (<code>VERTDISP</code>): R1 horizontal velocity, R2 altitude rate, R3 altitude. Aldrin’s “N forward” callouts start here. In P66 the display is refreshed by every <code>RODCOMP</code>, once a second instead of every two. Watch the three registers against his voice.</p>',
       anchors: ['scn.guid.vertdisp'],
     } },
     { at: '102:43:25.5', spotlight: 'dsky.r1' },

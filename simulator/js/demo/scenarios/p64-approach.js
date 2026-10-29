@@ -96,7 +96,7 @@ export default defineScenario({
     say('700-feet'),
     { at: '102:43:09', narrate: {
       title: 'One redesignation',
-      body: '<p>The telemetry logs one landing-point redesignation at 102:43:09. Armstrong said later he did not use the LPD to redesignate; Eyles calls it “apparently one inadvertent redesignation”. We do not replay it: its direction is not recorded.</p>',
+      body: '<p>The telemetry logs one landing-point redesignation at 102:43:09. Armstrong said later he did not use the LPD to redesignate; Eyles calls it “apparently one inadvertent redesignation”. We do not replay it: its direction is not recorded. Four seconds later it could not have happened at all: in attitude hold <code>COUNT’EM</code> skips the redesignation logic (“ARE WE IN ATTITUDE-HOLD?”).</p>',
       anchors: ['scn.guid.redesmon'],
     } },
     say('rocky'),

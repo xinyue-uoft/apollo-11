@@ -110,7 +110,7 @@ export const DEFAULT_PARAMS = Object.freeze({
   jobs: {
     makeplayMs: 30,       // one 3-register decimal display
     flashWakeMs: 3,       // flashing display job after the crew responds
-    mondoMs: 37,          // V16N68: three registers incl. min/sec, once a second
+    mondoMs: 35,          // V16N68: three registers incl. min/sec, once a second
     gyroMs: 3,            // 1/GYRO
     lrhWorkMs: [2, 2],    // LRHJOB before/after its sleep
     lrhSleepMs: 95,       // "LRHJOB TO SLEEP ABOUT 95MS"
@@ -130,20 +130,21 @@ export const DEFAULT_PARAMS = Object.freeze({
     idle: { avgG: false, interrupts: LM_COAST },
     prePDI: { avgG: 'keep', navMs: 520, guidMs: 0, display: false, interrupts: LM_COAST },
     'P63-preLR': {
-      avgG: true, navMs: 520, guidMs: 690, display: true, r10: true, gyro: true,
+      avgG: true, navMs: 520, guidMs: 734, display: true, r10: true, gyro: true,
       lrAlt: false, lrVel: false, interrupts: LM_POWERED,
     },
     'P63-LR': {
-      avgG: true, navMs: 520, guidMs: 690, display: true, r10: true, gyro: true,
-      lrAlt: true, lrVel: 'auto', lrConvMs: 40, lrIncorpMs: 10, interrupts: LM_POWERED,
+      avgG: true, navMs: 520, guidMs: 734, display: true, r10: true, gyro: true,
+      lrAlt: true, lrVel: 'auto', lrConvMs: 56, lrIncorpMs: 10, interrupts: LM_POWERED,
     },
     P64: {
-      avgG: true, navMs: 520, guidMs: 740, display: true, flashable: true, r10: true, gyro: true,
-      lrAlt: true, lrVel: true, lrConvMs: 40, lrIncorpMs: 10, higate: true, interrupts: LM_POWERED,
+      avgG: true, navMs: 520, guidMs: 777, display: true, flashable: true, r10: true, gyro: true,
+      lrAlt: true, lrVel: true, lrConvMs: 56, lrIncorpMs: 10, lpdMs: 60, attHoldSavingMs: 80,
+      higate: true, interrupts: LM_POWERED,
     },
     P66: {
-      avgG: true, navMs: 520, guidMs: 60, display: true, r10: true, gyro: true, rod: true,
-      lrAlt: true, lrVel: true, lrConvMs: 40, lrIncorpMs: 10, interrupts: LM_POWERED,
+      avgG: true, navMs: 520, guidMs: 300, display: true, r10: true, gyro: true, rod: true,
+      lrAlt: true, lrVel: true, lrConvMs: 56, lrIncorpMs: 10, interrupts: LM_POWERED,
     },
     landed: { avgG: false, interrupts: LM_SURFACE },
     cmIdle: { avgG: false, interrupts: CM_COAST },
@@ -162,6 +163,7 @@ export class Workload {
     this.monitorOverride = null;   // setMonitor(bool)
     this.flashOverride = null;     // setDisplayFlashing(bool)
     this.lrIncorpOverride = null;  // setLrIncorporation(bool)
+    this.attHoldOverride = null;   // setAttHold(bool)
     this.rrFault = false;
     this.averageG = false;
     this.passes = 0;
@@ -245,6 +247,12 @@ export class Workload {
   // (false) or derived from the DSKY's flashing V/N (null, default).
   setDisplayFlashing(on) {
     this.flashOverride = on === null || on === undefined ? null : !!on;
+  }
+
+  // PGNS mode control in ATT HOLD (true), AUTO (false) or derived from
+  // agc.crew.pgnsMode (null, default).
+  setAttHold(on) {
+    this.attHoldOverride = on === null || on === undefined ? null : !!on;
   }
 
   // Force LR data incorporation on/off (null: derived from agc.nav).
@@ -375,10 +383,11 @@ export class Workload {
     }
     if ((cfg.guidMs || 0) > 0) {
       steps.push({
-        workMs: cfg.guidMs,
+        workMs: this._guidanceMs(),
         label: 'guidance',
         // LUNLAND: 5.3 (PIPA task only) + group 3 = guidance job PRIO21.
-        onStart: () => {
+        onStart: (tt, job) => {
+          job.remainingMs = this._guidanceMs();
           this._setG5('5.3', false);
           this._setG3(true);
         },
@@ -544,6 +553,27 @@ export class Workload {
 
   // ------------------------------------------------------- derived state
 
+  // CPU time of the guidance part of a pass. In P64 the landing-point
+  // redesignation logic runs once the crew has answered the flashing
+  // V06N64 with PRO (P64CEED sets REDFLAG, LUNAR_LANDING_GUIDANCE_
+  // EQUATIONS.agc:856-884) — Eyles: P64 margin "less than 10%" with the
+  // redesignation logic. In attitude hold the attitude commands are not
+  // generated (RATESTOP: "ARE WE IN ATTITUDE-HOLD?", :810-814), which Eyles
+  // credits with "forestalling the next alarm".
+  _guidanceMs() {
+    const cfg = this.cfg;
+    let ms = cfg.guidMs || 0;
+    if (cfg.lpdMs && cfg.flashable && !this._flashing()) ms += cfg.lpdMs;
+    if (cfg.attHoldSavingMs && this._attHold()) ms -= cfg.attHoldSavingMs;
+    return Math.max(0, ms);
+  }
+
+  _attHold() {
+    if (this.attHoldOverride !== null) return this.attHoldOverride;
+    const crew = this.agc.crew;
+    return !!crew && crew.pgnsMode === 'attHold';
+  }
+
   _flashing() {
     if (!this.cfg.flashable) return false;
     if (this.flashOverride !== null) return this.flashOverride;
@@ -631,8 +661,11 @@ export class Workload {
   // Expected duty-cycle margin (1 - load) of the current configuration
   // without stealing, from the parameters (a static estimate; the
   // Executive's measured load is in exec.snapshot().load).
-  estimateMargin({ phase = this.phase, monitor = this._monitorWanted(), lrIncorporating = this._lrIncorporating(), lrVel } = {}) {
-    return 1 - estimateLoad(this.params, phase, { monitor, lrIncorporating, lrVel });
+  estimateMargin({
+    phase = this.phase, monitor = this._monitorWanted(), lrIncorporating = this._lrIncorporating(), lrVel,
+    flashing = this._flashing(), attHold = this._attHold(),
+  } = {}) {
+    return 1 - estimateLoad(this.params, phase, { monitor, lrIncorporating, lrVel, flashing, attHold });
   }
 
   snapshot() {
@@ -653,7 +686,7 @@ export class Workload {
 }
 
 // Static duty-cycle estimate for a phase (fraction of CPU, no stealing).
-export function estimateLoad(params, phase, { monitor = false, lrIncorporating = false, lrVel } = {}) {
+export function estimateLoad(params, phase, { monitor = false, lrIncorporating = false, lrVel, flashing = false, attHold = false } = {}) {
   const cfg = params.phases[phase];
   if (!cfg) throw new Error(`Unknown phase ${phase}`);
   const T = params.cycleS;
@@ -663,7 +696,11 @@ export function estimateLoad(params, phase, { monitor = false, lrIncorporating =
   let load = Object.values(cfg.interrupts || {}).reduce((a, b) => a + b, 0);
   if (cfg.avgG) {
     ms += k.readaccsMs;
-    ms += (cfg.navMs || 0) + (cfg.guidMs || 0);
+    let guid = cfg.guidMs || 0;
+    if (cfg.lpdMs && cfg.flashable && !flashing) guid += cfg.lpdMs;
+    if (cfg.attHoldSavingMs && attHold) guid -= cfg.attHoldSavingMs;
+    ms += (cfg.navMs || 0) + Math.max(0, guid);
+    if (flashing) ms += j.flashWakeMs / 10; // the sleeping display job's eventual wake-up (amortised)
     if (cfg.lrAlt) ms += cfg.lrConvMs || 0;
     if (lrIncorporating) ms += cfg.lrIncorpMs || 0;
     if (cfg.display) ms += j.makeplayMs;

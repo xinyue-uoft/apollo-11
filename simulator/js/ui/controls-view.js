@@ -226,8 +226,9 @@ export function mountControls(root, ctx) {
         if (demo) {
           director().stepSpeed(dir);
         } else {
-          const list = app.interactive.speeds || [1, 2, 5, 10];
-          const i = list.indexOf(app.interactive.speed);
+          const it = app.uiState().interactive || {};
+          const list = it.speeds || [1, 2, 5, 10];
+          const i = list.indexOf(it.speed);
           const next = list[Math.min(list.length - 1, Math.max(0, (i < 0 ? 0 : i) + dir))];
           app.setInteractiveSpeed(next);
         }

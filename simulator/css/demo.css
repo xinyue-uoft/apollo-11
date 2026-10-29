@@ -289,6 +289,7 @@
 }
 
 .nar-text kbd,
+.nar-tips kbd,
 .tr-keyseq kbd {
   display: inline-block;
   min-width: 1.6em;
@@ -844,7 +845,7 @@
 }
 
 .tl-seg.is-narrow .tl-seg-label {
-  visibility: hidden;
+  display: none;
 }
 
 .tl-rail {
@@ -987,7 +988,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  max-width: 220px;
+  max-width: 280px;
   padding: 4px 8px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
@@ -1001,6 +1002,18 @@
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--el-green);
+}
+
+.tl-tip-event {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.tl-tip-event[hidden] {
+  display: none;
 }
 
 .tl-tip-chapter {

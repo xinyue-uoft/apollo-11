@@ -26,7 +26,7 @@ import { MANIFEST, PROGRAMS, getManifestEntry } from '../data/source-manifest.js
 export const REPO_URL = 'https://github.com/xinyue-uoft/apollo-11';
 const REPO_BRANCH = 'master';
 
-const CHUNK = 160;          // lines per lazily rendered chunk
+const CHUNK = 64;           // lines per lazily rendered chunk
 const CONTEXT = 3;          // lines of context kept above a highlighted range
 const MAX_MATCHES = 5000;   // find-in-file cap
 const FALLBACK_LH = 19;     // px, if the CSS line height cannot be read
@@ -259,7 +259,7 @@ export function mountSource(root, ctx = {}) {
       <div class="src-tools" hidden>
         <form class="src-find" role="search">
           <label class="visually-hidden" for="src-find-q">Find in file</label>
-          <input id="src-find-q" class="src-input" type="search" placeholder="Find in file (Ctrl+F)" autocomplete="off" spellcheck="false">
+          <input id="src-find-q" class="src-input" type="search" placeholder="Find in file" title="Find in file (Ctrl+F inside this panel)" autocomplete="off" spellcheck="false">
           <button type="button" class="btn btn-icon src-prev" aria-label="Previous match" title="Previous match (Shift+Enter)">↑</button>
           <button type="submit" class="btn btn-icon src-next" aria-label="Next match" title="Next match (Enter)">↓</button>
           <span class="src-count" aria-live="polite"></span>
@@ -416,15 +416,23 @@ export function mountSource(root, ctx = {}) {
     el.code.replaceChildren(frag);
     el.code.scrollTop = 0;
     el.code.scrollLeft = 0;
-    // Labels for "Go to label" (datalist suggestions).
+    el.labels.replaceChildren();   // suggestions are filled on first focus
+    state.labelsFor = null;
+    el.tools.hidden = false;
+  }
+
+  // "Go to label" suggestions (a datalist can hold thousands of labels, so
+  // it is built only when the user goes there).
+  function fillLabelList() {
+    if (!state.labels || state.labelsFor === state.docFile) return;
+    state.labelsFor = state.docFile;
     const opts = doc.createDocumentFragment();
-    for (const name of data.labels.keys()) {
+    for (const name of state.labels.keys()) {
       const o = doc.createElement('option');
       o.value = name;
       opts.append(o);
     }
     el.labels.replaceChildren(opts);
-    el.tools.hidden = false;
   }
 
   function lineHtml(n) {
@@ -549,7 +557,9 @@ export function mountSource(root, ctx = {}) {
     if (rangeH + 2 * CONTEXT * lh < viewH) top = (start - 1) * lh - Math.max(CONTEXT * lh, (viewH - rangeH) / 3);
     const maxTop = Math.max(0, state.lines.length * lh - viewH);
     top = Math.round(Math.min(maxTop, Math.max(0, top)));
-    ensureRendered(Math.floor(top / lh) - CHUNK / 2, Math.ceil((top + viewH) / lh) + CHUNK / 2);
+    // Only what will be on screen now; renderVisible() adds the overscan
+    // on the next frame.
+    ensureRendered(Math.floor(top / lh) - 2, Math.ceil((top + viewH) / lh) + 2);
     const animate = smooth && !reducedMotion() && typeof el.code.scrollTo === 'function';
     if (animate && Math.abs(el.code.scrollTop - top) > 2 * viewH) {
       el.code.scrollTop = top + (el.code.scrollTop > top ? viewH : -viewH);
@@ -629,6 +639,7 @@ export function mountSource(root, ctx = {}) {
     if (kind === 'file') state.current = { kind: 'file', file, line };
     hideEmpty();
     renderHeader();
+    updateChips();
     const range = start ? { start, end: Math.max(start, end || start) } : null;
     let data;
     if (state.docFile !== file) {
@@ -697,14 +708,14 @@ export function mountSource(root, ctx = {}) {
       b.className = 'src-chip';
       b.dataset.id = c.id;
       const a = c.anchor;
-      const label = a ? (a.label || fileBase(a.file).replace(/\.agc$/, '')) : c.id;
-      const title = a ? `${a.title} — ${fileBase(a.file)} ${a.start}–${a.end}` : `Unknown anchor ${c.id}`;
-      b.title = title;
+      // Tag: the AGC label, else the first line; the title says what it is.
+      const tag = a ? (a.label || `L${a.start}`) : '?';
+      b.title = a ? `${a.title} — ${fileBase(a.file)} ${a.start}–${a.end}` : `Unknown anchor ${c.id}`;
       b.setAttribute('aria-label', a ? `${a.title} (${fileBase(a.file)}, lines ${a.start} to ${a.end})` : `Unknown anchor ${c.id}`);
       b.setAttribute('aria-pressed', String(c.id === curId));
       if (!a) b.classList.add('is-missing');
       if (c.fresh) b.classList.add('is-fresh');
-      b.innerHTML = `<span class="src-chip-label">${esc(label)}</span><span class="src-chip-title">${esc(a ? a.title : 'unknown anchor')}</span>`;
+      b.innerHTML = `<span class="src-chip-label">${esc(tag)}</span><span class="src-chip-title">${esc(a ? a.title : c.id)}</span>`;
       return b;
     }));
   }
@@ -744,6 +755,7 @@ export function mountSource(root, ctx = {}) {
       if (key === state.chipKey) return;
       state.chipKey = key;
       if (!state.follow) return;
+      closeBrowser({ focus: false });
       if (req.start) {
         const anchor = { file: req.file, start: req.start, end: req.end || req.start, title: req.title || fileBase(req.file) };
         state.current = { kind: 'anchor', id: null, anchor, file: req.file };
@@ -1055,6 +1067,7 @@ export function mountSource(root, ctx = {}) {
     el.count.textContent = '';
   });
   el.prev.addEventListener('click', () => findStep(-1));
+  el.gotoQ.addEventListener('focus', fillLabelList);
   el.gotoForm.addEventListener('submit', (e) => {
     e.preventDefault();
     gotoLabel(el.gotoQ.value);

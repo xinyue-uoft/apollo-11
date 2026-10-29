@@ -83,7 +83,7 @@ export default defineScenario({
     { at: '102:38:24', narrate: {
       title: 'The software restart',
       body: '<p><code>ENEMA</code> clears the decks: all eight core sets and five VAC areas freed, the waitlist emptied, the DSKY digits blanked and — line 550 — <code>MONSAVE # KILL MONITOR</code>. Erasable memory is kept: the state vector, the guidance, the engine still burning.</p><p>Then <code>GOPROG3</code> reads the <b>phase tables</b>: each protected restart group is restarted from its last checkpoint — group 5 navigation (only the newest SERVICER), group 3 guidance. The V16N68 monitor was not protected, so it is gone; V06N63 comes back on the next pass.</p>',
-      anchors: ['scn.restart.enema', 'scn.restart.killmon', 'scn.restart.goprog3'],
+      anchors: ['scn.restart.enema', 'scn.restart.killmon', 'scn.restart.goprog3', 'scn.servicer.job', 'scn.guid.lunland'],
     } },
     { at: '102:38:25', spotlight: 'exec.coresets' },
     say('affirmative'),
@@ -108,7 +108,7 @@ export default defineScenario({
     say('give-reading'),
     { at: '102:38:45.5', narrate: {
       title: 'V57: let the radar in',
-      body: '<p>Aldrin keys <b>Verb 57</b> (Mission Report: 102:38:45) — <code>LRON</code>, “PERMIT INCORPORATION OF LR DATA”. From now on SERVICER blends the radar’s altitude into its own estimate, and ΔH shrinks (the Mission Report: within about 30 seconds).</p>',
+      body: '<p>Aldrin keys <b>Verb 57</b> (Mission Report: 102:38:45) — <code>LRON</code>, “PERMIT INCORPORATION OF LR DATA”. From now on SERVICER blends the radar’s altitude into its own estimate, and ΔH shrinks (the Mission Report: within about 30 seconds). Unlike a monitor, V57 costs almost nothing: it sets one flag and ends.</p>',
       anchors: ['scn.verb.v57'],
     } },
     say('go-on-alarm'),
@@ -147,7 +147,7 @@ export default defineScenario({
     say('throttle-down-on-time'),
     { at: '102:39:40', narrate: {
       title: 'Fast-forward to high gate',
-      body: '<p>Without the monitor, the braking phase runs on the edge but holds: SERVICER finishes inside its 2 seconds. We skip ahead at 8× to <b>P64</b>, the approach phase, where the margin is thinner still.</p>',
+      body: '<p>Without the monitor, the braking phase runs on the edge but holds: SERVICER finishes inside its 2 seconds. We skip ahead at 8× to <b>P64</b>, the approach phase, where the margin is thinner still. On the way, the throttle comes down from its maximum at 102:39:31 — right on time (see <i>P63: the braking phase</i>).</p>',
     } },
     { at: '102:41:24', speed: 1 },
 
@@ -190,7 +190,7 @@ export default defineScenario({
     // 4th and 5th alarms: 1202 at 102:42:43 and 102:42:58.
     { at: '102:42:43.4', narrate: {
       title: 'Fourth: 1202',
-      body: '<p>Twenty-five seconds later the core sets run out again: <b>1202</b>. Aldrin reads it with V05N09 (Cherry: 102:42:45). There is no voice call for this one — the crew is busy: 1,400 ft, LPD 47°, a boulder field ahead.</p>',
+      body: '<p>Twenty-five seconds later the core sets run out again: <b>1202</b>. Aldrin reads it with V05N09 (Cherry: 102:42:45). There is no voice call for this one — the crew is busy: 1,400 ft, LPD 47°, a boulder field ahead. The flashing display is gone since the PRO at 102:42:33; the essential P64 work alone is more than the computer has time for.</p>',
       anchors: ['scn.exec.1202'],
     } },
     { at: '102:42:43.6', spotlight: 'dsky.light.prog' },

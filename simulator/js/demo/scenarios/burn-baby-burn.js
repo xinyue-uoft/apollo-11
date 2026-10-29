@@ -39,6 +39,12 @@ export default defineScenario({
       anchors: ['scn.burn.header', 'scn.burn.p63table'],
     } },
     { at: '102:32:12', spotlight: 'ignition.timeline' },
+    { at: '102:32:17', narrate: {
+      title: 'Off to see the wizard',
+      body: '<p>How P63 got here: after computing the ignition time it checked that the landing-radar antenna was in position 1. On Eagle it was not, so the DSKY flashed V50N25 with code 00500 — in the listing, “ASTRONAUT: PLEASE CRANK THE SILLY THING AROUND”, and on PRO, “SEE IF HE’S LYING”. The crew cycled the antenna switch and proceeded (reported at 102:26:55). Then: <code>TC POSTJUMP / CADR BURNBABY</code> — “OFF TO SEE THE WIZARD...”.</p>',
+      anchors: ['scn.p63.silly'],
+    } },
+    { at: '102:32:22', hold: 3 },
     say('engine-arm'),
 
     // TIG−35 = 102:32:30.0. The TIG-35 task blanks the DSKY; the clock job
@@ -80,7 +86,7 @@ export default defineScenario({
     { at: '102:33:00.2', narrate: {
       title: 'Verb 99: “please enable engine”',
       body: '<p>At TIG−5 the task <code>TIG-5</code> switches the display to <b>Verb 99 Noun 62</b>, flashing. The computer will not light the engine on its own: it waits for the crew. PRO means go; Verb 34 would terminate; ENTER would recycle the request.</p><p>Watch VERB flash — and Aldrin’s PRO key.</p>',
-      anchors: ['scn.burn.tig5', 'scn.burn.v99'],
+      anchors: ['scn.burn.tig5', 'scn.burn.v99', 'scn.burn.proceed'],
     } },
     { at: '102:33:00.5', spotlight: 'dsky.verb' },
     say('alt-light-on'),

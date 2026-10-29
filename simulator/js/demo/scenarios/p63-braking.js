@@ -101,7 +101,7 @@ export default defineScenario({
     say('delta-h'),
     { at: '102:38:12', narrate: {
       title: 'Verb 16 Noun 68',
-      body: '<p>Aldrin has keyed <b>V16N68</b>, a once-a-second monitor: R1 slant range to the landing site, R2 time to go in the braking phase, R3 <b>ΔH</b>, radar altitude minus computed altitude. Watch R3.</p>',
+      body: '<p>Aldrin has keyed <b>V16N68</b>, a once-a-second monitor: R1 slant range to the landing site, R2 time to go in the braking phase, R3 <b>ΔH</b>, radar altitude minus computed altitude. In Luminary 099 this is the only display of ΔH — a later version moved it into Noun 63 — so Aldrin has to run it as a monitor, refreshed every second. Watch R3.</p>',
       anchors: ['scn.noun.n68'],
     } },
     { at: '102:38:13', spotlight: 'dsky.r3' },
@@ -143,7 +143,7 @@ export default defineScenario({
     say('switchover'),
     { at: '102:41:03', narrate: {
       title: 'Asking the ground',
-      body: '<p>Aldrin needs the time to go until P64 — which is in R2 of Noun 68. But both alarms came with V16N68 up, so he asks Houston instead (O’Brien, in the Apollo Lunar Surface Journal).</p>',
+      body: '<p>Aldrin needs the time to go until P64 — which is in R2 of Noun 68. But both alarms came with V16N68 up, so he asks Houston instead (O’Brien, in the Apollo Lunar Surface Journal). Grumman’s post-flight memo notes that the guidance officer recognised monitor verbs as a significant load, and the ground offered to watch the altitudes for the crew.</p>',
     } },
     say('at-7000'),
     say('thirty-to-p64'),

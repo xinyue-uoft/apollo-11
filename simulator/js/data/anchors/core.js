@@ -145,7 +145,7 @@ export const ANCHORS = {
   'src.guidance.guildenstern': {
     file: 'Luminary099/LUNAR_LANDING_GUIDANCE_EQUATIONS.agc', start: 124, end: 142,
     title: 'GUILDENSTERN: the auto-modes monitor (R13)',
-    note: 'On every change of the manual-throttle or attitude-hold discretes it selects P67 or P66.',
+    note: 'Its stated philosophy: the manual-throttle discrete appearing selects P67 and disappearing selects P66; the attitude-hold discrete selects P66 unless already in P67 (lines 194–208 also require a ROD switch click before P66).',
   },
   'src.guidance.hope': {
     file: 'Luminary099/LUNAR_LANDING_GUIDANCE_EQUATIONS.agc', label: 'VRTSTART', start: 174, end: 185,

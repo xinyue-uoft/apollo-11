@@ -36,7 +36,7 @@ export default defineScenario({
     { at: '102:32:28', speed: 1 },
     { at: '102:32:28.5', narrate: {
       title: 'Blank, ullage, Verb 99',
-      body: '<p>At TIG−35 the DSKY goes blank for 5 seconds: Average-G navigation is starting. At TIG−7.5 the RCS thrusters fire to settle the propellant. At TIG−5 <b>Verb 99</b> flashes — “please enable engine” — and waits for the crew’s PRO.</p>',
+      body: '<p>At TIG−35 the DSKY goes blank for 5 seconds: Average-G navigation is starting. At TIG−7.5 the RCS thrusters fire to settle the propellant. At TIG−5 <b>Verb 99</b> flashes — “please enable engine” — and waits for the crew’s PRO. Watch the DSKY, and the sequence on the Ignition tab.</p>',
       anchors: ['scn.burn.tig35', 'scn.burn.tig5', 'scn.burn.v99'],
     } },
     { at: '102:32:31', spotlight: 'dsky' },
@@ -48,7 +48,7 @@ export default defineScenario({
     say('proceed'),
     { at: '102:33:05.2', narrate: {
       title: 'Ignition, 102:33:05',
-      body: '<p>Aldrin pressed PRO; at the planned time the computer sets ENGINE ON. Ten percent thrust for 26 seconds while the engine trims, then <code>P63ZOOM</code> connects guidance and runs the throttle to its stop.</p>',
+      body: '<p>Aldrin pressed PRO; at the planned time the computer sets ENGINE ON. Ten percent thrust for 26 seconds while the engine trims, then <code>P63ZOOM</code> connects guidance and runs the throttle to its stop. The DSKY switches to Verb 06 Noun 63 — speed, altitude rate, altitude — the display of the braking phase.</p>',
       anchors: ['scn.burn.ignition', 'scn.burn.zoom'],
     } },
     say('ignition'),
@@ -67,7 +67,7 @@ export default defineScenario({
     say('rolling-over'),
     { at: '102:36:50', narrate: {
       title: 'Long, and face up',
-      body: '<p>Landmarks came about 3 seconds early: the computer’s position was some 21,000 feet behind the truth, and Eagle will land about 6.6 km long. Armstrong yaws the LM face-up so the landing radar can see the ground.</p>',
+      body: '<p>Landmarks came about 3 seconds early: the computer’s position was some 21,000 feet behind the truth, and Eagle will land about 6.6 km long. Armstrong yaws the LM face-up so the landing radar can see the ground. The radar will fix the altitude and the speed, but not the error along the track.</p>',
     } },
     say('go-continue'),
 
@@ -104,7 +104,7 @@ export default defineScenario({
     { at: '102:39:20', speed: 4 },
     { at: '102:39:31.2', narrate: {
       title: 'Throttle down',
-      body: '<p>Guidance now wants less than the fixed maximum thrust, and the throttle comes back into its working range: 386 seconds after ignition, two seconds from the prediction.</p>',
+      body: '<p>Guidance now wants less than the fixed maximum thrust, and the throttle comes back into its working range: 386 seconds after ignition, two seconds from the prediction. The pad-loaded threshold is about 5,985 lb (57 %); from now on the throttle moves on every 2-second pass.</p>',
       anchors: ['scn.throttle.region'],
     } },
     { at: '102:39:31', focus: 'trajectory' },
@@ -151,7 +151,7 @@ export default defineScenario({
     say('200-feet'),
     { at: '102:44:28.3', narrate: {
       title: 'Quantity light',
-      body: '<p>The descent-propellant low-level light — about 94 seconds to “Bingo”, land within 20 seconds or abort. (It tripped about 20 seconds early: the propellant was sloshing.)</p>',
+      body: '<p>The descent-propellant low-level light — a tank sensor and a panel light, not the computer. It starts about 94 seconds to “Bingo”: then land within 20 seconds or abort. It tripped about 20 seconds early, because the propellant was sloshing. Duke will count down for the crew.</p>',
     } },
     { at: '102:44:29', spotlight: 'inst.fuel' },
     say('100-feet'),
@@ -168,7 +168,7 @@ export default defineScenario({
     say('contact-light'),
     { at: '102:45:40.2', narrate: {
       title: 'Contact',
-      body: '<p>Touchdown at 102:45:39.9; engine off at 102:45:41.4 after 756 seconds of burning and five program alarms, about 45 seconds of firing time to spare. The computer never stopped navigating.</p>',
+      body: '<p>Touchdown at 102:45:39.9, 1.7 ft/s down; engine off at 102:45:41.4 after 756 seconds of burning and five program alarms, with about 770 pounds of propellant — some 45 seconds of firing — to spare. The computer never stopped navigating. Where exactly they landed, P68 works out (chapter <i>P66 and touchdown</i>).</p>',
     } },
     { at: '102:45:41', hold: 4 },
     say('shutdown'),

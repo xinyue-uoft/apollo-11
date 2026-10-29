@@ -525,3 +525,21 @@ test('alarm codes display as five octal digits', () => {
   assert.equal(formatOctal(0o1201), '01201');
   assert.equal(formatOctal(0o500), '00500');
 });
+
+// ---------- views import without a DOM ----------
+
+test('demo view modules import in Node (no top-level DOM use)', async () => {
+  const modules = await Promise.all([
+    import('../js/ui/controls-view.js'),
+    import('../js/ui/narration-view.js'),
+    import('../js/ui/transcript-view.js'),
+    import('../js/ui/timeline-view.js'),
+  ]);
+  assert.equal(typeof modules[0].mountControls, 'function');
+  assert.equal(typeof modules[1].mountNarration, 'function');
+  assert.equal(typeof modules[2].mountTranscript, 'function');
+  assert.equal(typeof modules[3].mountTimeline, 'function');
+  const { groupKeys } = modules[2];
+  assert.deepEqual(groupKeys(['VERB', '1', '6', 'NOUN', '6', '8', 'ENTR']), ['VERB', '16', 'NOUN', '68', 'ENTR']);
+  assert.deepEqual(groupKeys(['VERB', '2', '1', 'ENTR', '+', '1', '2', 'ENTR']), ['VERB', '21', 'ENTR', '+12', 'ENTR']);
+});
