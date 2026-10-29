@@ -482,8 +482,7 @@ select {
     padding: 10px;
   }
 
-  .col,
-  .col-main {
+  .col {
     display: contents;
   }
 

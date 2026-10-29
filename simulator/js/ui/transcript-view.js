@@ -393,7 +393,7 @@ export function mountTranscript(root, ctx) {
       lastMode = ui.mode;
       mode = ui.mode;
       note.textContent = ui.mode === 'demo'
-        ? 'Voice at its ALSJ / air-to-ground transcript time; computer events at the model’s time. Select a source tag for details (↑/↓ move between tags).'
+        ? 'Voice at its ALSJ / air-to-ground transcript time; computer events at the model’s time. Select a source tag for details.'
         : 'Computer events from the model, the keys you press on the DSKY and how the landing went.';
       setText(titleText, ui.mode === 'demo' ? 'Transcript' : 'Computer log');
       setText(voiceBtn, ui.mode === 'demo' ? 'Voice' : 'Keys');

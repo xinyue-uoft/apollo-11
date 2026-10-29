@@ -157,7 +157,9 @@ export function mountNarration(root, ctx) {
   const card = h('article', { class: 'nar-card', aria: { live: 'polite', atomic: 'true' } },
     h('header', { class: 'nar-card-head' }, cardTitle, cardGet), cardText, cardChips);
 
-  const holdText = h('span', { class: 'nar-hold-text' });
+  // (a stand-in text until the first hold: the bar keeps its place, and
+  // its height, between holds where the layout reserves it — demo.css)
+  const holdText = h('span', { class: 'nar-hold-text' }, 'Paused so you can read — continuing in 0 s');
   const holdFill = h('span', { class: 'nar-hold-fill' });
   const holdBtn = h('button', {
     type: 'button',

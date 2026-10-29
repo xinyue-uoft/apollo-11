@@ -47,6 +47,12 @@
   min-width: 92px;
 }
 
+/* "Continue" (paused during a hold) in the same width as Play / Pause, so
+   the top bar does not shift or wrap. */
+.ctl-play.is-continue {
+  padding-inline: 5px;
+}
+
 .ctl-auto[aria-pressed="false"] {
   color: var(--text-dim);
 }
@@ -360,6 +366,26 @@
 .nar-ended[hidden],
 .nar-history[hidden] {
   display: none;
+}
+
+/* Where the explanation sits above the visualisation (base.css), the hold
+   bar keeps its place between holds, so the panels below do not jump at
+   every hold (hidden still takes it out of the accessibility tree and the
+   Tab order). */
+@media (max-width: 1280px) {
+  .nar-hold[hidden] {
+    display: flex;
+    visibility: hidden;
+  }
+}
+
+/* Two columns: the explanation keeps the height of a typical card (about
+   nine in ten fit at 1280 px), so a new card does not move the
+   visualisation either; only a longer one pushes it down. */
+@media (min-width: 861px) and (max-width: 1280px) {
+  .nar-demo {
+    min-height: 380px;
+  }
 }
 
 .nar-hold-icon {

@@ -292,8 +292,10 @@ export function mountControls(root, ctx) {
       const ended = !!d.ended;
       const playing = !!d.playing && !ended;
       // Paused during a hold, Play continues at once (Director.toggle).
+      const resumes = !playing && !ended && !!d.holding;
       setPlayButton(demoPlay, demoPlayLabel, playing,
-        ended ? 'Replay' : playing ? 'Pause' : d.holding ? 'Continue' : 'Play');
+        ended ? 'Replay' : playing ? 'Pause' : resumes ? 'Continue' : 'Play');
+      toggleClass(demoPlay, 'is-continue', resumes);
       setAttr(autoBtn, 'aria-pressed', String(!!d.autoPause));
       prevBtn.disabled = !d.loaded;
       nextBtn.disabled = !d.loaded || !d.hasNextChapter;

@@ -7,7 +7,7 @@ import { createBus } from '../js/util/bus.js';
 import { parseGET } from '../js/util/time.js';
 import { Director, SPEEDS, compileEvents, readingTime, READ_MAX } from '../js/demo/director.js';
 import { validateScenario } from '../js/demo/scenario-schema.js';
-import { sanitizeHtml, findDisallowedMarkup, formatOctal } from '../js/ui/html.js';
+import { sanitizeHtml, findDisallowedMarkup, formatOctal, vehicleEventText } from '../js/ui/html.js';
 
 // ---------- fixtures ----------
 
@@ -924,6 +924,23 @@ test('alarm codes display as five octal digits', () => {
 });
 
 // ---------- views import without a DOM ----------
+
+test('landing outcome text calls the touchdown limits the simulator\'s own', () => {
+  // The limits are [ASSUMED] sandbox thresholds (vehicle/constants.js),
+  // not sourced LM landing-gear limits.
+  const text = vehicleEventText({ kind: 'touchdown', verdict: 'hard', vVert: 3.3, vHoriz: 0.2, tilt: 3 });
+  assert.match(text, /^Hard landing: /);
+  assert.match(text, /beyond this simulator's touchdown limits \(10 ft\/s down, 4 ft\/s across, 12°\)/);
+  assert.doesNotMatch(text, /gear/);
+});
+
+test('presets: an optional `tab` names a visualisation tab; CM entry opens on the Executive', async () => {
+  const { PRESETS } = await import('../js/data/presets.js');
+  for (const p of PRESETS) {
+    if (p.tab !== undefined) assert.ok(['trajectory', 'exec', 'ignition'].includes(p.tab), `${p.id}: tab ${p.tab}`);
+  }
+  assert.equal(PRESETS.find((p) => p.id === 'cm-entry')?.tab, 'exec', 'entry has no burn for the Ignition tab');
+});
 
 test('demo view modules import in Node (no top-level DOM use)', async () => {
   const modules = await Promise.all([

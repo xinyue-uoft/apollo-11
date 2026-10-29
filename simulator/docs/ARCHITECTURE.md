@@ -421,7 +421,7 @@ whitelist sanitizer.
 ```js
 const d = new Director({ bus, createSim: (scenario) => Simulation });
 d.load(scenario)                 // builds sim at scenario.start
-d.play() / d.pause() / d.toggle()
+d.play() / d.pause() / d.toggle()  // toggle while paused in a hold = Continue
 d.setSpeed(x)                    // 0.5 .. 60
 d.seek(get)                      // reset + re-simulate deterministically to get (async, sliced)
 d.cancelSeek()                   // abandon a running seek (used when leaving demo mode)
@@ -429,7 +429,7 @@ d.nextChapter() / d.prevChapter()
 d.setAutoPause(on) / d.resume()  // reading holds on/off; skip the current hold
 d.frame(realDt)                  // called by the app's rAF loop
 d.state → { playing, speed, t, start, end, chapterIndex, chapters, holding,
-            seeking, autoPause, ended, progress, nextEventIn, error }
+            seeking, autoPause, ended, progress, nextEventIn, error, hasNextChapter }
 ```
 
 **Reading holds.** With auto-pause on, before the next `narrate` fires the
@@ -504,7 +504,8 @@ sim's vehicle kind (`'static'|'replay'|'physics'|'cmSps'`).
 - `js/data/tracks.js` — `export const TRACKS = { apollo11Descent: track, ... }`.
 - `js/data/presets.js` — `export const PRESETS = [{ id, title, description,
   software, vehicle, startGET, track?, initialProgram?, vehicleOptions?,
-  agcOptions?, setup?(sim) }]` — interactive-mode starting points.
+  agcOptions?, setup?(sim), tab? }]` — interactive-mode starting points
+  (`tab`: the visualisation tab to open on start and resume).
 - `js/demo/scenarios/index.js` — `export const SCENARIOS = [scenario, ...]`
   in display order.
 
