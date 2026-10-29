@@ -437,7 +437,7 @@ export class BurnBaby {
   proceed() {
     const t = this.t;
     this.flags.ASTNFLAG = true;
-    this.mark('pro', { at: t, insert: true });
+    this.mark('pro', { at: t, insert: true, label: 'PRO: the crew okays ignition (ASTNFLAG)' });
     if (this.flags.IGNFLAG) {
       this.task('IGNITION', t + BURN_TIMING.IGNITE_DELAY, (tt) => this.ignition(tt));
       this.host.protect(4, '4.23', (tt) => this.reenter(tt), { label: 'IGNITION (4.23SPOT)', anchor: 'burn.ignite' });

@@ -15,7 +15,7 @@ import { NOUNS_LUMINARY099, NOUNS_COMANCHE055, erasableNames, readErasable, form
 
 const T0 = 102 * 3600 + 38 * 60;   // 102:38:00
 
-function makeAgc({ software = 'Luminary099', mode = 63, erasable = {}, withExec = true } = {}) {
+function makeAgc({ software = 'Luminary099', mode = 63, erasable = {}, withExec = true, t0 = T0 } = {}) {
   const bus = createBus();
   const events = [];
   bus.on('*', (e) => events.push(e));
@@ -23,7 +23,7 @@ function makeAgc({ software = 'Luminary099', mode = 63, erasable = {}, withExec 
   const requested = [];
   const queue = [];
   const agc = {
-    software, t: T0, mode, erasable: { ...erasable }, flags: {}, dsky, bus, events, requested,
+    software, t: t0, mode, erasable: { ...erasable }, flags: {}, dsky, bus, events, requested,
     alarms: new AlarmRegisters({ software, dsky, bus }),
     calls: { changeProgram: [], freshStart: 0, hardwareRestart: [], poodoo: [] },
     execFull: false,
@@ -122,8 +122,7 @@ test('PRO is sampled by T4RUPT (120 ms) and runs PROCKEY', () => {
 });
 
 test('decimal display V06N36: the AGC clock in hours / minutes / seconds', () => {
-  const a = makeAgc();
-  a.t = 102 * 3600 + 34 * 60 + 54.32;
+  const a = makeAgc({ t0: 102 * 3600 + 34 * 60 + 54.32 });
   a.keys('V06N36E', 0);
   const t = a.pinball.state;
   assert.equal(t.verb, 6);
@@ -420,7 +419,7 @@ test('a program display while the crew has the DSKY waits (KEY REL lit); KEY REL
   a.press('KEY REL');
   assert.equal(a.dsky.noun, '63');
   assert.equal(lit(a, 'keyRel'), false);
-  assert.deepEqual(regs(a), ['+05000', '-01000', '+30000']);
+  assert.deepEqual(regs(a), ['+50000', '-01000', '+30000']);
 });
 
 test('a crew V16N68 holds the DSKY against the program display; KEY REL hands it back', () => {

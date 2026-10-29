@@ -21,8 +21,10 @@ import { toFps } from '../util/units.js';
 //   (research/web-trajectory-b.md §4.2); RODCOMP adds the clicks to the
 //   desired altitude rate VDGVERT (…GUIDANCE_EQUATIONS.agc:948-953).
 // - P66 entry: in attitude hold, a ROD click switches to P66 (P66NOW?,
-//   …GUIDANCE_EQUATIONS.agc:200-208); in AUTO the clicks are discarded
-//   (GUILDRET zeroes RODCOUNT, :224-225).
+//   …GUIDANCE_EQUATIONS.agc:200-208) — from P63, P64 or P65 once landing
+//   guidance runs (GUILDENSTERN, research/src-landing.md §8); in AUTO the
+//   clicks are discarded (GUILDRET zeroes RODCOUNT, :224-225). P66 in
+//   Luminary099 has only the vertical channel: attitude is manual (§5.9).
 // - LPD: each left/right click moves the site 2° in azimuth, each fore/aft
 //   click 0.5° in elevation (AZEACH / ELEACH, :1211-1212); clicks are
 //   ignored in attitude hold (COUNT'EM, :1174-1178) and outside P64
@@ -74,13 +76,17 @@ export function crewModel(snap, appMode) {
 export function crewHint(model) {
   if (model.visible !== 'lm') return '';
   if (model.landed) return 'On the surface: the descent controls no longer do anything.';
-  if (model.mode === 66) return 'P66: each ROD click changes the commanded descent rate by 1 ft/s; the AGC holds that rate.';
+  if (model.mode === 66) return 'P66: each ROD click changes the commanded descent rate by 1 ft/s; the AGC throttles to hold it while the commander flies the attitude.';
   if (model.mode === 64) {
     return model.pgnsMode === 'attHold'
       ? 'P64 in ATT HOLD: a ROD click switches to P66 (as Armstrong did at 102:43:22). LPD clicks are ignored in attitude hold.'
       : 'P64: after PRO on the flashing V06N64, LPD clicks redesignate the landing site. For P66, select ATT HOLD and click ROD.';
   }
-  if (model.mode === 63) return 'P63: the computer flies the braking phase. ROD and LPD clicks have no effect yet.';
+  if (model.mode === 63) {
+    return model.pgnsMode === 'attHold'
+      ? 'P63 in ATT HOLD: once landing guidance runs, a ROD click would start P66. LPD clicks work only in P64.'
+      : 'P63: the computer flies the braking phase. In AUTO the ROD clicks are discarded; LPD clicks work only in P64.';
+  }
   return 'These controls matter in the landing programs (P64, P66).';
 }
 
