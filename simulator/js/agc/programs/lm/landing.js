@@ -324,7 +324,10 @@ export class LunarLanding extends LmProgram {
     if (this.physics) {
       if (this.mode === 63) this.show(6, 63, { source: 'p63.disps' });
       else if (this.mode === 64) {
-        this.tredes = tredes((this.guidance?.s?.ttf) ?? -172);
+        this.ttf = this.guidance?.s?.ttf ?? -BRAKING_TARGETS.tend + APPROACH_TARGETS.deltaTtf;
+        this.tredes = tredes(this.ttf);
+        this.lookAngle = this.computeLookAngle();
+        this.publishLpd();
         this.p64Disps();
       } else this.show(6, 60, { source: 'p66.vertdisp' });
       return;
@@ -501,17 +504,20 @@ export class LunarLanding extends LmProgram {
       this.ttf = -BRAKING_TARGETS.tend + APPROACH_TARGETS.deltaTtf + (t - tP64);
     }
     this.tredes = this.mode === 64 ? tredes(this.ttf) : 0;
-    const nav = this.nav;
-    if (Number.isFinite(nav.pitch)) {
-      const geo = toGuidanceFrame(nav.guidanceNav());
-      this.lookAngle = Math.floor(lookAngle({ rg: geo.rg, bodyX: thrustDirFromPitch(nav.pitch, geo.phi) }) + 0.5);
-    } else {
-      this.lookAngle = null;
-    }
+    this.lookAngle = this.computeLookAngle();
     const s = this.agc.vehicle?.state || {};
     if (Number.isFinite(s.throttle)) this.cmd.throttle = s.throttle;
     this.agc.erasable.TTFDISP = this.ttf;
     this.publishLpd();
+  }
+
+  // LOOKANGL = arcsin(UNIT(R − LAND) · XNB), whole degrees (RGVGCALC,
+  // LLGE:464-480), from the navigated state and the attitude (CDUs).
+  computeLookAngle() {
+    const nav = this.nav;
+    if (!Number.isFinite(nav.pitch)) return null;
+    const geo = toGuidanceFrame(nav.guidanceNav());
+    return Math.floor(lookAngle({ rg: geo.rg, bodyX: thrustDirFromPitch(nav.pitch, geo.phi) }) + 0.5);
   }
 
   publishLpd() {

@@ -46,15 +46,15 @@ export const CREW_A11 = Object.freeze([
   { ...crew('102:41:53', 'pgnsMode', 'attHold', 'PGNS mode control → ATT HOLD (handling check)'), basis: 'record',
     why: 'MR Table 5-I: attitude hold 102:41:53 – 102:42:03; Armstrong "Going to check my attitude control".' },
   { ...crew('102:42:03', 'pgnsMode', 'auto', 'PGNS mode control → AUTO'), basis: 'record', why: 'MR Table 5-I.' },
-  { at: '102:42:21', keys: 'V05N09E', who: 'Aldrin', basis: 'record',
-    why: 'CHERRY TFI 556: V05N09E, R1 = 1201.' },
+  { at: '102:42:21.4', keys: 'V05N09E', who: 'Aldrin', basis: 'record', gapMs: 300,
+    why: 'CHERRY TFI 556 (whole seconds, so ENTR fell in 102:42:20.5–21.5): V05N09E, R1 = 1201. The alarm was at TFI 552, so the keying began after it; keyed at 0.3 s per key (cadence assumed).' },
   { at: '102:42:27', keys: 'R', who: 'Aldrin', basis: 'inferred',
     why: 'RSET: at TFI 580 V05N09 showed R1 = 1202, so FAILREG had been cleared after the 1201.' },
   { at: '102:42:28', keys: 'K', who: 'Aldrin', basis: 'inferred', why: 'KEY REL back to the flashing V06N64.' },
   { at: '102:42:33', keys: 'P', who: 'Aldrin', basis: 'record',
     why: 'CHERRY TFI 568 "PRO to FLV06N64" — the crew enabled LPD redesignation only now, after the 1201 (the debriefing remembers "very shortly" after P64).' },
-  { at: '102:42:45', keys: 'V05N09E', who: 'Aldrin', basis: 'record',
-    why: 'CHERRY TFI 580: V05N09E, R1 = 1202.' },
+  { at: '102:42:45.4', keys: 'V05N09E', who: 'Aldrin', basis: 'record', gapMs: 300,
+    why: 'CHERRY TFI 580 (ENTR in 102:42:44.5–45.5): V05N09E, R1 = 1202, two seconds after the alarm at TFI 578; 0.3 s per key (cadence assumed).' },
   { at: '102:42:50', keys: 'R', who: 'Aldrin', basis: 'inferred', why: 'RSET (illustrative).' },
   { at: '102:42:51', keys: 'K', who: 'Aldrin', basis: 'inferred', why: 'KEY REL back to V06N64.' },
   { ...crew('102:43:13', 'pgnsMode', 'attHold', 'PGNS mode control → ATT HOLD (manual takeover)'), basis: 'record',
@@ -79,7 +79,7 @@ export function crewEvents(start, end) {
     const t = parseGET(c.at);
     if (t < a || t > b) continue;
     if (c.keys) {
-      const ev = keysEndingAt(c.at, c.keys, c.who);
+      const ev = keysEndingAt(c.at, c.keys, c.who, c.gapMs ? { gapMs: c.gapMs } : {});
       if (parseGET(ev.at) < a) continue; // would start before the scenario
       out.push(ev);
     } else {

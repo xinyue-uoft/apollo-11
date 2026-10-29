@@ -1640,7 +1640,7 @@ export function mountTrajectory(root, ctx) {
     // LM far away: say where it is.
     if (!s.lmVisible) {
       const txt = s.lm.h > 0 || s.lm.r > 0
-        ? `LM is ${formatRange(s.lm.r)} uprange at ${fmtInt(toFt(s.lm.h))} ft — the final approach begins at P64 high gate (≈7,000 ft).`
+        ? `LM is ${formatRange(Math.round(s.lm.r / NMI) * NMI)} uprange at ${fmtInt(Math.round(toFt(s.lm.h) / 100) * 100)} ft — the final approach begins at P64 high gate (≈7,000 ft).`
         : '';
       if (txt) {
         g.save();
@@ -1649,8 +1649,8 @@ export function mountTrajectory(root, ctx) {
         g.textAlign = 'left';
         g.textBaseline = 'top';
         const maxW = Math.min(plot.w - 16, 420);
-        const lines = wrapLines(g, txt, maxW);
-        const boxW = Math.max(...lines.map((l) => g.measureText(l).width)) + 12;
+        const { lines, width } = wrapLines(g, txt, maxW, s.fontSmall);
+        const boxW = width + 12;
         g.fillStyle = 'rgba(16,19,23,0.85)';
         roundRect(g, plot.x + 2, plot.y + 3, boxW, lines.length * 14 + 8, 4);
         g.fill();
@@ -1740,18 +1740,26 @@ export function mountTrajectory(root, ctx) {
     g.restore();
   }
 
-  function wrapLines(gc, text, maxW) {
-    const out = [];
+  // Word-wrapped lines + widest line; cached (measureText is costly).
+  const wrapCache = new Map();
+  function wrapLines(gc, text, maxW, font) {
+    const key = `${font}|${maxW}|${text}`;
+    let hit = wrapCache.get(key);
+    if (hit) return hit;
+    const lines = [];
     let line = '';
     for (const w of text.split(' ')) {
       const test = line ? `${line} ${w}` : w;
-      if (gc.measureText(test).width > maxW && line) {
-        out.push(line);
+      if (textW(test, font) > maxW && line) {
+        lines.push(line);
         line = w;
       } else line = test;
     }
-    if (line) out.push(line);
-    return out;
+    if (line) lines.push(line);
+    hit = { lines, width: Math.max(...lines.map((l) => textW(l, font))) };
+    if (wrapCache.size > 50) wrapCache.clear();
+    wrapCache.set(key, hit);
+    return hit;
   }
 
   // ----- tooltip -----
