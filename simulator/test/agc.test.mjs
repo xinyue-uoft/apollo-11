@@ -165,7 +165,9 @@ test('crew inputs: RR fault steals cycles, ROD clicks count, PGNS mode, unknown 
 test('Executive overflow → BAILOUT: FAILREG, PROG lamp (not RESTART), software restart', () => {
   const s = sim();
   const ev = collect(s.outBus, ['alarm', 'restart']);
-  for (let i = 0; i < 12; i++) s.agc.exec.requestJob({ name: `FILL${i}`, prio: 0o05, vac: false, workMs: 60000 });
+  for (let i = 0; i < 12; i++) {
+    if (!s.agc.exec.requestJob({ name: `FILL${i}`, prio: 0o05, vac: false, workMs: 60000 })) break;
+  }
   s.step(0.1);
   const alarm = ev.find((e) => e.type === 'alarm');
   assert.equal(alarm.code, 0o1202);

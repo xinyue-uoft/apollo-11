@@ -10,10 +10,10 @@
 // Research: web-1202-b.md (primary for the story and the myths),
 // src-executive.md (the code path), web-timeline-b.md (voice).
 
-import { defineScenario, say, rrFaultOn } from './lib.js';
+import { defineScenario, say, rrFaultOn, alignedStart } from './lib.js';
 import { crewEvents } from './crew-a11.js';
 
-const START = '102:37:40';
+const START = alignedStart('102:37:40'); // on the flight's 2-s SERVICER grid (lib.js)
 const END = '102:43:30';
 
 export default defineScenario({

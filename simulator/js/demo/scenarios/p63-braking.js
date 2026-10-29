@@ -4,10 +4,10 @@
 // Research: src-ignition.md §6, §13 (SERVICER), web-trajectory-b.md §3–4
 // (milestones, guidance targets), web-timeline-b.md (voice).
 
-import { defineScenario, say, rrFaultOn } from './lib.js';
+import { defineScenario, say, rrFaultOn, alignedStart } from './lib.js';
 import { crewEvents } from './crew-a11.js';
 
-const START = '102:33:10';
+const START = alignedStart('102:33:10'); // on the flight's 2-s SERVICER grid (lib.js)
 const END = '102:41:40';
 
 export default defineScenario({

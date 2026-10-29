@@ -3,10 +3,10 @@
 // §1b (voice, MR event times), web-trajectory-b.md §1.3, §3, §5.2
 // (propellant, touchdown), web-1202-b.md §5.3 (ROD switch).
 
-import { defineScenario, say, rrFaultOn } from './lib.js';
+import { defineScenario, say, rrFaultOn, alignedStart } from './lib.js';
 import { crewEvents } from './crew-a11.js';
 
-const START = '102:43:00';
+const START = alignedStart('102:43:00'); // on the flight's 2-s SERVICER grid (lib.js)
 const END = '102:47:15';
 
 export default defineScenario({

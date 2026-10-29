@@ -62,7 +62,9 @@ export function ignitionSchedule(program, software, { cutoffRel = null } = {}) {
     });
     lanes.push({ id: 'avg', label: 'Avg-G', segments: [{ from: -30, to: Infinity, text: 'SERVICER every 2 s', kind: 'avg', ticks: 2 }] });
     throttle = [{ from: -Infinity, to: 0, level: 0 }, { from: 0, to: end, level: 1 }, { from: end, to: Infinity, level: 0 }];
-    notes = ['SPS: fixed thrust (not throttleable).'];
+    // DOSTRULL "0.4 + 1.6 = 2.0 SEC FOR ULLAGE-OFF AND STEERING"
+    // (Comanche055/P40-P47.agc:582-589; research/src-comanche.md).
+    notes = ['SPS: fixed thrust (not throttleable). Ullage is +X RCS translation; the AGC turns the jets off and starts steering 2 s after ignition.'];
     const sequence = 'DSKY: V06N40 countdown → blank at TIG−35 → V06N40 again at TIG−30 (Average-G running) → V99N40 flashing at TIG−5 until PRO → V06N40 counting to cutoff.';
     return { lanes, throttle, throttleLabel: 'SPS', notes, end: cutoffRel, sequence };
   }

@@ -46,6 +46,29 @@ export function rrFaultOn(at) {
   return crew(at, 'rrFault', true, 'RR mode switch out of LGC: RR CDUs steal memory cycles');
 }
 
+// Apollo 11's PDI ignition time (Mission Report Table 9.6-V). From it
+// follows the 2-second rhythm of navigation for the whole descent: the
+// TIG-30 task runs PREREAD at TIG − 29.9 s (D29.9SEC, BURN_BABY_BURN--
+// MASTER_IGNITION_ROUTINE.agc:292-343), which schedules READACCS 2 s later
+// and READACCS re-arms itself every 2 s (SERVICER.agc:72-74).
+export const TIG_A11 = parseGET('102:33:05.01');
+export const READACCS_EPOCH = TIG_A11 - 29.9; // 102:32:35.11
+
+// A scenario that starts in mid-burn makes the computer model start its
+// Average-G cycle at the scenario's first instant (READACCS 2 s later). So
+// that every scenario puts SERVICER on the same 2-s grid as the real flight —
+// and the Executive model therefore sees the same load at the same instants
+// whichever scenario you watch — mid-burn scenarios start at the last grid
+// point at or before the GET they want. Returns "hhh:mm:ss.ss".
+export function alignedStart(approx) {
+  const t = parseGET(approx);
+  const k = Math.floor((t - READACCS_EPOCH) / 2 + 1e-9);
+  const s = Math.round((READACCS_EPOCH + 2 * k) * 100) / 100;
+  const whole = Math.floor(s);
+  const frac = Math.round((s - whole) * 100);
+  return `${formatGET(whole)}.${String(frac).padStart(2, '0')}`;
+}
+
 // Stable sort by GET so scenario files can be written in story order.
 export function sortEvents(events) {
   return events

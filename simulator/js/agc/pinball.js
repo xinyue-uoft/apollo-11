@@ -344,6 +344,10 @@ export class Pinball {
       waiting: desc(this.waiting),
       dsplist: desc(this.dsplist),
       priority: this.prio ? desc({ req: this.prio.req, prio: true }) : null,
+      // NVSAVE: the program's latest normal display request — whether the
+      // program is asking with a flashing display, even while the crew has
+      // covered it, it waits in DSPLIST, or a restart blanked it.
+      normal: this.normal ? { verb: this.normal.verb, noun: this.normal.noun, flash: !!this.normal.flash, source: this.normal.source || null } : null,
       lampTest: !!this.lampTest,
       blanking: this.blank ? { until: this.blank.until } : null,
       request: this.reqret ? this.reqret.kind : null,

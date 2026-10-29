@@ -2,10 +2,10 @@
 // switch to P66. Research: web-1202-b.md §5.2–5.3 (LPD, Cherry's DSKY log),
 // web-trajectory-b.md §4.4 (LPD angles, increments), web-timeline-b.md.
 
-import { defineScenario, say, rrFaultOn } from './lib.js';
+import { defineScenario, say, rrFaultOn, alignedStart } from './lib.js';
 import { crewEvents } from './crew-a11.js';
 
-const START = '102:41:20';
+const START = alignedStart('102:41:20'); // on the flight's 2-s SERVICER grid (lib.js)
 const END = '102:43:30';
 
 export default defineScenario({
