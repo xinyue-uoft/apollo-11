@@ -393,8 +393,9 @@ these files; the exact ranges are the anchors in
   "We actually had the engine running until touchdown", ALSJ). The lunar
   contact light (67-in probes) is therefore earlier: ≈102:45:36.6, derived
   where the track passes 5.6 ft at ≈1.6 ft/s; Aldrin's call at 102:45:40 is
-  the voice, which lags telemetry by 0–13 s (Armstrong's onboard "Shutdown"
-  is logged at 102:45:43 against the 102:45:41.40 cutoff). An earlier version
+  the voice, which lags telemetry by 0–13 s (ALSJ places Armstrong's onboard
+  "Shutdown" at 102:45:43, 1.6 s after the 102:45:41.40 cutoff; the onboard
+  transcript has 102:45:41). An earlier version
   of the track read the MR time as the contact light and let the LM fall
   ≈3 ft after cutoff, which Armstrong says did not happen. Engine cutoff
   102:45:41.40, burn 756.39 s (MR Table 9.6-V); 770 lb propellant left (MR

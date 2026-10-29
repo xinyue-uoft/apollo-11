@@ -66,7 +66,7 @@ const DESCRIPTIONS = {
   'RCS_FAILURE_MONITOR.agc': 'Watches the RCS jet-failure switches and updates the autopilot’s jet masks.',
   'DOWNLINK_LISTS.agc': 'Telemetry downlink lists: which memory words are sent to the ground in each phase of the mission.',
   'AGS_INITIALIZATION.agc': 'R47: sends the state vector and time to the Abort Guidance System (AGS) to initialise it.',
-  'FRESH_START_AND_RESTART.agc': 'Fresh start (V36), hardware restart (GOPROG) and software restart (ENEMA) — and GOTOPOOH, the way back to P00.',
+  'FRESH_START_AND_RESTART.agc': 'Fresh start (V36), hardware restart (GOPROG) and software restart (ENEMA) — and GOTOPOOH, which flashes V37 so the crew can choose the next program (POOH is P00).',
   'RESTART_TABLES.agc': 'Restart tables: for each restart group and phase, which job or task to restart and at what priority.',
   'AOTMARK.agc': 'Alignment Optical Telescope (AOT) star-sighting marks.',
   'SXTMARK.agc': 'SXTMARK: star and landmark marks made by the astronaut with the optics.',
