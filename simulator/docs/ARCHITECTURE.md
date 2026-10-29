@@ -392,6 +392,9 @@ export default {
   id: 'landing-1202', title: 'The 1202 Alarms', software: 'Luminary099',
   vehicle: 'replay', track: 'apollo11Descent',
   start: '102:37:30', end: '102:43:30', initialProgram: 63,
+  speed: 2,                      // optional default playback speed
+  agcOptions: { workload: { params } },  // optional, forwarded to new Agc(...)
+  vehicleOptions: {},            // optional, forwarded to createVehicle(...)
   setup(sim) {},                 // optional deterministic initial state
   summary: 'One paragraph shown in the scenario picker.',
   events: [
