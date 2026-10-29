@@ -83,10 +83,13 @@ export function crewHint(model) {
   return 'These controls matter in the landing programs (P64, P66).';
 }
 
-const RR_HELP = 'Apollo 11’s rendezvous-radar mode switch was out of the LGC position (AUTO TRACK, later SLEW). '
-  + 'Because the radar’s 800 Hz excitation was not phase-locked to the CDUs, the RR CDU counters ran at their maximum rate '
-  + '(6,400 pulses/s per angle), each pulse stealing a memory cycle — roughly 13–15 % of the computer’s time. '
-  + 'That is what pushed the Executive into the 1201/1202 overflows (Eyles 2004; Mission Report §16.2.5).';
+// research/src-executive.md §10.1 (Eyles 2004) and research/web-timeline-b.md
+// D12 (Mission Report §16.2.5).
+const RR_HELP = 'Reproduces Apollo 11’s rendezvous-radar switch setting: the RR angle counters stole '
+  + 'about 13–15 % of the computer’s time — the extra load behind the 1201/1202 alarms.';
+const RR_MORE = 'The RR mode switch was out of the LGC position (AUTO TRACK, later SLEW). Because the radar’s '
+  + '800 Hz excitation was not phase-locked to the CDUs, the RR CDU counters ran at their maximum rate '
+  + '(6,400 pulses/s per angle), each pulse taking one 11.7 µs memory cycle (Eyles 2004; Mission Report §16.2.5).';
 
 // ---------- mount ----------
 
@@ -153,6 +156,7 @@ export function mountCrew(root, ctx) {
             <li><b>LPD</b> — in P64, after PRO on the flashing V06N64, clicks of the attitude hand controller move the landing site: ${LPD_AZ_STEP_DEG}° per left/right click, ${LPD_EL_STEP_DEG}° per fore/aft click. The DSKY’s N64 R1 shows the time left for redesignation and the LPD angle to read against the window reticle.</li>
             <li><b>ATT HOLD</b> — attitude hold (manual attitude). With ATT HOLD selected, the first ROD click switches the computer to P66, as on Apollo 11 at 102:43:22.</li>
             <li><b>ENGINE STOP</b> — shuts the descent engine down (after touchdown, or to stop a burn).</li>
+            <li><b>RR switch fault</b> — ${RR_MORE}</li>
           </ul>
           <p class="crew-note">Simplified: switch positions are modelled as the discretes the AGC reads; the real panel had more positions and interlocks.</p>
         </details>

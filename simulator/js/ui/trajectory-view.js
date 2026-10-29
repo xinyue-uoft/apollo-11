@@ -405,13 +405,19 @@ export class TrajectoryModel {
     if (!v || !Number.isFinite(v.alt) || !Number.isFinite(v.range)) return;
     const t = snap.t;
     const mode = snap.agc?.mode ?? null;
+    if (this.prev && t < this.prev.t - 1e-6) this.reset();
     const prev = this.prev;
-    if (prev && t < prev.t - 1e-6) this.reset();
     this.recorder.add({ t, r: v.range, h: Math.max(0, v.alt), m: mode });
     this.growDomain(v.range, v.alt);
 
-    // Edge-detected milestones, so a physics run gets its own markers.
-    const p = this.prev || {};
+    // Edge-detected milestones, so a physics run gets its own markers. The
+    // first observation has no "before", so it cannot be an edge (a preset
+    // that starts mid-burn must not get a "PDI" marker at its start).
+    if (!prev) {
+      this.prev = this.flags(t, mode, v);
+      return;
+    }
+    const p = prev;
     if (v.engineOn && !p.engineOn && !this.live.has('ignition')) {
       this.addLive({ t, id: 'ignition', label: mode === 63 ? 'PDI — DPS ignition' : 'Ignition' });
     }
@@ -434,7 +440,11 @@ export class TrajectoryModel {
       this.landed = { t, r: v.range, h: 0 };
       this.addLive({ t, id: 'touchdown', label: v.contact && !v.landed ? 'Contact light' : 'Touchdown' });
     }
-    this.prev = {
+    this.prev = this.flags(t, mode, v);
+  }
+
+  flags(t, mode, v) {
+    return {
       t, mode, engineOn: !!v.engineOn, throttle: v.throttle, lrAlt: !!v.lr?.altValid,
       fuel: v.fuelFrac, landed: !!v.landed, contact: !!v.contact,
     };
@@ -468,6 +478,20 @@ export function mergeAlarms(milestones, alarms) {
     if (!dup) out.push(a);
   }
   return out.sort((x, y) => x.t - y.t);
+}
+
+// Joins short labels for a cluster of nearby milestones, folding repeats
+// ("01202 · 01202" → "01202 ×2").
+export function clusterLabel(shorts, maxLen = 48) {
+  const parts = [];
+  for (const s of shorts) {
+    const last = parts[parts.length - 1];
+    if (last && last.s === s) last.n += 1;
+    else parts.push({ s, n: 1 });
+  }
+  let text = parts.map((p) => (p.n > 1 ? `${p.s} ×${p.n}` : p.s)).join(' · ');
+  if (text.length > maxLen) text = `${text.slice(0, maxLen - 1).replace(/[\s·]+$/, '')}…`;
+  return text;
 }
 
 // One-line text alternative for the canvas (aria-label).
@@ -1108,13 +1132,15 @@ export function mountTrajectory(root, ctx) {
     g.textBaseline = 'alphabetic';
     g.textAlign = 'left';
     g.fillText('FULL DESCENT', plot.x, A.y + 14);
+    const titleW = textW('FULL DESCENT', s.font);
+    g.font = s.fontSmall;
+    g.fillStyle = theme.faint;
+    g.fillText(s.narrow ? '· ft vs nmi to target' : '· altitude (ft) vs range to target (nmi)', plot.x + titleW + 6, A.y + 14);
     const fl = curvatureFlattening(s.rMax, sag, k);
     if (fl && fl > 2) {
-      g.font = s.fontSmall;
       g.textAlign = 'right';
-      g.fillStyle = theme.faint;
       const r = fl >= 100 ? Math.round(fl / 10) * 10 : Math.round(fl);
-      g.fillText(s.narrow ? `curvature ÷${r}` : `Moon’s curvature drawn ${r}× flatter`, plot.x + plot.w, A.y + 14);
+      g.fillText(s.narrow ? `curvature ${r}× flatter` : `Moon’s curvature drawn ${r}× flatter`, plot.x + plot.w, A.y + 14);
     }
     g.restore();
 
@@ -1190,9 +1216,6 @@ export function mountTrajectory(root, ctx) {
       const label = xv === 0 ? '0' : `${fmtInt(xv)}`;
       g.fillText(label, Math.min(Math.max(x, plot.x + 8), plot.x + plot.w - 8), A.y + A.h - 2);
     }
-    g.textAlign = 'left';
-    g.fillStyle = theme.faint;
-    g.fillText('nmi to target', plot.x + plot.w * 0.5 + (s.narrow ? 6 : 20), A.y + A.h - 2);
     g.restore();
 
     // Zoom window outline (pane B's region).
@@ -1227,16 +1250,45 @@ export function mountTrajectory(root, ctx) {
     lmGlyph(g, lmx, lmy - 6, 15, s.lm.pitch, s.lm.throttle, s.lm.engineOn, theme);
     g.restore();
 
-    // Milestones & labels (outside the zoom window — those are in pane B).
+    // Milestones & labels. Those within ~26 px of the site (the whole final
+    // approach at this scale) would pile up: they get one cluster label at
+    // the zoom bracket instead — pane B shows them individually.
     const items = [];
+    const cluster = [];
     for (const m of s.passed) {
-      const ft = toFt(m.r);
-      if (ft <= s.win2.rFar && ft >= s.win2.rNear && toFt(m.h) <= s.win2.hMax) continue;
       const [x, y] = proj(m);
-      items.push({ m, x, y });
+      if (x > site[0] - 26) cluster.push(m);
+      else items.push({ m, x, y });
     }
-    drawMilestones(items, { x: A.x + 2, y: A.y + 18, w: A.w - 4, h: (A.y + A.h) - (A.y + 18) - 16 }, s.font,
-      [{ x: lmx - 12, y: lmy - 20, w: 24, h: 26 }, { x: site[0] - 4, y: site[1] - 18, w: 14, h: 18 }]);
+    if (cluster.length === 1) {
+      const [x, y] = proj(cluster[0]);
+      items.push({ m: cluster[0], x, y });
+      cluster.length = 0;
+    }
+    const obstacles = [{ x: lmx - 12, y: lmy - 20, w: 24, h: 26 }, { x: site[0] - 4, y: site[1] - 18, w: 14, h: 18 }];
+    if (cluster.length) {
+      const text = clusterLabel(cluster.map((m) => m.short), s.narrow ? 30 : 56);
+      const w = textW(text, s.font) + 10;
+      const x = Math.max(A.x + 4, zoomRect.x + zoomRect.w - w);
+      const y = Math.max(A.y + 18, zoomRect.y - 26);
+      obstacles.push({ x, y, w, h: 16 });
+      g.save();
+      g.strokeStyle = 'rgba(221,226,232,0.35)';
+      g.beginPath();
+      g.moveTo(zoomRect.x + zoomRect.w / 2, zoomRect.y);
+      g.lineTo(Math.min(zoomRect.x + zoomRect.w / 2, x + w - 6), y + 16);
+      g.stroke();
+      g.fillStyle = 'rgba(22,26,31,0.86)';
+      roundRect(g, x, y, w, 16, 3);
+      g.fill();
+      g.font = s.font;
+      g.textBaseline = 'middle';
+      g.fillStyle = cluster.some((m) => m.kind === 'alarm') ? theme.amber : theme.text;
+      g.fillText(text, x + 5, y + 8.5);
+      g.restore();
+      for (const m of cluster) hits.push({ x: zoomRect.x + zoomRect.w / 2, y: zoomRect.y, m });
+    }
+    drawMilestones(items, { x: A.x + 2, y: A.y + 18, w: A.w - 4, h: (A.y + A.h) - (A.y + 18) - 16 }, s.font, obstacles);
 
     return { zoomRect, lm: [lmx, lmy - 6], site: null };
   }
@@ -1257,11 +1309,15 @@ export function mountTrajectory(root, ctx) {
     g.fillStyle = theme.dim;
     g.textAlign = 'left';
     g.textBaseline = 'alphabetic';
-    g.fillText('FINAL APPROACH · auto-zoom', plot.x, B.y + 13);
+    g.fillText('FINAL APPROACH', plot.x, B.y + 13);
+    const titleW = textW('FINAL APPROACH', s.font);
+    g.font = s.fontSmall;
+    g.fillStyle = theme.faint;
+    g.fillText(s.narrow ? '· auto-zoom · ft' : '· auto-zoom · altitude vs range to target (ft)', plot.x + titleW + 6, B.y + 13);
     g.restore();
 
     // Grid.
-    const xT = niceTicks(rNear, rFar, s.narrow ? 4 : 6);
+    const xT = niceTicks(rNear, rFar, s.narrow ? 4 : 7);
     const yT = niceTicks(0, hMax, s.narrow ? 3 : 4);
     g.save();
     g.strokeStyle = 'rgba(255,255,255,0.06)';
@@ -1284,7 +1340,6 @@ export function mountTrajectory(root, ctx) {
     }
     g.textAlign = 'right';
     g.fillStyle = theme.faint;
-    g.fillText(s.narrow ? 'ft' : 'ft to target', plot.x + plot.w, B.y + B.h - 2);
     const step = xT.length > 1 ? xT[1] - xT[0] : 0;
     if (step) {
       g.textBaseline = 'alphabetic';
@@ -1310,6 +1365,7 @@ export function mountTrajectory(root, ctx) {
 
     let lmPos = null;
     let sitePos = null;
+    let landedBox = null;
     g.save();
     g.beginPath();
     g.rect(plot.x, plot.y - 4, plot.w, plot.h + 8);
@@ -1345,8 +1401,9 @@ export function mountTrajectory(root, ctx) {
       g.save();
       g.font = s.font;
       const tw = textW(txt, s.font);
-      const x = Math.min(Math.max(lx - tw / 2, plot.x + 2), plot.x + plot.w - tw - 2);
-      const y = Math.max(plot.y + 4, gy - 64);
+      const x = Math.min(Math.max(lx - tw / 2, plot.x + 6), plot.x + plot.w - tw - 6);
+      const y = plot.y + 6;
+      landedBox = { x: x - 5, y: y - 2, w: tw + 10, h: 17 };
       g.fillStyle = 'rgba(22,26,31,0.86)';
       roundRect(g, x - 5, y - 2, tw + 10, 17, 4);
       g.fill();
@@ -1367,7 +1424,14 @@ export function mountTrajectory(root, ctx) {
         g.fillStyle = theme.dim;
         g.textAlign = 'left';
         g.textBaseline = 'top';
-        wrapText(g, txt, plot.x + 8, plot.y + 8, Math.min(plot.w - 16, 420), 14);
+        const maxW = Math.min(plot.w - 16, 420);
+        const lines = wrapLines(g, txt, maxW);
+        const boxW = Math.max(...lines.map((l) => g.measureText(l).width)) + 12;
+        g.fillStyle = 'rgba(16,19,23,0.85)';
+        roundRect(g, plot.x + 2, plot.y + 3, boxW, lines.length * 14 + 8, 4);
+        g.fill();
+        g.fillStyle = theme.dim;
+        lines.forEach((l, i) => g.fillText(l, plot.x + 8, plot.y + 8 + i * 14));
         // Arrow to the left edge (uprange).
         g.strokeStyle = theme.dim;
         g.beginPath();
@@ -1390,6 +1454,7 @@ export function mountTrajectory(root, ctx) {
     const obstacles = [];
     if (lmPos) obstacles.push({ x: lmPos[0] - 20, y: lmPos[1] - 20, w: 40, h: 36 });
     if (sitePos) obstacles.push({ x: sitePos[0] - 4, y: sitePos[1] - 12, w: 16, h: 30 });
+    if (landedBox) obstacles.push(landedBox);
     drawMilestones(items, { x: plot.x + 2, y: plot.y + 2, w: plot.w - 4, h: plot.h - 4 }, s.font, obstacles);
 
     return { lm: lmPos, site: sitePos };
@@ -1450,19 +1515,18 @@ export function mountTrajectory(root, ctx) {
     g.restore();
   }
 
-  function wrapText(gc, text, x, y, maxW, lineH) {
-    const words = text.split(' ');
+  function wrapLines(gc, text, maxW) {
+    const out = [];
     let line = '';
-    let yy = y;
-    for (const w of words) {
+    for (const w of text.split(' ')) {
       const test = line ? `${line} ${w}` : w;
       if (gc.measureText(test).width > maxW && line) {
-        gc.fillText(line, x, yy);
+        out.push(line);
         line = w;
-        yy += lineH;
       } else line = test;
     }
-    if (line) gc.fillText(line, x, yy);
+    if (line) out.push(line);
+    return out;
   }
 
   // ----- tooltip -----

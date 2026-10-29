@@ -36,13 +36,13 @@ export default defineScenario({
     { at: '102:32:10', narrate: {
       title: 'One routine for every engine',
       body: '<p><b>BURNBABY</b>, the master ignition routine, does everything “between the pre-ignition time check … and TIG + 26 seconds” for P12, P40, P42, P61 and P63. It is <i>table-driven</i>: each program puts the address of its own table in the register <code>WHICH</code>, and BURNBABY executes <code>INDEX WHICH</code> to pick the display, the ullage time and the post-ignition branch.</p><p>P63’s row says: countdown noun 62, ullage <code>DEC 2240</code> centiseconds after TIG−30, and branch to <code>P63IGN</code> at ignition.</p>',
-      anchors: ['scn.burn.header', 'scn.burn.p63table'],
+      anchors: ['src.burnbaby.mottos', 'scn.burn.p63table'],
     } },
     { at: '102:32:12', spotlight: 'ignition.timeline' },
     { at: '102:32:17', narrate: {
       title: 'Off to see the wizard',
       body: '<p>How P63 got here: after computing the ignition time it checked that the landing-radar antenna was in position 1. On Eagle it was not, so the DSKY flashed V50N25 with code 00500 — in the listing, “ASTRONAUT: PLEASE CRANK THE SILLY THING AROUND”, and on PRO, “SEE IF HE’S LYING”. The crew cycled the antenna switch and proceeded (reported at 102:26:55). Then: <code>TC POSTJUMP / CADR BURNBABY</code> — “OFF TO SEE THE WIZARD...”.</p>',
-      anchors: ['scn.p63.silly'],
+      anchors: ['src.landing.crank'],
     } },
     { at: '102:32:22', hold: 3 },
     say('engine-arm'),
@@ -128,7 +128,7 @@ export default defineScenario({
     { at: '102:33:44', narrate: {
       title: 'The name and the mottos',
       body: '<p>A note added by the transcribers in 2009 records Don Eyles’ account: the name traces back to 1965 and the Los Angeles riots, inspired by the disc jockey <b>Magnificent Montague</b>, who shouted “Burn, baby! BURN!” when spinning the hottest new records.</p><p>The 1969 header is signed “CONCEIVED AND EXECUTED, AND (NOTA BENE) … MAINTAINED BY ADLER AND EYLES”, under the Garter motto <i>HONI SOIT QUI MAL Y PENSE</i> (“shamed be he who thinks evil of it”). Above the tables: <i>NOLI SE TANGERE</i> — a play on “touch me not”.</p>',
-      anchors: ['scn.burn.naming', 'scn.burn.header'],
+      anchors: ['src.burnbaby.naming', 'src.burnbaby.mottos'],
     } },
     { at: '102:33:50', hold: 5 },
     say('got-you-now'),

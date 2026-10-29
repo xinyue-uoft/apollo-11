@@ -63,7 +63,8 @@ export function ignitionSchedule(program, software, { cutoffRel = null } = {}) {
     lanes.push({ id: 'avg', label: 'Avg-G', segments: [{ from: -30, to: Infinity, text: 'SERVICER every 2 s', kind: 'avg', ticks: 2 }] });
     throttle = [{ from: -Infinity, to: 0, level: 0 }, { from: 0, to: end, level: 1 }, { from: end, to: Infinity, level: 0 }];
     notes = ['SPS: fixed thrust (not throttleable).'];
-    return { lanes, throttle, throttleLabel: 'SPS', notes, end };
+    const sequence = 'DSKY: V06N40 countdown → blank at TIG−35 → V06N40 again at TIG−30 (Average-G running) → V99N40 flashing at TIG−5 until PRO → V06N40 counting to cutoff.';
+    return { lanes, throttle, throttleLabel: 'SPS', notes, end, sequence };
   }
   const noun = LM_NOUNS[program] || '62';
   const post = LM_POST[program] || 'V06N63';
@@ -112,7 +113,8 @@ export function ignitionSchedule(program, software, { cutoffRel = null } = {}) {
     if (Number.isFinite(end)) throttle.push({ from: end, to: Infinity, level: 0 });
     notes = ['APS: fixed thrust (not throttleable).'];
   }
-  return { lanes, throttle, throttleLabel: program === 42 || program === 12 ? 'APS' : 'DPS', notes, end: cutoffRel ?? 40 };
+  const sequence = `DSKY: V06N${noun} countdown → blank at TIG−35 (Average-G starting) → V06N${noun} at TIG−30 → V99N${noun} flashing at TIG−5 until PRO → ${post} after ignition.`;
+  return { lanes, throttle, throttleLabel: program === 42 || program === 12 ? 'APS' : 'DPS', notes, end: cutoffRel ?? 40, sequence };
 }
 
 // ---------- scales ----------
@@ -166,9 +168,10 @@ export function timelineTicks(scale) {
   const linEnd = d.length > 2 ? d[1] : d[d.length - 1];
   for (let v = Math.ceil(d[0] / 5) * 5; v <= linEnd + 1e-9; v += 5) out.push({ v, major: v % 10 === 0 });
   if (d.length > 2) {
+    // At most ~3 labels in the compressed tail (it gets 38 % of the width).
     const span = d[2] - d[1];
-    const step = span > 600 ? 120 : span > 240 ? 60 : 30;
-    for (let v = Math.ceil((d[1] + 1) / step) * step; v <= d[2] + 1e-9; v += step) out.push({ v, major: true });
+    const step = [30, 60, 120, 180, 300, 600, 1200].find((s) => s >= span / 3) || 1200;
+    for (let v = Math.ceil((d[1] + step * 0.6) / step) * step; v <= d[2] + 1e-9; v += step) out.push({ v, major: true });
   }
   return out;
 }
@@ -177,7 +180,7 @@ export function fmtRel(rel) {
   if (!Number.isFinite(rel)) return '—';
   if (rel === 0) return 'TIG';
   const a = Math.abs(rel);
-  const s = a >= 120 ? formatMinSec(a).replace('+', '') : Number.isInteger(Math.round(a * 10) / 10) ? String(Math.round(a)) : a.toFixed(1);
+  const s = a >= 120 ? formatMinSec(a).replace('+', '').replace(/^0(\d:)/, '$1') : Number.isInteger(Math.round(a * 10) / 10) ? String(Math.round(a)) : a.toFixed(1);
   return `${rel < 0 ? '−' : '+'}${s}`;
 }
 
@@ -199,6 +202,22 @@ export function assignRows(positions, minGap = 0.075, maxRows = 4) {
   });
 }
 
+// Phase captions. LM texts follow BBB; the CM's own (not table-driven) P40
+// countdown differs where noted (Comanche055/P40-P47.agc, research §15).
+export function phaseText(phase, software) {
+  if (software === 'Comanche055') {
+    const cm = {
+      'avg-g': ['Average-G running', 'TIGAVEG restored the display at TIG−30 s and started Average-G navigation (SERVICER every 2 s).'],
+      v99: ['V99 — please enable engine', 'The DSKY flashes Verb 99 Noun 40. The SPS lights only after the crew keys PRO.'],
+      ignition: ['Ignition', 'SPSON: the AGC sets channel 11 bit 13 and the SPS thrust builds up.'],
+      burning: ['Burning', 'Powered flight: the AGC steers the SPS and counts down to cutoff (the SPS is not throttleable).'],
+      trim: ['Burning', 'Powered flight: the AGC steers the SPS and counts down to cutoff.'],
+    };
+    if (cm[phase]) return cm[phase];
+  }
+  return PHASE_TEXT[phase] || [phase || '—', ''];
+}
+
 export const PHASE_TEXT = Object.freeze({
   pre: ['Countdown', 'BURNBABY has integrated the state vector to TIG−29.9 s and shows the countdown every second.'],
   'avg-g': ['Average-G running', 'SERVICER (Average-G navigation) runs every 2 s from TIG−30 s; the DSKY went blank for 5 s to announce it.'],
@@ -207,7 +226,7 @@ export const PHASE_TEXT = Object.freeze({
   ignition: ['Ignition', 'ENGINE ON: the AGC sets channel 11 bit 13.'],
   trim: ['Trim at minimum thrust', 'Minimum thrust for 26 s while the descent engine’s gimbal trims through the centre of mass; landing guidance is not yet connected.'],
   'throttle-up': ['Throttle-up', 'P63ZOOM connects landing guidance and commands maximum thrust — the fixed throttle position.'],
-  burning: ['Burning', 'Powered flight: guidance steers and throttles every 2 s.'],
+  burning: ['Burning', 'Powered flight: guidance steers (and, for the DPS, throttles) every 2 s.'],
   cutoff: ['Cutoff', 'ENGINE OFF: channel 11 bit 14.'],
   done: ['Complete', 'The ignition sequence is over.'],
 });
@@ -265,7 +284,7 @@ export function mountIgnition(root, ctx) {
       <section class="ign-live" data-role="live" hidden>
         <header class="ign-head">
           <div class="ign-head-text">
-            <h3 class="ign-title">BURN, BABY, BURN <span class="ign-title-sub">master ignition routine</span></h3>
+            <h3 class="ign-title"><span data-k="title">BURN, BABY, BURN</span> <span class="ign-title-sub" data-k="titleSub">master ignition routine</span></h3>
             <p class="ign-sub" data-k="sub">—</p>
           </div>
           <div class="ign-clock" aria-live="off">
@@ -277,10 +296,11 @@ export function mountIgnition(root, ctx) {
         <p class="ign-now"><span class="ign-now-label">DSKY now</span> <span class="ign-now-val" data-k="dsky">—</span><span class="ign-now-label ign-now-thr">Throttle</span> <span class="ign-now-val" data-k="thr">—</span></p>
         <div class="ign-timeline" data-spot="ignition.timeline">
           <div class="ign-row ign-row-ev"><span class="ign-lane-label">Events</span><div class="ign-events" data-role="events"></div></div>
-          <div class="ign-row ign-row-axis" aria-hidden="true"><span class="ign-lane-label">s</span><div class="ign-axis" data-role="axis"></div></div>
+          <div class="ign-row ign-row-axis" aria-hidden="true"><span class="ign-lane-label"></span><div class="ign-axis" data-role="axis"></div></div>
           <div class="ign-lanes" data-role="lanes"></div>
           <div class="ign-cursor-layer" aria-hidden="true"><div class="ign-cursor" data-role="cursor"><span class="ign-cursor-label" data-k="cursor">now</span></div></div>
         </div>
+        <p class="ign-seq" data-k="seq"></p>
         <p class="ign-notes" data-k="notes"></p>
         <h4 class="ign-list-title">Sequence — select an event to see its code</h4>
         <ol class="ign-list" data-role="list"></ol>
@@ -289,6 +309,7 @@ export function mountIgnition(root, ctx) {
         <h3 class="ign-title">BURN, BABY, BURN <span class="ign-title-sub">the master ignition routine</span></h3>
         <p>Every powered-flight program of the Lunar Module — P12 ascent, P40/P42 burns, P63 descent — hands its ignition to one shared routine, <code>BURNBABY</code>, written by Peter Adler and Don Eyles. It runs everything from the pre-ignition time check to TIG+26 s, when DPS programs throttle up: integrate the state vector to TIG−30 s, blank the DSKY for 5 s to show that Average-G is starting, fire ullage, flash <b>V99</b> (“please enable engine”) at TIG−5 s and wait for the crew’s PRO, light the engine.</p>
         <p>The routine is <b>table-driven</b>. Each program puts the address of its own table into the erasable register <code>WHICH</code>; BURNBABY then does <code>INDEX WHICH</code> + <code>TCF n</code> to pick up the program-specific display, ullage delay, guidance hook and post-ignition step. Above the tables the authors wrote <i>NOLI SE TANGERE</i> — “do not touch them”: every program depends on their fixed layout.</p>
+        <p class="ign-cm-note">The Command Module’s Comanche 055 has its own P40 countdown with the same milestones (blank at TIG−35, V99 at TIG−5), but it is not table-driven.</p>
         <table class="ign-table">
           <caption>P63TABLE (offsets are octal) — <span class="ign-cite">BURN_BABY_BURN--MASTER_IGNITION_ROUTINE.agc:127-140</span></caption>
           <thead><tr><th scope="col">Offset</th><th scope="col">Entry</th><th scope="col">Used for</th></tr></thead>
@@ -361,15 +382,20 @@ export function mountIgnition(root, ctx) {
     if (burn) lastBurn = { ...burn, software: snap.software };
     const b = burn || lastBurn;
     const showLive = !!b && Number.isFinite(b.tig);
-    if (cache.get('mode') !== showLive) {
-      cache.set('mode', showLive);
+    // No burn armed → the explanation; a finished burn stays visible below
+    // it ("how the last ignition ran").
+    const showIdle = !burn;
+    const modeKey = `${showLive}|${showIdle}`;
+    if (cache.get('mode') !== modeKey) {
+      cache.set('mode', modeKey);
       el.live.hidden = !showLive;
-      el.idle.hidden = showLive;
+      el.idle.hidden = !showIdle;
+      el.live.classList.toggle('is-past', showLive && showIdle);
     }
-    if (!showLive) {
-      set('idleFoot', snap ? 'No burn is armed. The timeline appears here when a program arms BURNBABY (in the demo: “Burn, Baby, Burn”, or the “Before PDI” preset).' : 'No simulation running.');
-      return;
-    }
+    set('idleFoot', !snap ? 'No simulation running.'
+      : showLive ? 'No burn is armed now. Below: how the last ignition ran.'
+        : 'No burn is armed. The timeline appears here when a program arms the ignition sequence (in the demo: “Burn, Baby, Burn”, or the “Before PDI” preset).');
+    if (!showLive) return;
     const software = snap?.software || b.software;
     const rel = snap ? snap.t - b.tig : null;
 
@@ -380,15 +406,26 @@ export function mountIgnition(root, ctx) {
     if (key !== view.key) build(key, b, software, events, cutoff?.rel ?? null);
 
     // Live parts.
+    const isCm = software === 'Comanche055';
+    set('title', isCm ? 'SPS IGNITION' : 'BURN, BABY, BURN');
+    set('titleSub', isCm ? 'Comanche 055’s own P40 countdown' : 'master ignition routine');
     set('sub', `${burnTitle(b.program, software)} · TIG ${formatGET(b.tig, { tenths: true })}`);
     set('clock', rel === null ? 'TIG —' : `TIG ${formatMinSec(rel).replace('-', '−')}`);
-    const ph = PHASE_TEXT[b.phase] || [b.phase || '—', ''];
+    const ph = phaseText(b.phase, software);
     set('phase', burn ? ph[0] : 'Complete');
     set('desc', burn ? ph[1] : 'The ignition sequence is over; the timeline shows how it ran.');
     set('dsky', dskyNow(snap?.agc?.dsky));
     const v = snap?.vehicle;
     const thr = v ? (v.engineOn ? `${Math.round((v.throttle || 0) * 100)} %` : 'engine off') : '—';
     set('thr', thr);
+
+    // Highlight the DSKY segment the countdown is in.
+    let nowSeg = -1;
+    if (rel !== null && burn) view.dskySegs?.forEach((sg, i) => { if (rel >= sg.from && rel < sg.to) nowSeg = i; });
+    if (cache.get('nowSeg') !== nowSeg) {
+      cache.set('nowSeg', nowSeg);
+      view.dskySegs?.forEach((sg, i) => sg.node.classList.toggle('is-now', i === nowSeg));
+    }
 
     if (rel !== null) {
       const x = view.scale(rel);
@@ -434,7 +471,7 @@ export function mountIgnition(root, ctx) {
     view.events = events;
     view.schedule = ignitionSchedule(b.program, software, { cutoffRel });
     view.scale = timelineScale(events, view.schedule);
-    for (const k of [...cache.keys()]) if (/^done\d+$|^cursor/.test(k)) cache.delete(k);
+    for (const k of [...cache.keys()]) if (/^done\d+$|^cursor|^nowSeg$/.test(k)) cache.delete(k);
     const sc = view.scale;
     const pctX = (v) => `${(sc(v) * 100).toFixed(3)}%`;
     const lo = sc.domain[0];
@@ -442,7 +479,8 @@ export function mountIgnition(root, ctx) {
 
     // Axis.
     const ticks = timelineTicks(sc);
-    el.axis.innerHTML = ticks.map((t) => `<span class="ign-tick${t.major ? ' is-major' : ''}${t.v === 0 ? ' is-tig' : ''}" style="left:${pctX(t.v)}">${t.major ? `<span>${t.v === 0 ? 'TIG' : fmtRel(t.v)}</span>` : ''}</span>`).join('')
+    const lastMajor = ticks.filter((t) => t.major).pop();
+    el.axis.innerHTML = ticks.map((t) => `<span class="ign-tick${t.major ? ' is-major' : ''}${t.v === 0 ? ' is-tig' : ''}${t === lastMajor ? ' is-last' : ''}" style="left:${pctX(t.v)}">${t.major ? `<span>${t.v === 0 ? 'TIG' : fmtRel(t.v)}${t === lastMajor ? ' s' : ''}</span>` : ''}</span>`).join('')
       + (sc.domain.length > 2 ? `<span class="ign-break" style="left:${pctX(sc.domain[1])}" title="Scale compressed after this point">≈</span>` : '');
 
     // Lanes.
@@ -456,10 +494,11 @@ export function mountIgnition(root, ctx) {
         if (s.ticks) {
           const t0 = s.tick0 ?? s.from;
           const marks = [];
-          for (let t = t0; t <= z + 1e-9; t += s.ticks) if (t >= a) marks.push(`<i style="left:${(((sc(t) - sc(a)) / ((sc(z) - sc(a)) || 1)) * 100).toFixed(2)}%"></i>`);
+          const tEnd = Math.min(z, sc.domain.length > 2 ? sc.domain[1] : z);
+          for (let t = t0; t <= tEnd + 1e-9; t += s.ticks) if (t >= a) marks.push(`<i style="left:${(((sc(t) - sc(a)) / ((sc(z) - sc(a)) || 1)) * 100).toFixed(2)}%"></i>`);
           ticksHtml = `<span class="ign-seg-ticks" aria-hidden="true">${marks.join('')}</span>`;
         }
-        return `<span class="ign-seg ign-seg-${s.kind}" style="left:${pctX(a)};width:${((sc(z) - sc(a)) * 100).toFixed(3)}%" title="${escapeAttr(s.text)}">${ticksHtml}<span class="ign-seg-text">${escapeHtml(s.text)}</span></span>`;
+        return `<span class="ign-seg ign-seg-${s.kind}" data-from="${s.from}" data-to="${s.to}" style="left:${pctX(a)};width:${((sc(z) - sc(a)) * 100).toFixed(3)}%" title="${escapeAttr(s.text)}">${ticksHtml}<span class="ign-seg-text">${escapeHtml(s.text)}</span></span>`;
       }).join('');
       laneHtml.push(`<div class="ign-row"><span class="ign-lane-label">${lane.label}</span><div class="ign-lane" data-lane="${lane.id}">${segs}</div></div>`);
     }
@@ -483,6 +522,10 @@ export function mountIgnition(root, ctx) {
       </svg>${thrLabels}</div></div>`);
     el.lanes.innerHTML = laneHtml.join('');
     view.traceEl = el.lanes.querySelector('[data-role="trace"]');
+    view.dskySegs = [...el.lanes.querySelectorAll('[data-lane="dsky"] .ign-seg')].map((node) => ({
+      node, from: Number(node.dataset.from), to: Number(node.dataset.to),
+    }));
+    set('seq', view.schedule.sequence || '');
     updateTrace();
 
     // Event markers (rows so neighbours never overlap) and the list.

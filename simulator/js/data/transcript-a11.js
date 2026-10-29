@@ -290,7 +290,11 @@ export function sayEvent(id, { at } = {}) {
   const e = quote(id);
   return {
     at: at ?? e.t,
-    say: { who: e.who, role: e.role, text: e.text, src: e.src, channel: e.channel, id: e.id },
+    say: {
+      who: e.who, role: e.role, text: e.text, src: e.src, channel: e.channel, id: e.id,
+      ...(e.note ? { note: e.note } : {}),
+      ...(e.alt ? { alt: e.alt } : {}),
+    },
   };
 }
 

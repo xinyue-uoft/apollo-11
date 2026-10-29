@@ -130,21 +130,21 @@ export const DEFAULT_PARAMS = Object.freeze({
     idle: { avgG: false, interrupts: LM_COAST },
     prePDI: { avgG: 'keep', navMs: 520, guidMs: 0, display: false, interrupts: LM_COAST },
     'P63-preLR': {
-      avgG: true, navMs: 520, guidMs: 734, display: true, r10: true, gyro: true,
+      avgG: true, navMs: 520, guidMs: 704, display: true, r10: true, gyro: true,
       lrAlt: false, lrVel: false, interrupts: LM_POWERED,
     },
     'P63-LR': {
-      avgG: true, navMs: 520, guidMs: 734, display: true, r10: true, gyro: true,
-      lrAlt: true, lrVel: 'auto', lrConvMs: 56, lrIncorpMs: 10, interrupts: LM_POWERED,
+      avgG: true, navMs: 520, guidMs: 704, display: true, r10: true, gyro: true,
+      lrAlt: true, lrVel: 'auto', lrConvMs: 46, lrIncorpMs: 10, interrupts: LM_POWERED,
     },
     P64: {
-      avgG: true, navMs: 520, guidMs: 777, display: true, flashable: true, r10: true, gyro: true,
-      lrAlt: true, lrVel: true, lrConvMs: 56, lrIncorpMs: 10, lpdMs: 60, attHoldSavingMs: 80,
+      avgG: true, navMs: 520, guidMs: 687, display: true, flashable: true, r10: true, gyro: true,
+      lrAlt: true, lrVel: true, lrConvMs: 46, lrIncorpMs: 10, lpdMs: 60, attHoldSavingMs: 80,
       higate: true, interrupts: LM_POWERED,
     },
     P66: {
       avgG: true, navMs: 520, guidMs: 300, display: true, r10: true, gyro: true, rod: true,
-      lrAlt: true, lrVel: true, lrConvMs: 56, lrIncorpMs: 10, interrupts: LM_POWERED,
+      lrAlt: true, lrVel: true, lrConvMs: 46, lrIncorpMs: 10, interrupts: LM_POWERED,
     },
     landed: { avgG: false, interrupts: LM_SURFACE },
     cmIdle: { avgG: false, interrupts: CM_COAST },

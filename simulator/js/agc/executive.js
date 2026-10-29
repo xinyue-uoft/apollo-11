@@ -20,9 +20,17 @@
 //   job always sits in core set 0: CHANJOB swaps core set 0 with the chosen
 //   set (:214-255). A new job pre-empts only if strictly higher than the
 //   running one (SETLOC, :189-199). After ENDOFJOB/JOBSLEEP, EJSCAN looks at
-//   sets 1..7 and EJ1 keeps the FIRST of equal priorities (:388-450). These
-//   rules, together, are why the newest SERVICER copy tends to run while
-//   older ones are left behind as "stubs" when the machine is overloaded.
+//   sets 1..7 and EJ1 keeps the FIRST of equal values (:388-450).
+//   Both comparisons use the WHOLE PRIORITY word: priority in bits 10-14
+//   plus, in the low 9 bits, the job's work-area address — its VAC area for
+//   FINDVAC jobs (VACFOUND "ADS NEWPRIO", :149-153), FAKEPRET for NOVAC jobs
+//   (:38-39, :126). FAKEPRET (MPAC-36D) lies below VAC1 < VAC2 < ... < VAC5
+//   in erasable (ERASABLE_ASSIGNMENTS.agc:376-443), so at equal priority a
+//   VAC job outranks a NOVAC job and a job in a higher-numbered VAC area
+//   outranks one in a lower. A new SERVICER copy given VAC2 while the old
+//   one holds VAC1 therefore pre-empts it — this is how unfinished SERVICER
+//   "stubs" pile up when the machine is overloaded, and why a NOVAC display
+//   job created at SERVICER's priority waits behind every SERVICER copy.
 // - DUMMYJOB: when nothing is runnable the COMP ACTY lamp goes off
 //   (:464-469); it comes back on when a job is dispatched (:299-301, :483).
 // - Cycle stealing: every counter increment (PINC/MINC) takes one 11.72 us
@@ -469,14 +477,14 @@ export class Executive {
     const cur = sets[0];
     const curRunnable = cur && (cur.state === 'READY' || cur.state === 'RUNNING');
     // Best among sets 1..n: strictly higher replaces (EJ1), so the first of
-    // equal priorities in scan order wins.
+    // equal PRIORITY words in scan order wins.
     let best = -1;
     for (let i = 1; i < sets.length; i++) {
       const j = sets[i];
       if (!j || j.state === 'SLEEPING') continue;
-      if (best < 0 || j.prio > sets[best].prio) best = i;
+      if (best < 0 || priorityWord(j) > priorityWord(sets[best])) best = i;
     }
-    if (curRunnable && (best < 0 || sets[best].prio <= cur.prio)) {
+    if (curRunnable && (best < 0 || priorityWord(sets[best]) <= priorityWord(cur))) {
       this._start(cur, tNow);
       return cur;
     }
@@ -753,7 +761,7 @@ export class Executive {
     }));
     const queue = this.coreSets
       .filter((j) => j && j.state !== 'SLEEPING')
-      .sort((a, b) => b.prio - a.prio || a.coreSet - b.coreSet)
+      .sort((a, b) => priorityWord(b) - priorityWord(a) || a.coreSet - b.coreSet)
       .map((j) => ({ id: j.id, name: j.name, prio: j.prio, coreSet: j.coreSet }));
     const r = this.coreSets[0];
     const running = r && r.state === 'RUNNING' ? { id: r.id, name: r.name, prio: r.prio, coreSet: 0 } : null;
@@ -798,6 +806,13 @@ function normaliseSteps(req) {
     return req.steps.map((s) => ({ ...s }));
   }
   return [{ workMs: Math.max(0, Number(req.workMs) || 0) }];
+}
+
+// The comparison value of a PRIORITY register: priority level in the high
+// bits, work-area address in the low 9 bits — modelled by its order only
+// (NOVAC/FAKEPRET = 0 < VAC1 = 1 < ... < VAC5 = 5).
+export function priorityWord(job) {
+  return job.prio * 512 + (job.vacIndex === null ? 0 : job.vacIndex + 1);
 }
 
 function remainingWork(job) {

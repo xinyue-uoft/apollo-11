@@ -256,10 +256,10 @@ export function mountInstruments(root, ctx) {
         </div>
 
         <dl class="inst-grid">
-          <div><dt>Thrust</dt><dd><span data-k="thrust">—</span> <span class="u">lbf</span></dd></div>
-          <div><dt>Mass</dt><dd><span data-k="mass">—</span> <span class="u">lb</span></dd></div>
-          <div><dt>Thrust/mass</dt><dd><span data-k="accel">—</span> <span class="u">ft/s²</span></dd></div>
-          <div><dt>PGNS mode</dt><dd data-k="pgns">—</dd></div>
+          <div><dt>Thrust <span class="u">lbf</span></dt><dd data-k="thrust">—</dd></div>
+          <div><dt>Mass <span class="u">lb</span></dt><dd data-k="mass">—</dd></div>
+          <div><dt title="Thrust divided by mass: the engine's acceleration">T/m <span class="u">ft/s²</span></dt><dd data-k="accel">—</dd></div>
+          <div><dt>PGNS</dt><dd data-k="pgns">—</dd></div>
         </dl>
 
         <div class="inst-lr">

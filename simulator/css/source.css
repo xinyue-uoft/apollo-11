@@ -192,6 +192,7 @@
 
 .src-goto {
   flex-basis: 160px;
+  flex-wrap: wrap;
 }
 
 .src-input {
@@ -206,9 +207,29 @@
   font: 13px var(--font-mono);
 }
 
+.src-find .src-input,
+.src-goto .src-input {
+  flex: 1 1 0;
+  width: 0;
+}
+
 .src-input::placeholder {
   color: var(--text-faint);
   font-family: var(--font-ui);
+}
+
+.src-goto-msg {
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.src-goto-msg:empty {
+  display: none;
 }
 
 .src-count {

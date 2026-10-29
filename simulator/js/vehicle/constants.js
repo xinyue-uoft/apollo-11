@@ -18,6 +18,14 @@
 
 import { FT, FPS, LB, LBF, G0 } from '../util/units.js';
 
+// ---------- the Moon ----------
+
+// Sidereal rotation rate, 2π per 27.321661 days [GEN]. At the equator this
+// moves the surface at 4.62 m/s (15.2 ft/s); Eagle flew east to west, so
+// its speed over the ground was its inertial speed + ≈13–15 ft/s
+// (research/web-trajectory-b.md §2, BEN70 Table I) [DER].
+export const MOON_ROTATION_RATE = (2 * Math.PI) / (27.321661 * 86400);   // rad/s
+
 // ---------- descent propulsion system (TRW LMDE) ----------
 
 export const DPS = Object.freeze({

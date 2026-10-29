@@ -18,14 +18,6 @@ const FSR = 'Luminary099/FRESH_START_AND_RESTART.agc';
 
 export const ANCHORS = {
   // ---------- BURN, BABY, BURN (master ignition routine) ----------
-  'scn.burn.naming': {
-    file: BBB, start: 33, end: 45,
-    title: 'How BURNBABY got its name (transcribers’ note, 2009)',
-  },
-  'scn.burn.header': {
-    file: BBB, start: 53, end: 72,
-    title: 'Table-driven design, the authors and the mottos',
-  },
   'scn.burn.p63table': {
     file: BBB, label: 'P63TABLE', start: 127, end: 140,
     title: 'P63TABLE: the row of the WHICH table used for PDI',
@@ -87,10 +79,6 @@ export const ANCHORS = {
   'scn.p63.entry': {
     file: TLL, label: 'P63LM', start: 40, end: 73,
     title: 'P63LM and FLAGORGY (“Dionysian flag waving”)',
-  },
-  'scn.p63.silly': {
-    file: TLL, label: 'P63SPOT3', start: 239, end: 255,
-    title: '“Please crank the silly thing around” → off to see the wizard',
   },
   'scn.guid.tables': {
     file: LLGE, start: 36, end: 101,
@@ -161,10 +149,6 @@ export const ANCHORS = {
   'scn.noun.list.landing': {
     file: AOI, start: 399, end: 425,
     title: 'Nouns 60–68 of the landing programs',
-  },
-  'scn.verb.list': {
-    file: AOI, start: 160, end: 199,
-    title: 'Verb list for Luminary (regular verbs 01–39)',
   },
 
   'scn.lr.lites': {
@@ -270,10 +254,6 @@ export const ANCHORS = {
   'scn.v37.table': {
     file: FSR, label: 'FCADRMM1', start: 1063, end: 1075,
     title: 'Programs V37 may select (P68 = LANDJUNK, P63 = P63LM)',
-  },
-  'scn.p00.gotopooh': {
-    file: FSR, start: 617, end: 671,
-    title: 'GOTOPOOH: “FLASH V 37 ON DSKY MM CHANGE REQUEST”',
   },
   'scn.burn.v06n61': {
     file: BBB, start: 752, end: 758,

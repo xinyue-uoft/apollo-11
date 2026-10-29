@@ -266,9 +266,11 @@ export function mountSource(root, ctx = {}) {
         </form>
         <form class="src-goto">
           <label class="visually-hidden" for="src-goto-q">Go to label</label>
-          <input id="src-goto-q" class="src-input" type="text" list="src-labels" placeholder="Go to label" autocomplete="off" spellcheck="false">
+          <input id="src-goto-q" class="src-input" type="text" list="src-labels" placeholder="Go to label" autocomplete="off" spellcheck="false"
+            title="Jump to where a label is defined (searches the whole program). Tip: Ctrl+click or ⌘+click a name in the code.">
           <datalist id="src-labels"></datalist>
           <button type="submit" class="btn">Go</button>
+          <span class="src-goto-msg" aria-hidden="true"></span>
         </form>
       </div>
       <div class="src-code" data-spot="source.code" tabindex="0" role="region" aria-label="Source listing"></div>
@@ -306,6 +308,7 @@ export function mountSource(root, ctx = {}) {
     count: $('.src-count'),
     gotoForm: $('.src-goto'),
     gotoQ: $('#src-goto-q'),
+    gotoMsg: $('.src-goto-msg'),
     labels: $('#src-labels'),
     code: $('.src-code'),
     browser: $('.src-browser'),
@@ -342,6 +345,8 @@ export function mountSource(root, ctx = {}) {
     programPicked: false,    // the user chose a program in the browser
     software: null,
     pendingScroll: null,
+    gotoToken: 0,
+    labelsFor: null,
   };
 
   const reducedMotion = () => !!win.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -752,7 +757,7 @@ export function mountSource(root, ctx = {}) {
     if (!req) return;
     if (req.file) {
       const key = `file:${req.file}:${req.start}:${req.end}`;
-      if (key === state.chipKey) return;
+      if (key === state.chipKey && state.current?.file === req.file) return;
       state.chipKey = key;
       if (!state.follow) return;
       closeBrowser({ focus: false });
@@ -767,7 +772,10 @@ export function mountSource(root, ctx = {}) {
     }
     const pid = typeof req.primary === 'number' ? req.ids[req.primary] : req.primary;
     const key = `${req.ids.join('|')}#${pid}`;
-    if (key === state.chipKey) return;       // idempotent: director + narration chip
+    // Idempotent: the same request again (director + narration, a replayed
+    // seek) is a no-op while that anchor is still on screen; after the user
+    // has moved elsewhere it shows the anchor again.
+    if (key === state.chipKey && (state.current?.id === pid || !state.follow)) return;
     state.chipKey = key;
     setChips(req.ids, req.primary);
     if (state.follow) showAnchor(state.chipPrimary);
@@ -781,9 +789,11 @@ export function mountSource(root, ctx = {}) {
     }));
     offs.push(bus.on('director:seeked', (p) => {
       if (p?.reason === 'load') {
+        // A new scenario: forget the previous one's chips and highlight.
         state.chips = [];
         state.chipKey = '';
         updateChips();
+        if (state.follow && state.current?.kind !== 'file') showEmpty();
       }
       const last = [...(p?.narrations || [])].reverse().find((n) => Array.isArray(n.anchors) && n.anchors.length);
       if (last) request({ anchors: last.anchors });
@@ -793,7 +803,10 @@ export function mountSource(root, ctx = {}) {
   // ---------- empty state ----------
 
   function showEmpty() {
+    state.loadToken += 1;          // drop any file still loading
     state.current = null;
+    state.found = null;
+    state.pendingScroll = null;
     el.heading.textContent = 'The flight software, line by line';
     el.meta.innerHTML = `${esc(PROGRAMS.Luminary099?.title || 'Luminary 099')} (Lunar Module) and ${esc(PROGRAMS.Comanche055?.title || 'Comanche 055')} (Command Module), as transcribed in this repository.`;
     el.note.hidden = true;
@@ -802,7 +815,8 @@ export function mountSource(root, ctx = {}) {
       `<li><button type="button" class="src-featured" data-anchor="${esc(id)}">${esc(text)}</button></li>`).join('');
     el.code.innerHTML = `
       <div class="src-empty">
-        <p>During a replay this panel shows the real source lines behind each step — the highlighted range is what the computer is running.
+        <p>During a replay this panel shows the real Apollo 11 source lines behind each step — the highlighted range is the code that implements what you see.
+        (The simulator models that behaviour; it does not execute these instructions.)
         <span class="src-legend"><span class="t-label">LABEL</span> <span class="t-op">TC</span> machine op,
         <span class="t-iop">DLOAD</span> interpretive op, <span class="t-pseudo">OCT</span> pseudo-op,
         <span class="t-comment"># comment</span>, <span class="t-annot">## transcriber’s note</span>.</span></p>
@@ -938,24 +952,56 @@ export function mountSource(root, ctx = {}) {
     el.count.textContent = `${i + 1} of ${list.length}${capped}`;
   }
 
-  function gotoLabel(query) {
-    const q = query.trim();
-    if (!q || !state.labels) return;
+  function exactLabel(labels, q) {
+    if (labels.has(q)) return { name: q, line: labels.get(q) };
     const up = q.toUpperCase();
-    let line = state.labels.get(q) || state.labels.get(up);
-    let name = state.labels.has(q) ? q : up;
-    if (!line) {
-      for (const [k, v] of state.labels) {
-        if (k.toUpperCase().startsWith(up)) { line = v; name = k; break; }
-      }
-    }
-    if (!line) {
-      setStatus(`No label ${q} in ${fileBase(state.docFile)}`);
+    return labels.has(up) ? { name: up, line: labels.get(up) } : null;
+  }
+
+  function prefixLabel(labels, q) {
+    const up = q.toUpperCase();
+    for (const [name, line] of labels) if (name.toUpperCase().startsWith(up)) return { name, line };
+    return null;
+  }
+
+  function gotoMessage(text) {
+    el.gotoMsg.textContent = text;
+    setStatus(text);
+  }
+
+  // Jump to a label's definition: this file first, then — labels are global
+  // to the whole assembly — the other files of the same program (fetched
+  // once and cached), then a prefix match in this file.
+  async function gotoLabel(query) {
+    const q = String(query || '').trim();
+    if (!q) return;
+    const token = ++state.gotoToken;
+    const here = state.docFile;
+    const show = (name, line) => {
+      setFound({ line, from: 0, to: name.length });
+      scrollToRange(line, line);
+      gotoMessage(`${name}: ${fileBase(state.docFile)} line ${line}`);
+    };
+    const local = state.labels && exactLabel(state.labels, q);
+    if (local) return show(local.name, local.line);
+
+    const program = (here || state.current?.file || 'Luminary099/').split('/')[0];
+    const files = MANIFEST.filter((e) => e.program === program && e.name.endsWith('.agc') && e.file !== here)
+      .sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9));
+    gotoMessage(`Searching ${PROGRAMS[program]?.title || program}…`);
+    const loaded = await Promise.all(files.map((e) => loadFile(e.file).then((d) => ({ e, d }), () => null)));
+    if (token !== state.gotoToken) return;
+    for (const r of loaded) {
+      const hit = r && exactLabel(r.d.labels, q);
+      if (!hit) continue;
+      state.current = { kind: 'file', file: r.e.file, line: hit.line };
+      await openFile(r.e.file, { kind: 'file', line: hit.line });
+      if (token === state.gotoToken && state.docFile === r.e.file) show(hit.name, hit.line);
       return;
     }
-    setFound({ line, from: 0, to: name.length });
-    scrollToRange(line, line);
-    setStatus(`${name}: line ${line}`);
+    const near = state.labels && state.docFile === here && prefixLabel(state.labels, q);
+    if (near) return show(near.name, near.line);
+    gotoMessage(`No label “${q}” in ${PROGRAMS[program]?.title || program}`);
   }
 
   // ---------- events ----------
@@ -978,6 +1024,13 @@ export function mountSource(root, ctx = {}) {
     if (fileBtn) {
       closeBrowser({ focus: false });
       openFile(fileBtn.dataset.file, { kind: 'file' }).then(() => el.code.focus({ preventScroll: true }));
+      return;
+    }
+    const sym = t.closest('.t-sym, .t-label');
+    if (sym && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      el.gotoQ.value = sym.textContent;
+      gotoLabel(sym.textContent);
       return;
     }
     const inc = t.closest('a[data-open]');

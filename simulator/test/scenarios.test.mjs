@@ -143,10 +143,22 @@ test('crew schedule: each recorded entry lands on its documented GET', () => {
 
 test('every anchor a scenario names exists (anchors/index.js when available)', async (t) => {
   const { mod, error } = await tryImport('data/anchors/index.js');
-  const lookup = mod
-    ? (id) => mod.getAnchor(id)
-    : (id) => SCENARIO_ANCHORS[id] ?? null;
-  if (!mod) t.diagnostic(`anchors/index.js not importable yet (${error.message.split('\n')[0]}); checking anchors/scenarios.js only`);
+  let lookup = mod ? (id) => mod.getAnchor(id) : null;
+  if (!mod) {
+    // index.js imports every owner's file; while some are missing, merge
+    // the ones that exist (each owner file exports ANCHORS).
+    const merged = {};
+    const found = [];
+    for (const f of readdirSync(join(JS, 'data', 'anchors')).filter((x) => x.endsWith('.js') && x !== 'index.js')) {
+      const r = await tryImport(`data/anchors/${f}`);
+      if (r.mod?.ANCHORS) {
+        Object.assign(merged, r.mod.ANCHORS);
+        found.push(f);
+      }
+    }
+    lookup = (id) => merged[id] ?? null;
+    t.diagnostic(`anchors/index.js not importable yet (${error.message.split('\n')[0]}); merged ${found.join(', ')}`);
+  }
   const used = new Set();
   for (const s of SCENARIOS) {
     for (const e of of(s, 'narrate')) {

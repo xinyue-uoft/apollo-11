@@ -30,7 +30,7 @@ export default defineScenario({
     { at: '102:00:10', narrate: {
       title: 'A language of verbs and nouns',
       body: '<p>Every request is a sentence: a <b>verb</b> says what to do (06 display, 16 monitor, 21–25 load, 37 change program), a <b>noun</b> says what to do it with (36 the clock, 63 the landing quantities, 09 the alarm codes). You key <kbd>VERB</kbd> 1 6 <kbd>NOUN</kbd> 3 6 <kbd>ENTR</kbd> — “monitor the clock”.</p><p>The source panel shows the verb list from the program’s own assembly notes.</p>',
-      anchors: ['scn.verb.list', 'scn.noun.list.landing', 'scn.pinball.nouns'],
+      anchors: ['src.lum.verb-list', 'scn.noun.list.landing', 'scn.pinball.nouns'],
     } },
     { at: '102:00:12', spotlight: 'dsky.verb' },
     { at: '102:00:14', spotlight: 'dsky.noun' },
@@ -108,7 +108,7 @@ export default defineScenario({
     { at: '102:02:16', narrate: {
       title: 'PRO, then Verb 34',
       body: '<p><kbd>PRO</kbd> is special: it has no key code. The keyboard sets an input bit (channel 32) that the T4RUPT interrupt samples every 120 ms. Pressing it here accepts the display, and P63 moves on to its next request.</p><p>We are not going to the Moon in this chapter, so we then key <b>Verb 34</b>, terminate. P63 gives up through <code>GOTOPOOH</code> (“go to P-double-oh”), which flashes <b>Verb 37</b>: “which program next?”</p>',
-      anchors: ['scn.p00.gotopooh'],
+      anchors: ['src.gotopooh'],
     } },
     keysEndingAt('102:02:22', 'P', 'Crew'),
     { at: '102:02:21.5', spotlight: 'dsky.key.pro' },
