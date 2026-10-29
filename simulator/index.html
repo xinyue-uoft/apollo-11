@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AGC Simulator — Apollo 11</title>
+  <meta name="description" content="A DSKY and Apollo Guidance Computer simulator with guided replays of the Apollo 11 landing, linked to the original Luminary 099 and Comanche 055 source code.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23202428'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='15' text-anchor='middle' fill='%237dff8a'%3E63%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/dsky.css">
+  <link rel="stylesheet" href="css/panels.css">
+  <link rel="stylesheet" href="css/exec.css">
+  <link rel="stylesheet" href="css/viz.css">
+  <link rel="stylesheet" href="css/source.css">
+  <link rel="stylesheet" href="css/demo.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to simulator</a>
+
+  <header class="topbar" id="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">AGC</span>
+      <span class="brand-text">
+        <span class="brand-title">Apollo Guidance Computer</span>
+        <span class="brand-sub" id="software-label">Luminary 099 · Lunar Module · Apollo 11</span>
+      </span>
+    </div>
+    <nav class="mode-switch" id="mode-switch" aria-label="Mode"></nav>
+    <div class="controls" id="controls-root"></div>
+  </header>
+
+  <main class="layout" id="main">
+    <section class="col col-left" aria-label="DSKY and instruments">
+      <div class="panel panel-dsky" id="dsky-root"></div>
+      <div class="panel" id="instruments-root"></div>
+      <div class="panel" id="crew-root"></div>
+    </section>
+
+    <section class="col col-center" aria-label="Visualisation">
+      <div class="panel panel-viz">
+        <div class="tabs" role="tablist" id="viz-tabs">
+          <button role="tab" id="tab-trajectory" aria-controls="trajectory-root" aria-selected="true" data-tab="trajectory">Trajectory</button>
+          <button role="tab" id="tab-exec" aria-controls="exec-root" aria-selected="false" data-tab="exec">Executive</button>
+          <button role="tab" id="tab-ignition" aria-controls="ignition-root" aria-selected="false" data-tab="ignition">Ignition</button>
+        </div>
+        <div class="tab-panels">
+          <div role="tabpanel" id="trajectory-root" aria-labelledby="tab-trajectory"></div>
+          <div role="tabpanel" id="exec-root" aria-labelledby="tab-exec" hidden></div>
+          <div role="tabpanel" id="ignition-root" aria-labelledby="tab-ignition" hidden></div>
+        </div>
+      </div>
+      <div class="panel panel-transcript" id="transcript-root"></div>
+    </section>
+
+    <section class="col col-right" aria-label="Explanation and source code">
+      <div class="panel panel-narration" id="narration-root"></div>
+      <div class="panel panel-source" id="source-root"></div>
+    </section>
+  </main>
+
+  <footer class="timeline" id="timeline-root"></footer>
+
+  <noscript><p class="noscript">This simulator needs JavaScript.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

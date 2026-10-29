@@ -1,0 +1,26 @@
+name: simulator
+on:
+  push:
+    paths:
+      - 'simulator/**'
+      - 'Luminary099/**'
+      - 'Comanche055/**'
+      - '.github/workflows/simulator.yml'
+  pull_request:
+    paths:
+      - 'simulator/**'
+      - 'Luminary099/**'
+      - 'Comanche055/**'
+      - '.github/workflows/simulator.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v6
+    - name: Set up Node.js
+      uses: actions/setup-node@v5
+      with:
+        node-version: '22'
+    - name: Unit tests (model, scenarios, source anchors)
+      run: node --test "simulator/test/*.test.mjs"
