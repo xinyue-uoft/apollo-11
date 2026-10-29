@@ -40,7 +40,7 @@ export default defineScenario({
     { at: '102:00:22', narrate: {
       title: 'Verb 35: test lights',
       body: '<p>Each key press raises an interrupt, <code>KEYRUPT1</code>, which asks the Executive for a small job, <code>CHARIN</code> (priority 30 octal), to decode the key. That is <b>PINBALL GAME BUTTONS AND LIGHTS</b>, the keyboard and display program.</p><p>Verb 35 runs <code>VBTSTLTS</code>: every lamp on, every digit an 8, the verb and noun flashing — for exactly 5 seconds (<code>SHOLTS</code> = 500 centiseconds). Watch the whole DSKY.</p>',
-      anchors: ['exec.job.charin', 'scn.pinball.charin', 'scn.pinball.lamptest'],
+      anchors: ['exec.job.charin', 'pinball.charin', 'pinball.v35'],
     } },
     keysEndingAt('102:00:28', 'V35E', 'Crew'),
     { at: '102:00:28.5', spotlight: 'dsky' },
@@ -58,7 +58,7 @@ export default defineScenario({
     { at: '102:00:52', narrate: {
       title: 'Noun 65 and KEY REL',
       body: '<p>Noun 65 is <i>sampled</i> time: the keyboard interrupt snatches the clock at the moment you press a key (“TIME IS SNATCHED IN RUPT FOR NOUN 65”).</p><p><kbd>KEY REL</kbd> (key release) hands the DSKY back to the computer. When a program wants to show something while the crew is using the keyboard, the KEY REL lamp flashes; pressing the key brings the program’s display back. You will see Aldrin do this after reading an alarm.</p>',
-      anchors: ['exec.job.charin', 'scn.pinball.keyrel'],
+      anchors: ['exec.job.charin', 'pinball.keyrel'],
     } },
     keysEndingAt('102:00:58', 'V16N65E', 'Crew'),
     keysEndingAt('102:01:06', 'K', 'Crew'),
@@ -78,7 +78,7 @@ export default defineScenario({
     { at: '102:01:26', narrate: {
       title: 'OPR ERR',
       body: '<p>Verb 08 is a spare. In <code>VERBTAB</code>, PINBALL’s verb table, its entry is <code>GODSPALM</code>, which ends in <code>FALTON</code>: “TURN ON OPERATOR ERROR LIGHT”. The computer simply refuses the sentence. Let’s key V08 N36 ENTR and watch the <b>OPR ERR</b> lamp.</p>',
-      anchors: ['scn.pinball.verbtab', 'scn.pinball.oprerr', 'scn.pinball.falton'],
+      anchors: ['pinball.verbtab', 'pinball.dspalarm', 'pinball.oprerr'],
     } },
     keysEndingAt('102:01:34', 'V08N36E', 'Crew'),
     { at: '102:01:34.5', spotlight: 'dsky.light.oprErr' },
@@ -94,7 +94,7 @@ export default defineScenario({
     { at: '102:01:50', narrate: {
       title: 'Verb 37: change program',
       body: '<p>Programs (“major modes”) are selected with Verb 37 followed by the program number: <kbd>V</kbd>37<kbd>E</kbd>63<kbd>E</kbd>. <code>MMCHANG</code> insists on exactly two digits and checks them against the list of programs the crew may call — P63 is <code>P63LM</code>, the braking phase that starts powered descent. Eagle’s crew selected it this way at about 102:10:35, behind the Moon (onboard tape).</p><p>Watch PROG change from 00 to 63.</p>',
-      anchors: ['scn.pinball.v37', 'scn.v37.table'],
+      anchors: ['verb.v37', 'scn.v37.table'],
     } },
     keysEndingAt('102:02:00', 'V37E63E', 'Crew'),
     { at: '102:02:00.5', spotlight: 'dsky.prog' },
@@ -107,8 +107,8 @@ export default defineScenario({
     { at: '102:02:12', hold: 3 },
     { at: '102:02:16', narrate: {
       title: 'PRO, then Verb 34',
-      body: '<p><kbd>PRO</kbd> is special: it has no key code. The keyboard sets an input bit (channel 32) that the T4RUPT interrupt samples every 120 ms. Pressing it here accepts the display, and P63 moves on to its next request.</p><p>We are not going to the Moon in this chapter, so we then key <b>Verb 34</b>, terminate. P63 gives up through <code>GOTOPOOH</code> (“go to P-double-oh”), which flashes <b>Verb 37</b>: “which program next?”</p>',
-      anchors: ['src.gotopooh'],
+      body: '<p><kbd>PRO</kbd> is special: it has no key code. The keyboard sets an input bit (channel 32) that the T4RUPT interrupt samples every 120 ms. Pressing it here accepts the display, and P63 moves on to its next request: a flashing <b>V50N25</b> with checklist code 00014, offering an IMU fine alignment (PRO aligns, ENTR skips it).</p><p>We are not going to the Moon in this chapter, so we then key <b>Verb 34</b>, terminate. P63 gives up through <code>GOTOPOOH</code> (“go to P-double-oh”), which flashes <b>Verb 37</b>: “which program next?”</p>',
+      anchors: ['p63.r51r60', 'src.gotopooh'],
     } },
     keysEndingAt('102:02:22', 'P', 'Crew'),
     { at: '102:02:21.5', spotlight: 'dsky.key.pro' },

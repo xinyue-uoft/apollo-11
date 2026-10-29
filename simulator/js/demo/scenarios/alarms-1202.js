@@ -94,7 +94,7 @@ export default defineScenario({
     { at: '102:38:27.5', narrate: {
       title: 'Verb 05 Noun 09',
       body: '<p>The code was not displayed automatically. Aldrin keyed <b>V05N09</b> (Cherry’s log: 102:38:27): R1 shows <b>01202</b>, in octal like every alarm code. The three registers keep the first, second and latest alarm since they were last cleared.</p><p>Then — our reconstruction, since the record does not time it — <kbd>RSET</kbd> to clear PROG and the registers, and <kbd>KEY REL</kbd> to give the DSKY back to the guidance display.</p>',
-      anchors: ['alarm.failreg', 'alarm.rset', 'scn.pinball.keyrel'],
+      anchors: ['alarm.failreg', 'alarm.rset', 'pinball.keyrel'],
     } },
     { at: '102:38:28', spotlight: 'dsky.r1' },
     say('its-1202'),

@@ -121,7 +121,7 @@ export default defineScenario({
     say('loi-shutdown'),
     { at: '075:55:50', narrate: {
       title: 'Shutdown',
-      body: '<p><code>SPSOFF</code> clears channel 11 bit 13. After a “2.5 SECOND DELAY FOR SPS TAILOFF” the RCS autopilot is back and <code>POSTBURN</code> flashes <b>Verb 16 Noun 40</b> with the final numbers. Mission Report: cutoff 075:55:47.90 after 357.53 s; 2,917.5 ft/s gained; orbit 169.7 by 60.0 nautical miles. Apollo 11 is in lunar orbit.</p>',
+      body: '<p><code>SPSOFF</code> clears channel 11 bit 13. After a “2.5 SECOND DELAY FOR SPS TAILOFF” the RCS autopilot is back and <code>POSTBURN</code> flashes <b>Verb 16 Noun 40</b> with the final numbers. Mission Report: cutoff 075:55:47.90 after 357.53 s; 2,917.5 ft/s gained; orbit 169.7 by 60.0 nautical miles. Apollo 11 is in lunar orbit. (The simulator, which ignites at the PAD time, cuts off about a second earlier.)</p>',
       anchors: ['cm.p40.enginoff', 'cm.p40.spsoff', 'cm.p40.postburn'],
     } },
     { at: '075:55:52', spotlight: 'dsky.verb' },
@@ -133,7 +133,7 @@ export default defineScenario({
     say('loi-no-trim'),
     { at: '075:56:21', narrate: {
       title: 'Residuals: Noun 85',
-      body: '<p>PRO leads to <code>TIGNOW</code>: flashing <b>Verb 16 Noun 85</b>, the velocity still to be gained in the spacecraft’s own axes — the residuals, which the crew could trim with the RCS. Collins reads “minus 1, minus 1, plus 1”: tenths of a foot per second, −0.1, −0.1, +0.1. Not worth trimming.</p>',
+      body: '<p>PRO leads to <code>TIGNOW</code>: flashing <b>Verb 16 Noun 85</b>, the velocity still to be gained in the spacecraft’s own axes — the residuals, which the crew could trim with the RCS. Collins reads “minus 1, minus 1, plus 1”: tenths of a foot per second, −0.1, −0.1, +0.1. Not worth trimming. The simulator’s simpler engine model leaves slightly different residuals on its display.</p>',
       anchors: ['cm.p40.tignow', 'cm.info.noun85', 'cm.p40.calcn85'],
     } },
     { at: '075:56:22', spotlight: 'dsky.r1' },
