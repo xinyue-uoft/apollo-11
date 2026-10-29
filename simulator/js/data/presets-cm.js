@@ -76,7 +76,7 @@ export const PRESETS_CM = [
     description: [
       'The last 45 seconds before LOI-1. Blank DSKY at TIG−35 s, V06N40 back at TIG−30 s, flashing V99N40 at TIG−5 s.',
       'PRO before TIG and the engine lights on time; PRO late and it lights at once; V34 terminates; ENTR bypasses the SPS (RCS burn, V16N85).',
-      'Try the engine-fail logic: stop the engine during the burn and P40 flashes V97N40.',
+      'Try the engine-fail logic: set SPS ΔV THRUST to OFF on the crew panel during the burn and P40 flashes V97N40 (set it back to NORMAL and press PRO to resume).',
     ].join(' '),
     software: 'Comanche055',
     vehicle: 'cmSps',

@@ -495,6 +495,7 @@ export function mountDsky(root, ctx = {}) {
     }
     keysBox.setAttribute('aria-label', demo ? 'DSKY keyboard (read-only during a replay)' : 'DSKY keyboard');
     liveKey = null;
+    dirty = true;
     if (demo) silenceLive();
   }
 

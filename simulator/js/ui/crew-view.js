@@ -104,8 +104,8 @@ const fps1 = (v) => (Number.isFinite(v) ? v.toFixed(1) : '—');
 function landedHint(td) {
   const speeds = td ? `${fps1(td.vVert)} ft/s down, ${fps1(td.vHoriz)} ft/s across` : '';
   if (td?.verdict === 'crash') return `Crashed: the LM hit the surface at ${speeds}. Restart to fly it again.`;
-  if (td?.verdict === 'hard') return `Hard landing: ${speeds} — outside the landing-gear limits. The descent controls no longer do anything.`;
-  if (td?.verdict === 'safe') return `Landed: ${speeds} — within the landing-gear limits. The descent controls no longer do anything.`;
+  if (td?.verdict === 'hard') return `Hard landing: ${speeds} — outside the touchdown limits. The descent controls no longer do anything.`;
+  if (td?.verdict === 'safe') return `Landed: ${speeds} — within the touchdown limits. The descent controls no longer do anything.`;
   return 'On the surface: the descent controls no longer do anything.';
 }
 
@@ -118,6 +118,7 @@ export function crewHint(model) {
     return `This ${model.readOnly ? 'scenario' : 'starting point'} drives the DSKY only — no vehicle is simulated, so there is nothing to fly.`;
   }
   if (model.visible === 'cm') {
+    if (model.readOnly) return '';
     if (model.engineStop) {
       return 'ΔV THRUST OFF: the SPS cannot fire. In a P40 burn the computer sees the thrust fail and flashes V97N40 — set NORMAL again, then PRO continues the burn (ENTR re-ignites through V99, V34 ends it).';
     }
@@ -366,7 +367,9 @@ export function mountCrew(root, ctx) {
         btn.dvThrust.setAttribute('aria-checked', String(!off));
         K.dvText.textContent = off ? 'OFF' : 'NORMAL';
       });
-      set('cmHint', crewHint(model));
+      const hint = crewHint(model);
+      set('cmHint', hint);
+      once('cmHintH', !hint, (empty) => { K.cmHint.hidden = empty; });
       return;
     }
 

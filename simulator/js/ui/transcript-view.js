@@ -4,7 +4,13 @@
 // keystrokes ('director:keys') and, inline in a distinct style, the
 // computer's own events: program alarms (amber, octal code), software
 // restarts, program (major mode) changes, BURNBABY steps.
-// Interactive mode: the computer event log plus the user's keystrokes.
+// Interactive mode: the computer event log plus the user's keystrokes and
+// the landing outcome ('vehicle' events from the app: low-level light,
+// propellant depleted, touchdown with its verdict). The log survives a
+// visit to Demo when the app resumes the same sim ('app:mode' resumed).
+//
+// A voice line's source tag is a button that shows the provenance (ALSJ /
+// onboard tape, notes, other records) under the line.
 //
 // Newest line at the bottom; the feed follows new lines unless the user has
 // scrolled up, in which case a "new lines" button appears. Lines are queued
@@ -12,7 +18,9 @@
 
 import { formatGET } from '../util/time.js';
 import { parseKeys } from '../util/keys.js';
-import { h, setText, setAttr, setHidden, toggleClass, icon, formatOctal, formatProgram } from './html.js';
+import {
+  h, setText, setAttr, setHidden, toggleClass, icon, formatOctal, formatProgram, formatFps,
+} from './html.js';
 
 const MAX_LINES = 600;
 const COMPUTER_KINDS = ['alarm', 'restart', 'mode', 'burn', 'oprerr'];
@@ -83,9 +91,10 @@ export function mountTranscript(root, ctx) {
     title: 'Show the computer’s own events (alarms, restarts, program changes)',
     on: { click: () => toggleFilter('sys', sysBtn) },
   }, 'Computer');
-  const titleText = h('span', {}, 'Transcript');
-  const heading = h('h2', { class: 'panel-title' }, titleText,
+  const titleText = h('h2', { id: 'transcript-heading' }, 'Transcript');
+  const heading = h('div', { class: 'panel-title' }, titleText,
     h('span', { class: 'tr-filters', role: 'group', aria: { label: 'Show in transcript' } }, voiceBtn, sysBtn));
+  root.setAttribute('aria-labelledby', 'transcript-heading');
 
   const list = h('ol', { class: 'tr-list' });
   const empty = h('p', { class: 'tr-empty' });
@@ -110,6 +119,8 @@ export function mountTranscript(root, ctx) {
   let lastMode = null;
   let userKeys = null;   // the open "You keyed …" line in interactive mode
   let busyFrames = 0;    // aria-busy after a history rebuild
+  let savedLog = null;   // the interactive log, kept while a replay plays
+  let srcSeq = 0;        // ids for the source-detail disclosures
   const hidden = { voice: false, sys: false };
 
   function toggleFilter(which, btn) {
@@ -125,6 +136,16 @@ export function mountTranscript(root, ctx) {
     feed.scrollTop = feed.scrollHeight;
     unseen = 0;
   }
+  // Source tags: show / hide the provenance line under the quote.
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest?.('.tr-src');
+    if (!btn) return;
+    const detail = btn.ownerDocument.getElementById(btn.getAttribute('aria-controls'));
+    const open = btn.getAttribute('aria-expanded') !== 'true';
+    btn.setAttribute('aria-expanded', String(open));
+    if (detail) detail.hidden = !open;
+  });
+
   feed.addEventListener('scroll', () => {
     stick = nearBottom();
     if (stick) {
@@ -147,9 +168,19 @@ export function mountTranscript(root, ctx) {
   // ---------- bus ----------
   const offs = [
     bus.on('app:mode', (p) => {
-      mode = p?.mode || app.mode;
+      const next = p?.mode || app.mode;
+      if (mode === 'interactive' && next !== 'interactive') savedLog = [...lines, ...pending];
+      mode = next;
       clear();
       needsIntro = mode === 'interactive';
+      if (mode === 'interactive') {
+        // Back to the same flight: its log comes back (not read out again).
+        if (p?.resumed && savedLog) {
+          rebuild = savedLog.map((e) => ({ ...e }));
+          needsIntro = false;
+        }
+        savedLog = null;
+      }
     }),
     bus.on('director:seeked', (p) => {
       if (mode !== 'demo') return;
@@ -164,6 +195,7 @@ export function mountTranscript(root, ctx) {
       if (mode === 'demo') push({ kind: 'keys', ...p });
     }),
     ...COMPUTER_KINDS.map((kind) => bus.on(kind, (p) => push({ ...p, kind }))),
+    bus.on('vehicle', (p) => push({ ...p, kind: 'vehicle', event: p?.kind })),
     bus.on('key', (p) => {
       if (mode !== 'interactive' || p?.source === 'crew' || !p?.key) return;
       // Group a run of keystrokes into one line until ENTR/PRO/RSET/KEY REL.
@@ -192,12 +224,19 @@ export function mountTranscript(root, ctx) {
         const onboard = entry.channel === 'onboard';
         const srcTitle = [entry.src && `Source: ${entry.src}`, onboard && 'onboard intercom (LM tape), not heard in Houston',
           entry.note, entry.alt && `Other records: ${entry.alt}`].filter(Boolean).join(' — ');
+        const tag = [entry.src, onboard ? 'onboard' : null].filter(Boolean).join(' · ');
+        const detailId = `tr-src-${++srcSeq}`;
         return h('li', { class: `tr-line tr-say ${s.cls}${onboard ? ' tr-onboard' : ''}` },
           time,
           h('span', { class: 'tr-who' }, entry.who, s.role ? h('span', { class: 'tr-role' }, s.role) : null),
           h('span', { class: 'tr-text' }, entry.text),
-          (entry.src || onboard) ? h('span', { class: 'tr-src', title: srcTitle || null },
-            [entry.src, onboard ? 'onboard' : null].filter(Boolean).join(' · ')) : null);
+          tag ? h('button', {
+            type: 'button',
+            class: 'tr-src',
+            title: srcTitle || null,
+            aria: { expanded: 'false', controls: detailId, label: `Source: ${tag}` },
+          }, tag) : null,
+          tag ? h('span', { class: 'tr-src-detail', id: detailId, hidden: true }, srcTitle) : null);
       }
       case 'keys': {
         let keys;
@@ -258,6 +297,22 @@ export function mountTranscript(root, ctx) {
           time,
           h('span', { class: 'tr-who' }, 'DSKY'),
           h('span', { class: 'tr-text' }, h('strong', {}, 'OPR ERR'), entry.reason ? ` — ${entry.reason}` : ''));
+      case 'vehicle': {
+        const speeds = `${formatFps(entry.vVert)} ft/s down, ${formatFps(entry.vHoriz)} ft/s across`;
+        const [label, detail, cls] = entry.event === 'lowLevel'
+          ? ['LOW LEVEL', 'descent propellant low-level light', 'hard']
+          : entry.event === 'depleted'
+            ? ['PROPELLANT DEPLETED', 'descent engine out', 'crash']
+            : entry.verdict === 'crash'
+              ? ['CRASH', speeds, 'crash']
+              : entry.verdict === 'hard'
+                ? ['HARD LANDING', speeds, 'hard']
+                : ['TOUCHDOWN', speeds, 'safe'];
+        return h('li', { class: `tr-line tr-sys tr-vehicle tr-vehicle-${cls}` },
+          time,
+          h('span', { class: 'tr-who' }, 'LM'),
+          h('span', { class: 'tr-text' }, h('strong', {}, label), ` — ${detail}`));
+      }
       case 'intro':
         return h('li', { class: 'tr-line tr-sys tr-intro' },
           time,
@@ -290,8 +345,8 @@ export function mountTranscript(root, ctx) {
       lastMode = ui.mode;
       mode = ui.mode;
       note.textContent = ui.mode === 'demo'
-        ? 'Voice at its ALSJ / air-to-ground transcript time; computer events at the model’s time. Hover a source tag for details.'
-        : 'Computer events from the model and the keys you press on the DSKY.';
+        ? 'Voice at its ALSJ / air-to-ground transcript time; computer events at the model’s time. Select a source tag for details.'
+        : 'Computer events from the model, the keys you press on the DSKY and how the landing went.';
       setText(titleText, ui.mode === 'demo' ? 'Transcript' : 'Computer log');
       setText(voiceBtn, ui.mode === 'demo' ? 'Voice' : 'Keys');
     }

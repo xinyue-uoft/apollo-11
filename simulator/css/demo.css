@@ -496,6 +496,33 @@
   color: #5fbf6c;
 }
 
+.nar-live-outcome {
+  margin: 2px 0 8px;
+  padding: 6px 10px;
+  border: 1px solid #2f6b3e;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--el-green);
+}
+
+.nar-live-outcome[hidden] {
+  display: none;
+}
+
+.nar-live-outcome.is-hard {
+  border-color: var(--amber-dim);
+  background: rgba(255, 181, 46, 0.08);
+  color: var(--amber);
+}
+
+.nar-live-outcome.is-crash {
+  border-color: rgba(255, 98, 87, 0.55);
+  background: rgba(255, 98, 87, 0.1);
+  color: var(--red);
+}
+
 .nar-live-prog {
   margin: 0;
   font-family: var(--font-mono);
@@ -622,12 +649,32 @@
 .tr-src {
   font-family: var(--font-mono);
   font-size: 10px;
+  line-height: 1.5;
   color: var(--text-faint);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: 1px solid var(--border-strong);
   border-radius: 3px;
   padding: 0 4px;
   white-space: nowrap;
-  cursor: help;
+  cursor: pointer;
+}
+
+.tr-src:hover,
+.tr-src[aria-expanded="true"] {
+  color: var(--text);
+  background: var(--panel-3);
+}
+
+.tr-src-detail {
+  grid-column: 1 / -1;
+  margin: 2px 0 4px;
+  padding-left: 84px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.tr-src-detail[hidden] {
+  display: none;
 }
 
 .tr-tag {
@@ -719,6 +766,33 @@
   color: var(--text-dim);
 }
 
+/* Landing outcome (interactive). */
+.tr-vehicle-safe {
+  box-shadow: inset 3px 0 0 var(--el-green);
+}
+
+.tr-vehicle-safe .tr-text {
+  color: var(--el-green);
+}
+
+.tr-vehicle-hard {
+  background: rgba(255, 181, 46, 0.07);
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.tr-vehicle-hard .tr-text {
+  color: var(--amber);
+}
+
+.tr-vehicle-crash {
+  background: rgba(255, 98, 87, 0.08);
+  box-shadow: inset 3px 0 0 var(--red);
+}
+
+.tr-vehicle-crash .tr-text {
+  color: var(--red);
+}
+
 .tr-list.hide-voice .tr-say,
 .tr-list.hide-voice .tr-keys,
 .tr-list.hide-sys .tr-sys {
@@ -764,6 +838,10 @@
   .tr-who { grid-area: who; }
   .tr-text { grid-area: text; }
   .tr-src { grid-area: src; }
+
+  .tr-src-detail {
+    padding-left: 0;
+  }
 }
 
 /* ---------- Timeline (footer) ---------- */

@@ -55,49 +55,61 @@ function flashHint(verb, entry) {
   return 'flashing: PRO to accept, V34E to terminate (V32E to recycle)';
 }
 
-// One register's digits read with the noun component's scale (decimal
-// display verbs only), e.g. "+30314" in XXXX.X → "+3031.4".
+// One register's digits read with the noun component's scale, e.g.
+// "+30314" in XXXX.X → "+3031.4 ft/s". Only a decimal display has a lit
+// sign (octal leaves both sign relays off), and only complete digits count.
 function registerValue(reg, comp) {
   const digits = String(reg?.digits ?? '').replace(/\s/g, '');
-  if (!digits || !/^\d+$/.test(digits)) return null;
+  if (!/^\d+$/.test(digits) || (reg.sign !== '+' && reg.sign !== '-')) return null;
   const f = FORMATS[comp.format];
-  const sign = reg.sign === '-' ? '−' : reg.sign === '+' ? '+' : '';
+  const sign = reg.sign === '-' ? '−' : '+';
+  const unit = comp.unit && !['octal', 'position', 'min:s'].includes(comp.unit) ? ` ${comp.unit}` : '';
   if (f?.kind === 'decimal' || f?.kind === 'cdu') {
-    const n = Number(digits) / 10 ** (f.decimals || 0);
-    return `${sign}${n.toFixed(f.decimals || 0)}`;
+    return `${sign}${(Number(digits) / 10 ** (f.decimals || 0)).toFixed(f.decimals || 0)}${unit}`;
   }
-  if (f?.kind === 'minsec' && digits.length === 4) return `${sign}${digits.slice(0, 2)}:${digits.slice(2)}`;
+  if (f?.kind === 'hms') return `${(Number(digits) / (f.part === 's' ? 100 : 1)).toFixed(f.part === 's' ? 2 : 0)}${unit}`;
+  if (f?.kind === 'minsec' && digits.length === 4) return `${sign}${digits.slice(0, 2)} min ${digits.slice(2)} s`;
   return null;
 }
 
-// "V16 N68 — monitor decimal: R1 slant range to landing site 5.3 nmi · …"
+// [register, component] index pairs a verb shows: V01-V05 (and their
+// monitors) put the listed components in R1, R2…; a load verb keys
+// component k into Rk; V06/V16 and the rest show every component in order.
+function registerMap(entry, table, count) {
+  const v = entry?.kind === 'monitor' ? table[entry.monitorOf] : entry;
+  const comps = Array.isArray(v?.comps) ? v.comps : null;
+  if (comps && entry.kind === 'load') return comps.map((c) => [c - 1, c - 1]);
+  if (comps) return comps.map((c, i) => [i, c - 1]);
+  return Array.from({ length: Math.min(3, count) }, (_, i) => [i, i]);
+}
+
+// "Display V16 N68 — monitor decimal: R1 slant range to landing site
+// +69.0 nmi · R2 …" — what the DSKY shows, decoded from the verb and noun
+// tables (Luminary099/PINBALL_NOUN_TABLES.agc and the verb list).
 function displayLine(snapshot) {
   const d = snapshot?.agc?.dsky;
   if (!d || d.blanked || d.lampTest) return null;
   const verb = Number.parseInt(d.verb, 10);
   if (!Number.isFinite(verb)) return null;
-  const software = snapshot.software;
-  const v = verbTable(software)[verb];
+  const table = verbTable(snapshot.software);
+  const v = table[verb];
   const noun = Number.parseInt(d.noun, 10);
-  const n = Number.isFinite(noun) ? getNoun(software, noun) : null;
-  const head = `V${d.verb}${Number.isFinite(noun) ? ` N${d.noun}` : ''}`;
-  const parts = [];
-  // "DISPLAY DECIMAL IN R1 OR R1,R2 OR R1,R2,R3": the registers are listed below
-  if (v) parts.push(readable(v.name.replace(/\s+IN R1\b.*$/, '')));
-  // Decimal display and monitor verbs show the noun's components in R1-R3.
-  const decimal = v && (v.kind === 'display' || v.kind === 'monitor')
-    && verbTable(software)[v.kind === 'monitor' ? v.monitorOf : verb]?.octal === false;
-  let regs = '';
-  if (n?.inUse && n.components.length) {
-    regs = n.components.slice(0, 3).map((c, i) => {
-      const value = decimal ? registerValue(d.r[i], c) : null;
-      const unit = c.unit && !['octal', 'position'].includes(c.unit) ? ` ${c.unit}` : '';
-      return `R${i + 1} ${readable(c.label)}${value ? ` ${value}${unit}` : unit ? ` (${unit.trim()})` : ''}`;
-    }).join(' · ');
-  }
-  let text = `Display ${head}${parts.length ? ` — ${parts.join('; ')}` : ''}`;
+  const n = Number.isFinite(noun) ? getNoun(snapshot.software, noun) : null;
+  // "DISPLAY DECIMAL IN R1 OR R1,R2 OR R1,R2,R3": the registers follow
+  let text = `Display V${d.verb}${Number.isFinite(noun) ? ` N${d.noun}` : ''}`
+    + `${v ? ` — ${readable(v.name.replace(/\s+IN R1\b.*$/, ''))}` : ''}`;
   if (n && !n.inUse) text += ' (spare noun)';
-  if (regs) text += `: ${regs}`;
+  if (n?.inUse && n.components.length) {
+    const regs = registerMap(v, table, n.components.length)
+      .filter(([, c]) => n.components[c])
+      .map(([r, c]) => {
+        const comp = n.components[c];
+        const value = registerValue(d.r[r], comp);
+        const unit = !value && comp.unit && comp.unit !== 'position' ? ` (${comp.unit})` : '';
+        return `R${r + 1} ${readable(comp.label)}${value ? ` ${value}` : unit}`;
+      });
+    if (regs.length) text += `: ${regs.join(' · ')}`;
+  }
   if (d.flashVerbNoun) text += ` — ${flashHint(verb, v)}`;
   return text;
 }

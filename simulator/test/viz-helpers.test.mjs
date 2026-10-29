@@ -480,6 +480,7 @@ test('crew view: DSKY-only vehicle and the CM ΔV THRUST switch', () => {
   assert.match(crewHint(cm), /OFF during the burn.*V97N40/);
   assert.match(crewHint({ ...cm, engineStop: true }), /^ΔV THRUST OFF: .*V97N40.*NORMAL again, then PRO/);
   assert.equal(crewHint({ ...cm, mode: 0 }), '');
+  assert.equal(crewHint({ ...cm, readOnly: true }), '');   // replay: the switch is the crew's
   // The V97 responses quoted in the hint: FAILDSP (Comanche055 P40-P47.agc).
   const src = lines('Comanche055/P40-P47.agc');
   assert.match(src[939 - 1], /^FAILDSP\s+CAF\s+V06N40\s+# SPS ENGINE-FAILED V97 FLASH/);

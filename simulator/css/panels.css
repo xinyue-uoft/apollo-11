@@ -636,6 +636,20 @@
   background: var(--amber);
 }
 
+/* SPS ΔV THRUST: on (NORMAL) is the normal state, OFF the abnormal one. */
+.crew-dv .switch[aria-checked="true"] .switch-track {
+  border-color: var(--el-green);
+  background: var(--el-green-dim);
+}
+
+.crew-dv .switch[aria-checked="true"] .switch-thumb {
+  background: var(--el-green);
+}
+
+.crew-dv .switch[aria-checked="false"] [data-k="dvText"] {
+  color: var(--amber);
+}
+
 .crew-help {
   margin: 0;
   font-size: 11.5px;
@@ -713,5 +727,6 @@
 .crew-stop-btn[data-stopped="true"] {
   border-color: var(--red);
   background: #6b1e18;
+  color: #ffd6d2;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
 }
