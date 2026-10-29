@@ -23,13 +23,13 @@
 // state and the Apollo 11 event times (P64 at 102:41:32, MR Table 5-I).
 
 import { parseGET } from '../../../util/time.js';
-import { FT, FPS, NMI } from '../../../util/units.js';
+import { NMI } from '../../../util/units.js';
 import { DPS } from '../../../vehicle/constants.js';
 import {
   LandingGuidance, BRAKING_TARGETS, APPROACH_TARGETS, GUIDANCE_PARAMS,
   toGuidanceFrame, thrustDirFromPitch, lookAngle, tredes, p66AttitudeAssist,
 } from '../../guidance/landing-guidance.js';
-import { LmProgram, vehicleKind, toFt, toFps } from './common.js';
+import { LmProgram, vehicleKind, toFps } from './common.js';
 import { BurnBaby, IGNITION_TABLES, DISPDEX, BURN_TIMING, TIG_APOLLO11 } from './burnbaby.js';
 
 export const LANDING_MODES = Object.freeze([63, 64, 65, 66]);

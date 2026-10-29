@@ -19,13 +19,14 @@ export const PRESETS_LM = [
     id: 'lm-p00',
     title: 'DSKY only (P00)',
     description: [
-      'Eagle’s computer (Luminary 099) idling in P00 at 102:10:00 GET — about when Aldrin selected P63 on Apollo 11 (102:10:32). The LM model is parked: this preset is for the keyboard.',
+      'Eagle’s computer (Luminary 099) idling in P00 at 102:10:30 GET, coasting in the descent orbit — Aldrin selected P63 at about 102:10:32 on Apollo 11.',
       'Try V35E (lamp test), V16N36E (the AGC clock, updated every second; KEY REL or V34E to stop), V05N09E (alarm codes), and an illegal entry such as V37E99E (OPR ERR, cleared with RSET).',
-      'V37E63E starts P63 the way the crew did: flashing V06N61 (PRO), V50N25 00014 (ENTR skips the fine alignment), V50N18 (PRO maneuvers, ENTR when done), then the V06N62 countdown to the 102:33:05 ignition.',
+      'V37E63E starts P63 the way the crew did: flashing V06N61 (PRO), V50N25 00014 (ENTR skips the fine alignment), V50N18 (PRO maneuvers, ENTR when done), then the V06N62 countdown to the 102:33:05 ignition — 22 minutes away, so use the 10× speed.',
     ].join(' '),
     software: 'Luminary099',
-    vehicle: 'static',
-    startGET: '102:10:00',
+    vehicle: 'physics',
+    track: 'apollo11Descent',
+    startGET: '102:10:30',
     initialProgram: 0,
   },
   {

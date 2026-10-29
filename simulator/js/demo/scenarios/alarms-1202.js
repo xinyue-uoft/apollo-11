@@ -10,7 +10,7 @@
 // Research: web-1202-b.md (primary for the story and the myths),
 // src-executive.md (the code path), web-timeline-b.md (voice).
 
-import { defineScenario, say, rrFaultOn, alignedStart } from './lib.js';
+import { defineScenario, say, rrFaultOn, alignedStart, A11_AGC_OPTIONS } from './lib.js';
 import { crewEvents } from './crew-a11.js';
 
 const START = alignedStart('102:37:40'); // on the flight's 2-s SERVICER grid (lib.js)
@@ -23,6 +23,8 @@ export default defineScenario({
   software: 'Luminary099',
   vehicle: 'replay',
   track: 'apollo11Descent',
+  // Executive-load calibration shared by every Apollo 11 replay (lib.js).
+  agcOptions: A11_AGC_OPTIONS,
   start: START,
   end: END,
   initialProgram: 63,

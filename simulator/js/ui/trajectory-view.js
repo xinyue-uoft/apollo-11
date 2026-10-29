@@ -494,12 +494,22 @@ export class TrajectoryModel {
   }
 }
 
-// Merge historical milestones with live alarms (no duplicates within ±3 s).
-export function mergeAlarms(milestones, alarms) {
+// Merge historical milestones with the AGC's own alarms: each AGC alarm is
+// matched one-to-one with the nearest unmatched historical alarm of the same
+// code within `tol` seconds (the model reproduces them only approximately);
+// unmatched ones are added (e.g. a physics run's own alarms).
+export function mergeAlarms(milestones, alarms, tol = 10) {
   const out = [...milestones];
+  const taken = new Set();
   for (const a of normalizeMilestones(alarms)) {
-    const dup = out.some((m) => m.kind === 'alarm' && Math.abs(m.t - a.t) <= 3);
-    if (!dup) out.push(a);
+    let best = null;
+    for (const m of out) {
+      if (m.kind !== 'alarm' || taken.has(m) || m.short !== a.short) continue;
+      const d = Math.abs(m.t - a.t);
+      if (d <= tol && (!best || d < Math.abs(best.t - a.t))) best = m;
+    }
+    if (best) taken.add(best);
+    else out.push(a);
   }
   return out.sort((x, y) => x.t - y.t);
 }

@@ -248,10 +248,10 @@ export function mountInstruments(root, ctx) {
             <span class="ibar-mark ibar-mark-low" style="left:${LOW_LEVEL_FRAC * 100}%" title="Low-level light: 5.6 % in any tank"></span>
           </div>
           <div class="inst-bar-head inst-reserve-head"><span class="inst-label">Last 10 %</span><span class="inst-val" data-k="bingo"></span></div>
-          <div class="ibar ibar-reserve" aria-hidden="true">
+          <div class="ibar ibar-reserve" role="img" aria-label="Last 10 % of the propellant, with the low-level mark at 5.6 % and the approximate Bingo mark at 1 %">
             <span class="ibar-fill" data-role="resFill"></span>
             <span class="ibar-mark ibar-mark-low" style="left:${LOW_LEVEL_FRAC * 1000}%"></span>
-            <span class="ibar-mark ibar-mark-bingo" style="left:${BINGO_FRAC * 1000}%"></span>
+            <span class="ibar-mark ibar-mark-bingo" style="left:${BINGO_FRAC * 1000}%" title="Bingo ≈1 % — derived: low level (5.6 %) ≈ 116 s of firing, Bingo at 20 s left (Mission Report §9.8.3)"></span>
           </div>
           <div class="ibar-scale" aria-hidden="true"><span style="left:${BINGO_FRAC * 1000}%">BINGO</span><span style="left:${LOW_LEVEL_FRAC * 1000}%">LOW LEVEL</span></div>
         </div>

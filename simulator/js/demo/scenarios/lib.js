@@ -69,6 +69,26 @@ export function alignedStart(approx) {
   return `${formatGET(whole)}.${String(frac).padStart(2, '0')}`;
 }
 
+// Executive-load calibration for the Apollo 11 replays (passed to the
+// computer model as `agcOptions.workload.params`, i.e. merged over
+// DEFAULT_PARAMS in js/agc/workload.js). COST NUMBERS ARE CALIBRATION, NOT
+// MEASUREMENTS — no source gives the CPU time of a job. Starting from the
+// model's defaults, three P64 costs were swept (guidance pass, LPD
+// redesignation logic, display job) so that the five program alarms emerge
+// from the load model as close to the Mission Report times as the model's
+// 2-second SERVICER rhythm allows, with the crew inputs of crew-a11.js:
+//   1202 102:38:23.1 (+1.1 s)   1202 102:39:03.1 (+1.1 s)
+//   1201 102:42:17.1 (−0.9 s)   1202 102:42:43.1 (+0.1 s)
+//   1202 102:42:55.1 (−2.9 s: the model refills its core sets in 12 s after
+//        the fourth restart; the flight took 15 s — see docs/SOURCES.md)
+// The values stay within a few ms of the defaults; neighbouring values give
+// the same alarm times (checked by sweeping; not a knife-edge fit).
+export const A11_WORKLOAD_PARAMS = Object.freeze({
+  phases: { P64: { guidMs: 759, lpdMs: 1 } },
+  jobs: { makeplayMs: 35, flashWakeMs: 3 },
+});
+export const A11_AGC_OPTIONS = Object.freeze({ workload: { params: A11_WORKLOAD_PARAMS } });
+
 // Stable sort by GET so scenario files can be written in story order.
 export function sortEvents(events) {
   return events

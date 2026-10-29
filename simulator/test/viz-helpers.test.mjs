@@ -279,7 +279,16 @@ test('the live model marks edges, not the first sample', () => {
   const alarms = TrajectoryModel.alarmMilestones(snap(0, {}, 63, [{ t: 10, code: 0o1202, text: 'NO CORE SETS' }]));
   assert.equal(alarms[0].label, 'Program alarm 01202 — NO CORE SETS');
   const merged = mergeAlarms(normalizeMilestones([{ t: 11, id: 'a', label: 'Program alarm 1202' }]), alarms);
-  assert.equal(merged.length, 1, 'an AGC alarm within 3 s of a historical one is the same alarm');
+  assert.equal(merged.length, 1, 'an AGC alarm near a historical one is the same alarm');
+  // One-to-one matching by code: two historical 1202s 15 s apart and two
+  // model 1202s, the second ~5 s early → still two markers; a 1201 does not
+  // match a 1202.
+  const hist = normalizeMilestones([
+    { t: 100, id: 'a1', label: 'Program alarm 1202' }, { t: 115, id: 'a2', label: 'Program alarm 1202' },
+  ]);
+  const sim = [{ t: 101, code: 0o1202 }, { t: 110, code: 0o1202 }].map((x) => ({ ...x, id: `s${x.t}`, label: 'Program alarm 01202', kind: 'alarm' }));
+  assert.equal(mergeAlarms(hist, sim).length, 2);
+  assert.equal(mergeAlarms(hist, [{ t: 101, id: 'x', label: 'Program alarm 01201', kind: 'alarm', code: 0o1201 }]).length, 3);
 });
 
 test('surface curvature flattening factor', () => {

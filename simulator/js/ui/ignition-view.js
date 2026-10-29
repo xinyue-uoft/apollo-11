@@ -547,7 +547,7 @@ export function mountIgnition(root, ctx) {
     // A marker pill is ~62 px wide: convert to a fraction of the row width.
     const evW = el.events.getBoundingClientRect().width || 420;
     view.evW = evW;
-    const rows = assignRows(order.map((o) => o.x), Math.min(0.3, 62 / evW));
+    const rows = assignRows(order.map((o) => o.x), Math.min(0.3, 62 / evW), 6);
     const nRows = Math.max(1, ...rows.map((r) => r + 1));
     el.events.style.setProperty('--rows', String(nRows));
     view.markers = [];

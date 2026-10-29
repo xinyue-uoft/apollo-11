@@ -100,7 +100,7 @@ export default defineScenario({
     { at: '102:02:00.5', spotlight: 'dsky.prog' },
     { at: '102:02:04', narrate: {
       title: 'A flashing display asks a question',
-      body: '<p>When the verb and noun <b>flash</b>, the computer is asking the crew something and waiting. P63 first shows a flashing <b>Verb 06 Noun 61</b> — time to go in the braking phase, time from ignition, cross-range — “primarily used by the crew in P63 to reset his event timer to agree with TIG”.</p><p>The answers are always the same three: <kbd>PRO</kbd> (proceed: yes), <kbd>ENTR</kbd> (recycle), or Verb 34 (terminate).</p>',
+      body: '<p>When the verb and noun <b>flash</b>, the computer is asking the crew something and waiting. P63 first shows a flashing <b>Verb 06 Noun 61</b> — time to go in the braking phase, time from ignition, cross-range — “primarily used by the crew in P63 to reset his event timer to agree with TIG”.</p><p>A flashing display has three answers: <kbd>PRO</kbd> or Verb 33 (proceed), Verb 32 (recycle) and Verb 34 (terminate). <kbd>ENTR</kbd> answers only a load request or a “please” verb such as V50 or V99.</p>',
       anchors: ['scn.burn.v06n61', 'p63.entry'],
     } },
     { at: '102:02:06', spotlight: 'dsky.verb' },

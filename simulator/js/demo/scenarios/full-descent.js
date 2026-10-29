@@ -4,7 +4,7 @@
 // five alarms emerge. Default speed 4×; speed hints slow down for the
 // moments that matter.
 
-import { defineScenario, say, rrFaultOn } from './lib.js';
+import { defineScenario, say, rrFaultOn, A11_AGC_OPTIONS } from './lib.js';
 import { crewEvents } from './crew-a11.js';
 
 const START = '102:32:00';
@@ -17,6 +17,8 @@ export default defineScenario({
   software: 'Luminary099',
   vehicle: 'replay',
   track: 'apollo11Descent',
+  // Executive-load calibration shared by every Apollo 11 replay (lib.js).
+  agcOptions: A11_AGC_OPTIONS,
   start: START,
   end: END,
   initialProgram: 63,

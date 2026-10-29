@@ -3,7 +3,7 @@
 // own timing (TIG = 102:33:05.01, Mission Report Table 9.6-V); captions at
 // their ALSJ times. Research: src-ignition.md §2–6, web-timeline-b.md §1b.
 
-import { defineScenario, say, rrFaultOn } from './lib.js';
+import { defineScenario, say, rrFaultOn, A11_AGC_OPTIONS } from './lib.js';
 import { crewEvents } from './crew-a11.js';
 
 const START = '102:32:00';
@@ -16,6 +16,8 @@ export default defineScenario({
   software: 'Luminary099',
   vehicle: 'replay',
   track: 'apollo11Descent',
+  // Executive-load calibration shared by every Apollo 11 replay (lib.js).
+  agcOptions: A11_AGC_OPTIONS,
   start: START,
   end: END,
   initialProgram: 63,
