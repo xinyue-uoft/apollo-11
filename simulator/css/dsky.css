@@ -1,0 +1,368 @@
+/* DSKY view (js/ui/dsky-view.js).
+   Hardware colours are the research recommendations (web-dsky-b §4); most
+   are APPROX white-balanced photo samples, EL green follows the 530 nm
+   spec. UI chrome around the unit uses the base.css tokens. */
+
+@property --dsky-flash {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+
+.dsky {
+  /* hardware palette */
+  --dsky-paint: #8c8e86;          /* face / keyboard web */
+  --dsky-paint-hi: #969890;
+  --dsky-paint-lo: #81837b;
+  --dsky-housing: #74766f;        /* side flanges of the front housing */
+  --dsky-seam: #5d5f59;
+  --dsky-bezel: #4a4a47;          /* display / lamp bezel */
+  --dsky-lamp-bg: #1d1d1b;        /* gaps between lamp cells */
+  --dsky-lamp-off: #a8a9a0;
+  --dsky-lamp-white: #fff4dc;     /* "aviation white" */
+  --dsky-lamp-yellow: #ff9a1f;    /* "aviation yellow" */
+  --dsky-lamp-legend: #111;
+  --dsky-el-bg: #16191a;          /* powered EL panel, cabin-dim */
+  --dsky-el: #22f59b;             /* lit EL segment / label / separator */
+  --dsky-ghost: #1f2a25;          /* unlit segment */
+  --dsky-el-bg-off: #22261f;      /* unpowered panel (olive grey, dim) */
+  --dsky-el-unlit: #2c3229;
+  --dsky-ghost-off: #282d25;
+  --dsky-key: #23221f;
+  --dsky-key-hi: #302f2b;
+  --dsky-key-legend: #ecece4;
+
+  /* V/N flash: one free-running oscillator for the whole unit, period
+     1.28 s, 75 % on (web-dsky-b §3), so the V/N digits, KEY REL and OPR ERR
+     blink in phase as the hardware gating does. Elements that flash mix
+     their lit colour with --dsky-flash (1 = on phase, 0 = off phase). */
+  --dsky-flash: 1;
+  animation: dsky-flash 1.28s step-end infinite;
+
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 4px 0 6px;
+  color: var(--text);
+}
+
+@keyframes dsky-flash {
+  0% { --dsky-flash: 1; }
+  75% { --dsky-flash: 0; }
+  100% { --dsky-flash: 0; }
+}
+
+.dsky-unit {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 8124 / 8000;
+  container-type: inline-size;
+  /* 1 mil (0.001 in) of the real unit, for type sizes */
+  --mil: calc(100cqw / 8124);
+  border-radius: 1.7%;
+  /* a box-shadow (not a filter) so EL updates do not re-filter the panel */
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dsky-art {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 1.7%;
+}
+
+/* ---------- housing and face ---------- */
+
+.dsky-art .housing { fill: var(--dsky-housing); }
+.dsky-art .fastener circle { fill: #8d8f87; stroke: #5a5c56; stroke-width: 14px; }
+.dsky-art .fastener rect { fill: #4c4e49; }
+.dsky-art .face { stroke: var(--dsky-seam); stroke-width: 18px; }
+.dsky-art .face-hi { stop-color: var(--dsky-paint-hi); }
+.dsky-art .face-lo { stop-color: var(--dsky-paint-lo); }
+.dsky-art .win { stroke: var(--dsky-bezel); stroke-width: 60px; }
+.dsky-art .lamp-win { fill: var(--dsky-lamp-bg); }
+.dsky-art .el-win { fill: var(--dsky-el-bg); }
+.dsky-art .key-well { fill: #121211; stroke: #6f716a; stroke-width: 10px; }
+
+/* ---------- indicator lamps ---------- */
+
+.dsky-art .lamp-cell { fill: var(--dsky-lamp-off); }
+.dsky-art .lamp-sheen { opacity: 0; }
+.dsky-art .lamp-text {
+  fill: var(--dsky-lamp-legend);
+  /* stand-in for 0.156 in black Gorton Condensed (no font files shipped) */
+  font-family: "Arial Narrow", "Liberation Sans Narrow", "Nimbus Sans Narrow", "Helvetica Neue", Arial, sans-serif;
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 205px;
+  letter-spacing: 6px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.dsky-art .lamp-white.on .lamp-cell { fill: var(--dsky-lamp-white); }
+.dsky-art .lamp-yellow.on .lamp-cell { fill: var(--dsky-lamp-yellow); }
+.dsky-art .lamp.on .lamp-sheen { opacity: 1; }
+
+/* KEY REL and OPR ERR are gated by the flash signal while lit. */
+.dsky-art .lamp-white.lamp-flashes.on .lamp-cell {
+  fill: color-mix(in srgb, var(--dsky-lamp-white) calc(var(--dsky-flash) * 100%), var(--dsky-lamp-off));
+}
+.dsky-art .lamp-flashes.on .lamp-sheen { opacity: var(--dsky-flash); }
+
+/* ---------- electroluminescent display ---------- */
+
+.dsky-art .seg { fill: var(--dsky-ghost); }
+.dsky-art .seg.on { fill: var(--dsky-el); }
+.dsky-art .el-label rect,
+.dsky-art .el-sep { fill: var(--dsky-el); }
+.dsky-art .el-compacty rect { fill: var(--dsky-ghost); }
+.dsky-art .el-compacty.on rect { fill: var(--dsky-el); }
+.dsky-art .el-text {
+  /* opaque mask letters in front of the EL: dark on a glowing rectangle */
+  fill: var(--dsky-el-bg);
+  font-family: "Arial Narrow", "Liberation Sans Narrow", "Nimbus Sans Narrow", "Helvetica Neue", Arial, sans-serif;
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 200px;
+  letter-spacing: 12px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* Flashing VERB/NOUN digits (labels stay lit). */
+.dsky[data-vnflash="true"] .dsky-art .vn .seg.on {
+  fill: color-mix(in srgb, var(--dsky-el) calc(var(--dsky-flash) * 100%), var(--dsky-ghost));
+}
+
+/* Blanked: every EL digit dark (labels, bars and COMP ACTY unaffected). */
+.dsky[data-blanked="true"] .dsky-art .el-digits .seg.on { fill: var(--dsky-ghost); }
+
+/* EL panel unpowered (DSKY off, or standby): everything on the panel dark,
+   legends faintly visible on the olive-grey phosphor. */
+.dsky[data-el="off"] .dsky-art .el-win { fill: var(--dsky-el-bg-off); }
+.dsky[data-el="off"] .dsky-art .el-label rect,
+.dsky[data-el="off"] .dsky-art .el-sep,
+.dsky[data-el="off"] .dsky-art .el-compacty rect,
+.dsky[data-el="off"] .dsky-art .el-compacty.on rect { fill: var(--dsky-el-unlit); }
+.dsky[data-el="off"] .dsky-art .seg,
+.dsky[data-el="off"] .dsky-art .seg.on,
+.dsky[data-el="off"][data-vnflash="true"] .dsky-art .vn .seg.on { fill: var(--dsky-ghost-off); }
+.dsky[data-el="off"] .dsky-art .el-text { fill: #1a1d17; }
+
+/* ---------- overlays (spotlight hooks, accessible names) ---------- */
+
+.dsky-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.dsky-spot {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 4px;
+}
+
+.dsky-spot.spotlight {
+  border-radius: 4px;
+}
+
+/* ---------- keyboard ---------- */
+
+.dsky-keys {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.dsky-key {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--mil) * 60);
+  background: linear-gradient(180deg, var(--dsky-key-hi), var(--dsky-key) 55%);
+  color: var(--dsky-key-legend);
+  /* stand-in for the Gorton Normal engraving on the caps */
+  font-family: "Futura", "Century Gothic", "Avenir Next", "Trebuchet MS", var(--font-ui);
+  font-size: calc(var(--mil) * 172);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  box-shadow:
+    inset 0 calc(var(--mil) * 10) 0 rgba(255, 255, 255, 0.07),
+    0 calc(var(--mil) * 22) 0 #0b0b0a;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 60ms ease-out, box-shadow 60ms ease-out, background-color 60ms;
+}
+
+.dsky-key span {
+  display: block;
+  pointer-events: none;
+}
+
+.dsky-key-digit {
+  font-size: calc(var(--mil) * 300);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.dsky-key-sign {
+  font-size: calc(var(--mil) * 360);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.dsky-key-2line {
+  font-size: calc(var(--mil) * 160);
+}
+
+.dsky-key:hover {
+  background: linear-gradient(180deg, #3a3934, #2a2925 55%);
+}
+
+.dsky-key:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  z-index: 1;
+}
+
+.dsky-key.is-down,
+.dsky-key.is-pressed {
+  transform: translateY(calc(var(--mil) * 18));
+  background: #1a1916;
+  box-shadow:
+    inset 0 calc(var(--mil) * 14) calc(var(--mil) * 30) rgba(0, 0, 0, 0.6),
+    0 calc(var(--mil) * 4) 0 #0b0b0a;
+}
+
+/* A crew keystroke during a replay: show which key the astronaut pressed. */
+.dsky-key.is-crew {
+  background: #3b2c10;
+  box-shadow:
+    inset 0 calc(var(--mil) * 14) calc(var(--mil) * 30) rgba(0, 0, 0, 0.5),
+    0 0 0 calc(var(--mil) * 40) var(--amber),
+    0 0 calc(var(--mil) * 90) calc(var(--mil) * 40) rgba(255, 181, 46, 0.55);
+  color: #fff;
+  z-index: 1;
+}
+
+/* ---------- footer: caption and shortcut legend ---------- */
+
+.dsky-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.dsky-caption {
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
+.dsky-legend-toggle {
+  min-height: 28px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.dsky-legend-toggle::before {
+  content: "\2328\FE0E";
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.dsky-legend {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.dsky-legend[hidden] {
+  display: none;
+}
+
+.dsky-legend dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 4px 14px;
+  margin: 0;
+}
+
+.dsky-legend dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px dotted var(--border);
+  padding: 2px 0;
+}
+
+.dsky-legend dt {
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
+.dsky-legend dd {
+  margin: 0;
+  text-align: right;
+}
+
+.dsky-legend kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 4px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 11px;
+  text-align: center;
+}
+
+.dsky-legend-note {
+  margin: 8px 0 0;
+  color: var(--text-faint);
+}
+
+/* ---------- reduced motion ----------
+   No blinking: flashing elements are shown steadily at reduced brightness
+   instead (the aria-live summary still says "flashing"). */
+
+@media (prefers-reduced-motion: reduce) {
+  .dsky {
+    animation: none !important;
+    --dsky-flash: 0.45;
+  }
+
+  .dsky-key {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .dsky-key {
+    border: 1px solid ButtonText;
+  }
+}

@@ -121,8 +121,8 @@ export const ANCHORS = {
     title: 'P64DISPS: flashing V06N64 until PRO, then redesignation',
   },
   'scn.guid.redesmon': {
-    file: LLGE, label: 'REDESMON', start: 1155, end: 1197,
-    title: 'REDESMON / COUNT’EM: counting LPD hand-controller clicks',
+    file: LLGE, label: 'REDESMON', start: 1155, end: 1212,
+    title: 'REDESMON / COUNT’EM: LPD clicks — ½° per click fore/aft, 2° left/right',
   },
   'scn.guid.guilden': {
     file: LLGE, label: 'GUILDEN', start: 134, end: 214,
@@ -165,6 +165,15 @@ export const ANCHORS = {
   'scn.verb.list': {
     file: AOI, start: 160, end: 199,
     title: 'Verb list for Luminary (regular verbs 01–39)',
+  },
+
+  'scn.lr.lites': {
+    file: 'Luminary099/P20-P25.agc', label: 'R12LITES', start: 5115, end: 5180,
+    title: 'R12LITES: the DSKY’s ALT and VEL lamps (no good radar data)',
+  },
+  'scn.lr.35kchk': {
+    file: 'Luminary099/SERVICER.agc', label: 'ALTCRIT', start: 899, end: 932,
+    title: '“35KCHK” really tests 50,000 ft: start reading the landing radar',
   },
 
   // ---------- Executive, alarms, restarts ----------
@@ -241,6 +250,34 @@ export const ANCHORS = {
   'scn.pinball.keyrel': {
     file: PIN, label: 'VBRELDSP', start: 2918, end: 2931,
     title: 'VBRELDSP (KEY REL): give the DSKY back to the program',
+  },
+  'scn.pinball.verbtab': {
+    file: PIN, label: 'VERBTAB', start: 986, end: 1027,
+    title: 'VERBTAB: one entry per verb; spares go to GODSPALM',
+  },
+  'scn.pinball.oprerr': {
+    file: PIN, label: 'DSPALARM', start: 2732, end: 2745,
+    title: 'DSPALARM / CHARALRM: illegal entry → OPR ERR',
+  },
+  'scn.pinball.falton': {
+    file: PIN, label: 'FALTON', start: 3426, end: 3429,
+    title: 'FALTON: turn on the OPERATOR ERROR light (channel 11 bit 7)',
+  },
+  'scn.pinball.v37': {
+    file: PIN, label: 'MMCHANG', start: 2777, end: 2796,
+    title: 'MMCHANG (V37): read the new program number',
+  },
+  'scn.v37.table': {
+    file: FSR, label: 'FCADRMM1', start: 1063, end: 1075,
+    title: 'Programs V37 may select (P68 = LANDJUNK, P63 = P63LM)',
+  },
+  'scn.burn.v06n61': {
+    file: BBB, start: 752, end: 758,
+    title: 'Flashing V06N61: “reset his event timer to agree with TIG”',
+  },
+  'scn.display.vacdsp': {
+    file: 'Luminary099/DISPLAY_INTERFACE_ROUTINES.agc', label: 'GODSPRS1', start: 833, end: 856,
+    title: '“Is this a flashing R display? Yes, make DSPLAY job a VAC”',
   },
   'scn.pinball.nouns': {
     file: 'Luminary099/PINBALL_NOUN_TABLES.agc', start: 714, end: 731,
