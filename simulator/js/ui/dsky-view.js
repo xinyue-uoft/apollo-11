@@ -145,8 +145,9 @@ const LIVE_MIN_INTERVAL_MS = 1000;
 const USER_ECHO_MS = 1500;
 
 // Focusable scrolling panels (source listing, transcript, file list): Enter
-// and the letter keys keep their own meaning there. The replay shortcuts
-// (controls-view.js) skip the same regions for Space and the arrows.
+// keeps its own meaning there; every other DSKY key (letters, digits, +/-)
+// still reaches the DSKY so a sequence is never half-keyed. The replay
+// shortcuts (controls-view.js) skip the same regions for Space and the arrows.
 const SCROLL_REGIONS = '[role="region"][tabindex], [role="log"], .src-code, .tr-feed, .src-files';
 
 let mountCount = 0;
@@ -614,10 +615,10 @@ export function mountDsky(root, ctx = {}) {
     if (isEditable(target) || isEditable(document.activeElement)) return;
     const key = KEYBOARD_MAP[e.key] ?? (e.key.length === 1 ? KEYBOARD_MAP[e.key.toLowerCase()] : undefined);
     if (!key) return;
-    // Enter on a focused button/link keeps activating that control.
-    if (e.key === 'Enter' && (isActivatable(target) || isActivatable(document.activeElement))) return;
-    if ((e.key === 'Enter' || /^[a-z]$/i.test(e.key))
-      && (inScrollRegion(target) || inScrollRegion(document.activeElement))) return;
+    // Enter on a focused button/link keeps activating that control, and
+    // keeps its own meaning in a scrolling panel (SCROLL_REGIONS).
+    if (e.key === 'Enter' && (isActivatable(target) || isActivatable(document.activeElement)
+      || inScrollRegion(target) || inScrollRegion(document.activeElement))) return;
     e.preventDefault();
     userPress(key);
   }
@@ -712,7 +713,7 @@ function buildLegend(container) {
   htmlEl('p', {
     class: 'dsky-legend-note',
     text: 'DSKY keys work anywhere on the page except in text fields; in the source listing and the transcript, '
-      + 'Enter, letters, Space and the arrows keep their usual meaning. Ctrl, Alt and Cmd combinations are ignored. '
+      + 'Enter, Space and the arrows keep their usual meaning. Ctrl, Alt and Cmd combinations are ignored. '
       + 'In Interactive mode, Space pauses the simulation and [ ] change its speed.',
   }, container);
 }
