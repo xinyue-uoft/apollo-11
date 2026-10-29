@@ -276,14 +276,10 @@ export function mountIgnition(root, ctx) {
         <p class="ign-desc" data-k="desc"></p>
         <p class="ign-now"><span class="ign-now-label">DSKY now</span> <span class="ign-now-val" data-k="dsky">—</span><span class="ign-now-label ign-now-thr">Throttle</span> <span class="ign-now-val" data-k="thr">—</span></p>
         <div class="ign-timeline" data-spot="ignition.timeline">
-          <div class="ign-grid">
-            <span class="ign-lane-label ign-lane-label-ev">Events</span>
-            <div class="ign-events" data-role="events"></div>
-            <span class="ign-lane-label" aria-hidden="true"></span>
-            <div class="ign-axis" data-role="axis" aria-hidden="true"></div>
-            <div class="ign-lanes" data-role="lanes"></div>
-            <div class="ign-cursor-layer" aria-hidden="true"><div class="ign-cursor" data-role="cursor"><span class="ign-cursor-label" data-k="cursor">now</span></div></div>
-          </div>
+          <div class="ign-row ign-row-ev"><span class="ign-lane-label">Events</span><div class="ign-events" data-role="events"></div></div>
+          <div class="ign-row ign-row-axis" aria-hidden="true"><span class="ign-lane-label">s</span><div class="ign-axis" data-role="axis"></div></div>
+          <div class="ign-lanes" data-role="lanes"></div>
+          <div class="ign-cursor-layer" aria-hidden="true"><div class="ign-cursor" data-role="cursor"><span class="ign-cursor-label" data-k="cursor">now</span></div></div>
         </div>
         <p class="ign-notes" data-k="notes"></p>
         <h4 class="ign-list-title">Sequence — select an event to see its code</h4>
@@ -465,7 +461,7 @@ export function mountIgnition(root, ctx) {
         }
         return `<span class="ign-seg ign-seg-${s.kind}" style="left:${pctX(a)};width:${((sc(z) - sc(a)) * 100).toFixed(3)}%" title="${escapeAttr(s.text)}">${ticksHtml}<span class="ign-seg-text">${escapeHtml(s.text)}</span></span>`;
       }).join('');
-      laneHtml.push(`<span class="ign-lane-label">${lane.label}</span><div class="ign-lane" data-lane="${lane.id}">${segs}</div>`);
+      laneHtml.push(`<div class="ign-row"><span class="ign-lane-label">${lane.label}</span><div class="ign-lane" data-lane="${lane.id}">${segs}</div></div>`);
     }
     // Throttle lane: planned profile (dashed) + actual trace.
     const pts = [];
@@ -480,11 +476,11 @@ export function mountIgnition(root, ctx) {
       const mid = (Math.max(lo, s.from) + Math.min(hi, s.to)) / 2;
       return `<span class="ign-thr-label" style="left:${pctX(mid)};bottom:${(s.level * 88).toFixed(0)}%">${escapeHtml(s.text)}</span>`;
     }).join('');
-    laneHtml.push(`<span class="ign-lane-label">${view.schedule.throttleLabel}</span><div class="ign-lane ign-lane-thr" data-lane="thr">
+    laneHtml.push(`<div class="ign-row"><span class="ign-lane-label">${view.schedule.throttleLabel}</span><div class="ign-lane ign-lane-thr" data-lane="thr">
       <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
         <polyline class="ign-thr-plan" points="${pts.join(' ')}" vector-effect="non-scaling-stroke"/>
         <polyline class="ign-thr-act" data-role="trace" points="" vector-effect="non-scaling-stroke"/>
-      </svg>${thrLabels}</div>`);
+      </svg>${thrLabels}</div></div>`);
     el.lanes.innerHTML = laneHtml.join('');
     view.traceEl = el.lanes.querySelector('[data-role="trace"]');
     updateTrace();

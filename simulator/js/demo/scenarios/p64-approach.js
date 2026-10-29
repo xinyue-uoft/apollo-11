@@ -42,7 +42,7 @@ export default defineScenario({
     say('copy-p64'),
     { at: '102:41:40', narrate: {
       title: 'How the LPD works',
-      body: '<p>The commander’s window carries a scale of angles. With his eye on the reticle, the LPD angle in R1 tells him where on that scale the computer’s landing site appears. Don’t like it? Each click of the hand controller fore or aft moves the site half a degree along the track, each click left or right 2° across (Apollo 11 values). The task <code>REDESMON</code> counts the clicks; the next guidance pass moves the target.</p>',
+      body: '<p>The commander’s window carries a scale of angles. With his eye on the reticle, the LPD angle in R1 tells him where on that scale the computer’s landing site appears. Don’t like it? Each click of the hand controller moves the aim: fore or aft by half a degree of look angle (farther or nearer), left or right by 2° (<code>ELEACH</code>, <code>AZEACH</code>). The task <code>REDESMON</code> counts the clicks; the next guidance pass moves the target, until the redesignation time in R1 runs out.</p>',
       anchors: ['scn.guid.redesmon'],
     } },
     { at: '102:41:42', spotlight: 'crew.lpd' },

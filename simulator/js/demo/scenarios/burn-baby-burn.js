@@ -63,7 +63,8 @@ export default defineScenario({
     say('descent-armed'),
     { at: '102:32:52', narrate: {
       title: 'Descent armed',
-      body: '<p>Armstrong arms the descent engine with a panel switch. The ignition routine never reads that switch — it only asks the crew for permission and then sends the ENGINE ON signal. Per the Apollo Lunar Surface Journal, arming also brought on the DSKY’s <b>ALT</b> and <b>VEL</b> lamps: the landing radar had no data for the computer yet.</p>',
+      body: '<p>Armstrong arms the descent engine with a panel switch. The ignition routine never reads that switch — it only asks the crew for permission and then sends ENGINE ON.</p><p>Watch the <b>ALT</b> lamp (Aldrin: “Altitude light’s on”). SERVICER, running since TIG−30, starts reading the landing radar below 50,000 feet of computed altitude — the check is labelled <code>35KCHK</code> but tests 50,000 — and with no radar lock the reads fail, so <code>R12LITES</code> lights ALT.</p>',
+      anchors: ['scn.lr.35kchk', 'scn.lr.lites'],
     } },
     { at: '102:32:54', spotlight: 'dsky.light.alt' },
 

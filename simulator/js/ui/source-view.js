@@ -222,7 +222,8 @@ function programLabel(program) {
 
 // ---------- the view ----------
 
-const FEATURED = [
+// Famous lines offered before any anchor is shown (all `src.` anchors).
+export const FEATURED_ANCHORS = [
   ['src.burnbaby.naming', 'BURN, BABY, BURN — how the ignition routine got its name'],
   ['src.lum.alarm-codes', 'The alarm list: 01201, 01202 …'],
   ['src.landing.crank', '“Please crank the silly thing around”'],
@@ -785,7 +786,7 @@ export function mountSource(root, ctx = {}) {
     el.meta.innerHTML = `${esc(PROGRAMS.Luminary099?.title || 'Luminary 099')} (Lunar Module) and ${esc(PROGRAMS.Comanche055?.title || 'Comanche 055')} (Command Module), as transcribed in this repository.`;
     el.note.hidden = true;
     el.tools.hidden = true;
-    const items = FEATURED.filter(([id]) => getAnchor(id)).map(([id, text]) =>
+    const items = FEATURED_ANCHORS.filter(([id]) => getAnchor(id)).map(([id, text]) =>
       `<li><button type="button" class="src-featured" data-anchor="${esc(id)}">${esc(text)}</button></li>`).join('');
     el.code.innerHTML = `
       <div class="src-empty">

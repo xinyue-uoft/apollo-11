@@ -129,7 +129,8 @@ dsky.blanked                             // boolean — all EL digits off (e.g. 
 dsky.lampTest                            // boolean — V35 in progress
 dsky.version                             // increments on every change
 dsky.setProg(str) / setVerb / setNoun / setRegister(i, sign, digits)
-dsky.setLight(name, on) / setFlash(on) / setBlanked(on)
+dsky.setLight(name, on) / setFlash(on) / setBlanked(on) / setLampTest(on)
+dsky.setAll8s() / blankDigits({ keepProg }) / setRegisterBlank(i) / clearAll()
 dsky.snapshot()                          // deep copy
 ```
 

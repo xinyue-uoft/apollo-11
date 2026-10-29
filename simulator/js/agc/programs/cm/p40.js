@@ -38,7 +38,7 @@ import { parseGET } from '../../../util/time.js';
 import {
   FENG_N, SPS_VEX, SPS_MDOT_NOMINAL, SEC29_96, SEC24_96, SEC5, TIMEDELT,
   IMPULSIVE_LIMIT, FOURSEC, ULLAGE_IMPULSE_2JET, CM_PIPA_PULSE, SERVICER_PERIOD,
-  vadd, vsub, vscale, vdot, vnorm, vunit, vcross, coast, lvlhToInertial, apsides, s40_1,
+  vsub, vscale, vdot, vnorm, vunit, vcross, coast, lvlhToInertial, apsides, s40_1,
 } from './csm-math.js';
 import {
   TaskList, ResponseRouter, showDisplay, setPhase, setFlag, setErasable,
@@ -172,7 +172,7 @@ export default class P40 {
   }
 
   get t() {
-    return this.agc.t ?? 0;
+    return this.agc.t ?? vehicleState(this.agc)?.t ?? 0;
   }
 
   // ---------------- lifecycle ----------------
@@ -198,6 +198,7 @@ export default class P40 {
   }
 
   exit() {
+    this.redisplay = null;
     // V37 (or POST41 → P00): "THE ENGINE IS TURNED OFF AND THE DAP IS
     // INITIALIZED FOR COAST" (FRESH_START_AND_RESTART.agc:739-747).
     this.engineOn = false;
@@ -343,7 +344,7 @@ export default class P40 {
   // AVEGEXIT = STEERING. Then P40GMB: GOPERF1 V50N25 R1=00204
   // ("PERFORM SPS GIMBAL TRIM", ASSEMBLY_AND_OPERATION_INFORMATION.agc:978).
   // Comanche055/P40-P47.agc:85-105,329
-  p40ttog() {
+  p40ttog({ display = true } = {}) {
     this.tasks.cancel('R60DONE');
     this.thrustDir = this.ut.slice();     // the DAP holds the burn attitude
     this.nvword = NV.V06N40;
@@ -353,6 +354,7 @@ export default class P40 {
     this.setF('TIMRFLAG', true);          // "ALLOW CLOCKTASK" (:79-80)
     this.stage = 'gimbal';
     this.er('DSPTEM1', 0o204);            // V50N25 R1 checklist code (octal)
+    if (!display) return;
     this.redisplay = () => showDisplay(this, {
       verb: 50, noun: 25, flash: true, id: 'P40GMB',
       source: 'cm.p40.gimbal',
@@ -535,14 +537,15 @@ export default class P40 {
 
   // V99P: ASTNFLAG; if TIG-0 already came, ignite in 1 cs; otherwise clear
   // the flash and wait for TIG-0. Comanche055/P40-P47.agc:984-1004
+  // The DSKY returns to V06N40 on the next CLOCKJOB (≤ 1 s later).
   v99p() {
-    emitBus(this.agc, 'burn', { id: 'v99p', label: 'Crew PRO on V99N40', t: this.t, rel: this.t - this.tig0 });
-    this.events.push({ id: 'v99p', label: 'Crew PRO on V99N40 (ASTNFLAG)', rel: this.t - this.tig0, t: this.t, done: true, anchor: 'cm.p40.v99p' });
-    if (this.flags.ASTNFLAG) return;
+    if (this.flags.ASTNFLAG) return;               // "THIS MUST BE A RESTART ENTRY"
     this.setF('ASTNFLAG', true);
+    const rel = this.t - this.tig0;
+    this.events.push({ id: 'v99p', label: 'Crew PRO on V99N40 (ASTNFLAG)', rel, t: this.t, done: true, anchor: 'cm.p40.v99p' });
+    emitBus(this.agc, 'burn', { id: 'v99p', label: 'Crew PRO on V99N40', t: this.t, rel });
     this.nvword = NV.V06N40;
     if (this.flags.IGNFLAG) this.tasks.at(this.t + 0.01, 'IGNITION', () => this.ignition());
-    else this.clockJob();
   }
 
   // V99T (V34): TVCZAP, POST41 → GOTOPOOH. Comanche055/P40-P47.agc:977-982
@@ -642,7 +645,6 @@ export default class P40 {
       case 'CALCN85': this.calcN85(pguide); break;
       default: break;                               // SERVEXIT
     }
-    this.agc.program?.onServicerPassCm?.(this.t);
   }
 
   // STEERING: UPDATEVG (S40.8); if IMPULSW is set with the engine on, the
@@ -679,9 +681,12 @@ export default class P40 {
       this.loThrust();
       return;
     }
-    // INCRSVG: thrust pointing away from VG → alarm 01407 "VG INCREASING".
-    if (vdot(delv, this.vg) < 0 && vdot(vscale(delv, -1), this.vg) > 0 && vnorm(this.vg) > vnorm(vadd(this.vg, delv))) {
+    // INCRSVG: "ANGLE SHOULD BE GREATER THAN PI/2" between −DELVREF and VG,
+    // i.e. the measured ΔV must point along VG; otherwise alarm 01407
+    // "VG INCREASING" and no TGO this pass (:1687-1693,1771-1776).
+    if (vdot(delv, this.vg) < 0) {
       this.agc.alarm?.(0o1407);
+      return;
     }
     // TGOCALC (simplified closed form; the listing uses a series in VG/VEX
     // with the measured thrust acceleration and the tail-off ETDECAY).
@@ -767,7 +772,7 @@ export default class P40 {
   p40rcs() {
     this.avegexit = 'CALCN85';
     this.stage = 'n85';
-    this.calcN85();
+    this.redisplay = null;
     this.tasks.at(this.t + 2, 'TIGNOW', () => this.tigNow());
   }
 
@@ -846,7 +851,6 @@ export default class P40 {
     this.nvword = NV.V06N40;
     this.setF('IDLEFAIL', true);
     this.setF('STEERSW', true);
-    this.clockJob();
     this.tasks.at(this.t + 2, 'R40ENABL', () => this.setF('IDLEFAIL', false));
   }
 
@@ -857,12 +861,11 @@ export default class P40 {
     this.er('TIG', this.t - 99 * 60);              // "FORCE R1 OF V06N40 TO READ 59X59"
     this.nvword = NV.V06N40;
     this.spsOff();
-    this.clockJob();
     this.tasks.at(this.t + 2.5, 'V97E40.6', () => {
       this.setF('ASTNFLAG', false);
       this.setF('IGNFLAG', true);
       this.tasks.at(this.t + 0.3, 'V99FLASH', () => {
-        this.nvword = NV.V99;
+        this.nvword = NV.V99;                      // "WAIT FOR CLOCKJOB (IMMEDIATE)"
         this.burnPhase = 'v99';
         this.s40_13();
         this.clockJob();
@@ -968,9 +971,9 @@ export default class P40 {
       return;
     }
     if (stage === 'countdown') {
-      this.p40ttog();
-      this.router.clear();
-      this.redisplay = null;
+      this.p40ttog({ display: false });
+      this.trimDelay(0, false);
+      this.tasks.cancel('P40S/RS');
       this.startCountdown({ clockAt });
       return;
     }

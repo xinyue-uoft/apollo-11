@@ -218,7 +218,7 @@ const lit = (m) => m[1] ?? m[2] ?? m[3];
 
 function scanReferences(code) {
   const refs = [];   // [{ id, index }]
-  const single = /\b(?:anchor|primaryAnchor)\s*[:=]\s*('([^'\\\n]*)'|"([^"\\\n]*)"|`([^`\\$]*)`)/g;
+  const single = /(?<![\w$-])(?:anchor|primaryAnchor)\s*[:=]\s*('([^'\\\n]*)'|"([^"\\\n]*)"|`([^`\\$]*)`)/g;
   for (const m of code.matchAll(single)) refs.push({ id: m[2] ?? m[3] ?? m[4], index: m.index });
   const call = /\bgetAnchor\(\s*('([^'\\\n]*)'|"([^"\\\n]*)"|`([^`\\$]*)`)\s*\)/g;
   for (const m of code.matchAll(call)) refs.push({ id: m[2] ?? m[3] ?? m[4], index: m.index });
