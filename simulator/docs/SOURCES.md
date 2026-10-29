@@ -78,7 +78,18 @@ these files; the exact ranges are the anchors in
   `record` (documented, with its time) or `inferred` (implied by the record;
   time illustrative). Times are when the entry took effect (ENTR/PRO); the
   scripted keystrokes are back-timed at 0.4 s per key so the last key lands
-  there.
+  there. The two V05N09E readouts after the P64 alarms are keyed at 0.3 s
+  per key (an assumed cadence), so that the keying starts after the
+  modelled alarm and ENTR still falls inside the whole second Cherry's log
+  gives.
+- **Start times.** A scenario that starts in mid-descent starts on the
+  2-second navigation grid of the real flight (READACCS every 2 s from
+  TIG − 29.9 s = 102:32:35.11, `BURN_BABY_BURN--MASTER_IGNITION_ROUTINE.agc`
+  `D29.9SEC`, `SERVICER.agc:72-74`), e.g. 102:37:39.11 rather than
+  102:37:40. The computer model begins its navigation cycle at the instant a
+  scenario starts; on the flight's grid, the Executive model sees the same
+  load at the same instants in every scenario (`alignedStart` in
+  `js/demo/scenarios/lib.js`).
 - **Octal.** Alarm codes and priorities are octal, as in the code: 1202 is
   octal 1202 (decimal 642) and is shown on the DSKY as `01202`; "PRIO 20" is
   octal 20.
@@ -140,9 +151,18 @@ these files; the exact ranges are the anchors in
   landing-radar altitude reads below 50,000 ft of computed altitude
   (`SERVICER.agc:899-932`, the check labelled `35KCHK` actually indexes
   `50KFT`); with no radar lock the reads fail and `R12LITES`
-  (`P20-P25.agc:5115-5180`) lights **ALT**. VEL reads start only below
-  2,000 ft/s, so VEL is not lit at PDI. Aldrin called "Altitude light's on"
-  (102:33:03; ONB 102:32:58); the MR has 50,000 ft at 102:32:55.
+  (`P20-P25.agc:5115-5180`) lights **ALT**. Aldrin called "Altitude light's
+  on" (102:33:03; ONB 102:32:58); the MR has 50,000 ft at 102:32:55.
+- **VEL lamp at PDI: sources disagree.** The ALSJ commentary says ALT *and*
+  VEL came on; the crew called only the altitude light. Read strictly, the
+  code sets the velocity data-fail bit (RADMODES bit 8, `LRVELBIT`,
+  `FLAGWORD_ASSIGNMENTS.agc:1161-1163`) only in `DATAFAIL` after a failed
+  *velocity* read (`P20-P25.agc:2875-2878, 3048-3056`), fresh start leaves
+  it clear (`RMODINIT OCT 00102`, `FRESH_START_AND_RESTART.agc:393-397, 601`),
+  and velocity reads begin only below 2,000 ft/s (research src-landing
+  §10.6). The computer model lights VEL whenever radar reads are requested
+  and no good velocity has been read, i.e. from PDI, as ALSJ describes. The
+  narration says both things.
 - The 00500 code (LR antenna not in position 1) and "PLEASE CRANK THE SILLY
   THING AROUND": `THE_LUNAR_LANDING.agc:239-255`; Aldrin's report at
   102:26:55 ("we got a 500 alarm (code) early in the program … That wasn't
@@ -228,7 +248,8 @@ these files; the exact ranges are the anchors in
 - **Crew keystrokes** (Cherry's log, TFI → GET with TIG 102:33:05): V16N68E
   102:38:09 (ΔH −2,884), V05N09E 102:38:27, V57E 102:38:43 (MR 102:38:45),
   V16N68E 102:38:51, V05N09E 102:42:21 (R1 = 1201), PRO on flashing V06N64
-  102:42:33, V05N09E 102:42:45 (R1 = 1202). The second V05N09 (after the
+  102:42:33, V05N09E 102:42:45 (R1 = 1202). The log's TFI are whole
+  seconds; the demo puts ENTR at 102:42:21.4 and 102:42:45.4. The second V05N09 (after the
   second alarm) is Eyles', time not recorded. **RSET and KEY REL are
   inferred:** FAILREG must have been cleared between the second and third
   alarms and again between the third and fourth (Cherry's log shows R1 =
@@ -377,9 +398,20 @@ P68; the V16 monitor, V57 and the crew responses to flashing displays.
   figure; theory 15 %, Grumman 13.36 %).
 - **The alarms emerge from that model** — nothing in the scenarios forces an
   alarm — but their exact second depends on the calibration and on the crew
-  keystroke times; the test suite checks they land within ±2 s of the
-  Mission Report. Which job's request failed at each real alarm is not
-  documented (research src-executive §15.3); the demo never names one.
+  keystroke times. The Apollo 11 scenarios pass a small calibration to the
+  model (`A11_WORKLOAD_PARAMS` in `js/demo/scenarios/lib.js`: P64 guidance
+  pass 759 ms instead of 760, LPD logic 1 ms instead of 10, display job 35
+  ms instead of 30), found by sweeping those three costs; neighbouring
+  values give the same times. With it the model gives 1202 at 102:38:23.1
+  (MR 102:38:22), 1202 at 102:39:03.1 (102:39:02), 1201 at 102:42:17.1
+  (102:42:18), 1202 at 102:42:43.1 (102:42:43) and 1202 at **102:42:55.1**
+  (102:42:58). The test suite checks ±2 s, with one documented exception:
+  the last 1202 comes 2.9 s early, because after the fourth restart the
+  model fills its core sets again in 12 s where the flight took 15 s. No
+  combination tried in the sweep put all five within ±2 s, and the demo
+  does not force the alarm. Which job's request failed
+  at each real alarm is not documented (research src-executive §15.3); the
+  demo never names one.
 - **Replay vehicle.** In the demo the spacecraft follows the reconstructed
   Apollo 11 trajectory (`js/data/apollo11-descent.js`, from MR, BEN70, TRW
   and the crew's DSKY callouts) and ignores the computer's commands; the

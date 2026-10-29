@@ -71,7 +71,7 @@ export default defineScenario({
     say('descent-armed'),
     { at: '102:32:52', narrate: {
       title: 'Descent armed',
-      body: '<p>Armstrong arms the descent engine with a panel switch. The ignition routine never reads that switch — it only asks the crew for permission and then sends ENGINE ON.</p><p>Watch the <b>ALT</b> lamp (Aldrin: “Altitude light’s on”). SERVICER, running since TIG−30, starts reading the landing radar below 50,000 feet of computed altitude — the check is labelled <code>35KCHK</code> but tests 50,000 — and with no radar lock the reads fail, so <code>R12LITES</code> lights ALT.</p>',
+      body: '<p>Armstrong arms the descent engine with a panel switch. The ignition routine never reads that switch — it only asks the crew for permission and then sends ENGINE ON.</p><p>Watch the <b>ALT</b> lamp (Aldrin: “Altitude light’s on”). SERVICER, running since TIG−30, starts reading the landing radar below 50,000 feet of computed altitude — the check is labelled <code>35KCHK</code> but tests 50,000 — and with no radar lock the reads fail, so <code>R12LITES</code> lights ALT.</p><p>The simulator lights VEL as well, as the Lunar Surface Journal commentary describes; read strictly, the flight code would light VEL only after a failed velocity read, and those begin below 2,000 ft/s.</p>',
       anchors: ['lr.altcrit', 'lr.lites'],
     } },
     { at: '102:32:54', spotlight: 'dsky.light.alt' },
