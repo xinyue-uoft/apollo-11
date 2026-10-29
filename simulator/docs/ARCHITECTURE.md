@@ -423,11 +423,21 @@ const d = new Director({ bus, createSim: (scenario) => Simulation });
 d.load(scenario)                 // builds sim at scenario.start
 d.play() / d.pause() / d.toggle()
 d.setSpeed(x)                    // 0.5 .. 60
-d.seek(get)                      // reset + re-simulate deterministically to get
+d.seek(get)                      // reset + re-simulate deterministically to get (async, sliced)
+d.cancelSeek()                   // abandon a running seek (used when leaving demo mode)
 d.nextChapter() / d.prevChapter()
+d.setAutoPause(on) / d.resume()  // reading holds on/off; skip the current hold
 d.frame(realDt)                  // called by the app's rAF loop
-d.state → { playing, speed, t, start, end, chapterIndex, chapters, holding }
+d.state → { playing, speed, t, start, end, chapterIndex, chapters, holding,
+            seeking, autoPause, ended, progress, nextEventIn, error }
 ```
+
+**Reading holds.** With auto-pause on, before the next `narrate` fires the
+director waits (in real time) until the current card has been on screen for
+`min(35, 3 + 0.3 × words)` s; scripted `hold` events are minimums. Holds only
+stop the clock at an event time, so they never change what is simulated —
+seeks and frame sizes give identical states. A rewind restores the speed the
+scenario (or the user) set before any later `speed` hint.
 
 Events at or before `t` fire exactly once, in order; when seeking, `say` and
 `narrate` events are replayed silently into the transcript/narration history
@@ -479,10 +489,15 @@ app.loadScenario(id) / app.startInteractive(presetId) / app.restartInteractive()
 app.setInteractivePlaying(bool) / app.setInteractiveSpeed(x)
 app.selectTab('trajectory'|'exec'|'ignition')
 app.currentSim()
-app.uiState() → { mode, scenario, scenarios, preset, presets, director, interactive, tab }
+app.uiState() → { mode, scenario, scenarios, preset, presets, director, interactive, tab, vehicleKind }
 ```
 
-Bus events the app itself emits: `'app:mode'`, `'tab'`, `'toast' {text}`.
+Bus events the app itself emits: `'app:mode' { mode, scenario | preset, resumed? }`
+(`resumed: true` when returning to the same interactive preset, whose sim is
+kept), `'tab'`, `'toast' {text}`, and — in interactive mode — `'vehicle'
+{ t, kind: 'lowLevel'|'depleted'|'touchdown', verdict?, vVert?, vHoriz?, tilt? }`
+detected from snapshot edges (SI units). `ui.vehicleKind` gives the current
+sim's vehicle kind (`'static'|'replay'|'physics'|'cmSps'`).
 
 ### 11.2 Data registries used by the app
 
