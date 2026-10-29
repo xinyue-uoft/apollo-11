@@ -377,6 +377,11 @@
     display: flex;
     visibility: hidden;
   }
+
+  /* Two lines reserved: the countdown wraps at some widths. */
+  .nar-hold-text {
+    min-height: 2.9em;
+  }
 }
 
 /* Two columns: the explanation keeps the height of a typical card (about
@@ -384,7 +389,7 @@
    visualisation either; only a longer one pushes it down. */
 @media (min-width: 861px) and (max-width: 1280px) {
   .nar-demo {
-    min-height: 380px;
+    min-height: 394px;
   }
 }
 
@@ -403,6 +408,7 @@
 .nar-hold-text {
   font-size: 13px;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .nar-hold-bar {

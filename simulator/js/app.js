@@ -105,6 +105,7 @@ export class App {
     this.bindSkipLink();
     this.observeStickyBars();
     this.observeNarration();
+    this.orderColumns();
 
     this.applyRoute(this.doc.defaultView.location.hash);
     this.doc.defaultView.addEventListener('hashchange', () => {
@@ -481,6 +482,42 @@ export class App {
     const update = () => main.style.setProperty('--narration-h', `${narration.getBoundingClientRect().height}px`);
     update();
     if (typeof win.ResizeObserver === 'function') new win.ResizeObserver(update).observe(narration);
+  }
+
+  // Keep the DOM (and so the Tab and reading order) in the visual order. The
+  // markup is in the stacked order (DSKY, explanation, visualisation,
+  // transcript, instruments, crew, source); in the three-column layout the
+  // columns read top to bottom instead (DSKY, instruments, crew,
+  // visualisation, transcript, explanation, source). Every panel has an
+  // explicit grid placement, so moving the nodes changes no geometry, and
+  // the mounted views keep their state.
+  orderColumns() {
+    const win = this.doc.defaultView;
+    const byId = (id) => this.doc.getElementById(id);
+    const main = byId('main');
+    const colMain = main?.querySelector('.col-main');
+    const colTools = main?.querySelector('.col-tools');
+    const narration = byId('narration-root');
+    const source = byId('source-root');
+    if (!main || !colMain || !colTools || !narration || !source || !win.matchMedia) return;
+    const move = (parent, node, before) => {
+      if (node.parentNode === parent && node.nextSibling === before) return;
+      const active = this.doc.activeElement;
+      parent.insertBefore(node, before);
+      if (active && node.contains(active)) active.focus({ preventScroll: true });
+    };
+    const wide = win.matchMedia('(min-width: 1281px)');
+    const place = () => {
+      if (wide.matches) {
+        move(main, colTools, colMain);
+        move(colMain, narration, null);
+      } else {
+        move(colMain, narration, colMain.firstChild);
+        move(main, colTools, source);
+      }
+    };
+    place();
+    wide.addEventListener('change', place);
   }
 }
 

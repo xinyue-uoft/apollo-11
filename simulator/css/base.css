@@ -454,6 +454,15 @@ select {
    visualisation and the transcript; the source listing gets the full width
    below. The tall left column's extra height goes under the visualisation,
    not between it and the explanation. */
+/* Flying in the two-column layout: keep scroll anchoring off the centre
+   column, so folding the preset text above it does not move the crew
+   controls out from under the pointer. */
+@media (min-width: 861px) and (max-width: 1280px) {
+  body[data-mode="interactive"] .col-main {
+    overflow-anchor: none;
+  }
+}
+
 @media (max-width: 1280px) {
   .layout {
     grid-template-columns: minmax(330px, 380px) minmax(0, 1fr);
