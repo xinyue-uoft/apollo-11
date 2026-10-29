@@ -413,6 +413,9 @@ select {
 @media (max-width: 1280px) {
   .layout {
     grid-template-columns: minmax(330px, 380px) minmax(0, 1fr);
+    /* the tall left column's extra height goes under the visualisation,
+       not between it and the explanation */
+    grid-template-rows: auto 1fr auto;
   }
 
   .col-right {
@@ -444,6 +447,7 @@ select {
 @media (max-width: 860px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
     padding: 10px;
   }
 
