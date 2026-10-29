@@ -6,7 +6,9 @@
 //   Interactive: preset picker · play/pause · speed · restart · GET + program
 //
 // Shortcuts (ignored while typing in a form control): Space = play/pause,
-// ←/→ = previous/next chapter (demo), [ / ] = slower/faster.
+// ←/→ = previous/next chapter (demo), [ / ] = slower/faster. Space and the
+// arrows are left alone inside a focused scrollable region (the source
+// listing, the transcript), where they scroll.
 
 import { formatGET } from '../util/time.js';
 import { SPEEDS } from '../demo/director.js';
@@ -16,6 +18,8 @@ import {
 
 const AUTO_PAUSE_KEY = 'agc-sim.autoPause';
 const TOAST_MAX = 3;
+// Focusable scroll regions: their keys are theirs (contract with the views).
+const SCROLL_REGIONS = '[role="region"][tabindex], [role="log"], .src-code, .tr-feed, .src-files';
 
 function readPref(key) {
   try {
@@ -33,12 +37,12 @@ function writePref(key, value) {
   }
 }
 
-function iconButton(name, label, onClick, extraClass = '') {
+function iconButton(name, label, onClick, { shortcut = null, hint = '' } = {}) {
   return h('button', {
     type: 'button',
-    class: `btn btn-icon ${extraClass}`.trim(),
-    aria: { label },
-    title: label,
+    class: 'btn btn-icon',
+    aria: shortcut ? { label, keyshortcuts: shortcut } : { label },
+    title: hint ? `${label} (${hint})` : label,
     svg: icon(name),
     on: { click: onClick },
   });
@@ -64,13 +68,15 @@ export function mountControls(root, ctx) {
     on: { change: () => app.loadScenario(scenarioSel.value) },
   });
   const demoRestart = iconButton('restart', 'Restart this replay', () => director().restart());
-  const prevBtn = iconButton('prev', 'Previous chapter', () => director().prevChapter());
-  const nextBtn = iconButton('next', 'Next chapter', () => director().nextChapter());
+  const prevBtn = iconButton('prev', 'Previous chapter', () => director().prevChapter(),
+    { shortcut: 'ArrowLeft', hint: '←' });
+  const nextBtn = iconButton('next', 'Next chapter', () => director().nextChapter(),
+    { shortcut: 'ArrowRight', hint: '→' });
   const demoPlayLabel = h('span', { class: 'ctl-label' }, 'Play');
   const demoPlay = h('button', {
     type: 'button',
     class: 'btn btn-primary ctl-play',
-    aria: { label: 'Play' },
+    aria: { label: 'Play', keyshortcuts: 'Space' },
     on: { click: () => director().toggle() },
   });
   demoPlay.innerHTML = icon('play');
@@ -78,7 +84,7 @@ export function mountControls(root, ctx) {
 
   const speedSel = h('select', {
     class: 'ctl-select ctl-speed',
-    aria: { label: 'Playback speed' },
+    aria: { label: 'Playback speed', keyshortcuts: '[ ]' },
     title: 'Playback speed ([ and ])',
     on: { change: () => director().setSpeed(Number(speedSel.value)) },
   });
@@ -86,7 +92,7 @@ export function mountControls(root, ctx) {
     type: 'button',
     class: 'btn ctl-auto',
     aria: { pressed: 'true' },
-    title: 'Pause the replay for a few seconds after each explanation',
+    title: 'Hold each explanation until there has been time to read it (Continue skips)',
     on: {
       click: () => {
         const on = !director().autoPause;
@@ -118,14 +124,14 @@ export function mountControls(root, ctx) {
   const intPlay = h('button', {
     type: 'button',
     class: 'btn btn-primary ctl-play',
-    aria: { label: 'Pause' },
+    aria: { label: 'Pause', keyshortcuts: 'Space' },
     on: { click: () => app.setInteractivePlaying(!app.interactive.playing) },
   });
   intPlay.innerHTML = icon('pause');
   intPlay.append(intPlayLabel);
   const intSpeedSel = h('select', {
     class: 'ctl-select ctl-speed',
-    aria: { label: 'Simulation speed' },
+    aria: { label: 'Simulation speed', keyshortcuts: '[ ]' },
     title: 'Simulation speed ([ and ])',
     on: { change: () => app.setInteractiveSpeed(Number(intSpeedSel.value)) },
   });
@@ -206,8 +212,10 @@ export function mountControls(root, ctx) {
     switch (e.key) {
       case ' ':
       case 'Spacebar':
-        // Let a focused button/link/summary activate natively.
+        // Let a focused button/link/summary activate natively, and a
+        // focused scroll region page down.
         if (el?.closest('button, a[href], summary, [role="button"], [role="tab"], [role="slider"]')) return;
+        if (el?.closest(SCROLL_REGIONS)) return;
         e.preventDefault();
         if (demo) director().toggle();
         else app.setInteractivePlaying(!app.interactive.playing);
@@ -215,6 +223,7 @@ export function mountControls(root, ctx) {
       case 'ArrowLeft':
       case 'ArrowRight':
         if (!demo || el?.closest('[role="slider"], [role="tab"], [role="tablist"], [role="listbox"], [role="menu"], [role="radiogroup"]')) return;
+        if (el?.closest(SCROLL_REGIONS)) return; // scrolls the listing sideways
         e.preventDefault();
         if (e.key === 'ArrowLeft') director().prevChapter();
         else director().nextChapter();
@@ -251,6 +260,7 @@ export function mountControls(root, ctx) {
       button.append(label);
       setText(label, text);
       setAttr(button, 'aria-label', text);
+      setAttr(button, 'title', `${text} (Space)`);
     }
   }
 

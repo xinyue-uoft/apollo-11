@@ -1650,23 +1650,26 @@ export function mountTrajectory(root, ctx) {
       // LmPhysics evaluates the touchdown (vertical/horizontal speed, tilt).
       const td = s.isReplay ? null : s.snap?.vehicle?.touchdown;
       const who = s.isReplay ? 'Eagle landed' : landingWord(td?.verdict);
-      let txt = Math.abs(d) < 50 ? `${who} at the aim point`
+      const head = Math.abs(d) < 50 ? `${who} at the aim point`
         : d < 0 ? `${who} ${fmtInt(-d)} ft beyond the aim point` : `${who} ${fmtInt(d)} ft short of the aim point`;
-      if (td && Number.isFinite(td.vVert)) {
-        txt += ` · ${fmtNum1(Math.abs(toFps(td.vVert)))} ft/s down, ${fmtNum1(Math.abs(toFps(td.vHoriz)))} ft/s across`;
-      }
+      const speeds = td && Number.isFinite(td.vVert)
+        ? `${fmtNum1(Math.abs(toFps(td.vVert)))} ft/s down, ${fmtNum1(Math.abs(toFps(td.vHoriz)))} ft/s across` : '';
       g.save();
       g.font = s.font;
-      const tw = textW(txt, s.font);
+      // One line when it fits, else the speeds go on a second line.
+      const one = speeds ? `${head} · ${speeds}` : head;
+      const lines = textW(one, s.font) <= plot.w - 12 || !speeds ? [one] : [head, speeds];
+      const tw = Math.max(...lines.map((l) => textW(l, s.font)));
       const x = Math.min(Math.max(lx - tw / 2, plot.x + 6), plot.x + plot.w - tw - 6);
       const y = plot.y + 6;
-      landedBox = { x: x - 5, y: y - 2, w: tw + 10, h: 17 };
+      const bh = 15 * lines.length + 2;
+      landedBox = { x: x - 5, y: y - 2, w: tw + 10, h: bh };
       g.fillStyle = 'rgba(22,26,31,0.86)';
-      roundRect(g, x - 5, y - 2, tw + 10, 17, 4);
+      roundRect(g, x - 5, y - 2, tw + 10, bh, 4);
       g.fill();
       g.fillStyle = td?.verdict === 'crash' ? theme.red : theme.amber;
       g.textBaseline = 'top';
-      g.fillText(txt, x, y + 1);
+      lines.forEach((l, i) => g.fillText(l, x, y + 1 + 15 * i));
       // Replay: how far from the planned (map) site — ≈6.6 km for Apollo 11
       // (MR §5.3, Table 5-IV; research/web-trajectory-b.md §3.1).
       if (planned && Number.isFinite(planned.range)) {

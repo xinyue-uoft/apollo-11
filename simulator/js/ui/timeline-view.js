@@ -84,6 +84,7 @@ export function mountTimeline(root, ctx) {
   let dragging = null;       // { id, t }
   let hoverX = null;
   let lastValueText = '';
+  let lastValueChapter = -2;
 
   const span = () => Math.max(1e-9, end - start);
   const director = () => app.director;
@@ -294,6 +295,7 @@ export function mountTimeline(root, ctx) {
   function renderDemo(d) {
     if (ui.scenario !== lastScenario) {
       lastScenario = ui.scenario;
+      lastValueText = '';
       start = d.start;
       end = d.end > d.start ? d.end : d.start + 1;
       setText(t0, formatGET(start));
@@ -332,13 +334,20 @@ export function mountTimeline(root, ctx) {
       if (hoverX !== null) showTip(dragging.t, hoverX);
     }
 
-    const now = Math.round(shownT - start);
-    setAttr(track, 'aria-valuenow', String(Math.max(0, now)));
+    // A screen reader speaks every value change of the focused slider: while
+    // the replay simply plays, update it only when the chapter changes (the
+    // clock in the top bar has the running GET); paused, held, seeking or
+    // dragging, keep it exact.
     const c = d.chapters?.[d.chapterIndex];
-    const text = `GET ${formatGET(shownT)}${c ? `, chapter ${d.chapterIndex + 1} of ${d.chapters.length}: ${c.title}` : ''}`;
-    if (text !== lastValueText) {
-      lastValueText = text;
-      setAttr(track, 'aria-valuetext', text);
+    const running = d.playing && !d.holding && !seeking && !dragging;
+    if (!running || d.chapterIndex !== lastValueChapter || !lastValueText) {
+      lastValueChapter = d.chapterIndex;
+      setAttr(track, 'aria-valuenow', String(Math.max(0, Math.round(shownT - start))));
+      const text = `GET ${formatGET(shownT)}${c ? `, chapter ${d.chapterIndex + 1} of ${d.chapters.length}: ${c.title}` : ''}`;
+      if (text !== lastValueText) {
+        lastValueText = text;
+        setAttr(track, 'aria-valuetext', text);
+      }
     }
   }
 

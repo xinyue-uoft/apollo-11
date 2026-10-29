@@ -60,7 +60,7 @@ export const PRESETS_CM = [
     title: 'LOI-1 burn (P40, TIG−3 min)',
     description: [
       'Apollo 11 behind the Moon, P40 counting down on V06N40 (R1 time to ignition, R2 velocity to be gained 2917 ft/s, R3 ΔV so far).',
-      'At TIG−35 s the DSKY goes dark for five seconds while Average-G starts; at TIG−5 s V99 flashes — press PRO to let the SPS fire.',
+      'At TIG−35 s the verb, noun and registers blank for five seconds (the program number stays) while Average-G starts; at TIG−5 s V99 flashes — press PRO to let the SPS fire.',
       'Watch N40 count down the 6-minute burn; after cut-off PRO on the flashing V16N40 shows the residuals (V16N85), PRO again ends P40 (flashing V37: key V37E00E).',
     ].join(' '),
     software: 'Comanche055',

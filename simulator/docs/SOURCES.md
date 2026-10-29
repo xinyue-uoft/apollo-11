@@ -82,14 +82,16 @@ these files; the exact ranges are the anchors in
   per key (an assumed cadence), so that the keying starts after the
   modelled alarm and ENTR still falls inside the whole second Cherry's log
   gives.
-- **Start times.** A scenario that starts in mid-descent starts on the
-  2-second navigation grid of the real flight (READACCS every 2 s from
-  TIG − 29.9 s = 102:32:35.11, `BURN_BABY_BURN--MASTER_IGNITION_ROUTINE.agc`
-  `D29.9SEC`, `SERVICER.agc:72-74`), e.g. 102:37:39.11 rather than
-  102:37:40. The computer model begins its navigation cycle at the instant a
-  scenario starts; on the flight's grid, the Executive model sees the same
-  load at the same instants in every scenario (`alignedStart` in
-  `js/demo/scenarios/lib.js`).
+- **Start times.** The computer model runs navigation on the 2-second grid
+  of the real flight (READACCS every 2 s from TIG − 29.9 s = 102:32:35.11,
+  `BURN_BABY_BURN--MASTER_IGNITION_ROUTINE.agc` `D29.9SEC`,
+  `SERVICER.agc:72-74`) even when a simulation starts in mid-descent
+  (`Workload.alignCycle`, called by the BURNBABY model's mid-flight restore),
+  so the Executive model sees the same load at the same instants in every
+  scenario. Mid-descent scenarios also start on a grid point, e.g.
+  102:37:39.11 rather than 102:37:40 (`alignedStart` in
+  `js/demo/scenarios/lib.js`); that only makes the first navigation pass
+  coincide with the scenario's first instant.
 - **Octal.** Alarm codes and priorities are octal, as in the code: 1202 is
   octal 1202 (decimal 642) and is shown on the DSKY as `01202`; "PRIO 20" is
   octal 20.
@@ -169,9 +171,10 @@ these files; the exact ranges are the anchors in
   requested only in `VALTCHK` below 2,000 ft/s (`SERVICER.agc:1375-1394`,
   research src-landing §10.6). So at PDI only ALT can light, and the computer
   model (`js/agc/nav.js`) lights each lamp only after a requested read of its
-  own quantity has failed: VEL stays dark until the 102:44:11 radar dropout
-  (the track's velocity data are good from 102:38:48, before reads start at
-  ≈102:38:56). The dissenting source is secondary: the ALSJ commentary at
+  own quantity has failed: in the replay ALT is lit 102:32:56–102:37:53 and
+  VEL stays dark until the radar dropout at 102:44:11 (lit on the first
+  failed read, ≈102:44:13), because the track's velocity data are good from
+  102:38:48, before velocity reads start at ≈102:38:56. The dissenting source is secondary: the ALSJ commentary at
   102:33:03, after David Woods, says "two indicator lights on the DSKY come
   on" when the engine is armed — the code ties neither lamp to engine arm —
   while the crew called only "Altitude light's on" (102:33:03) and
@@ -210,7 +213,11 @@ these files; the exact ranges are the anchors in
   follows MR/Eyles and switches the drain on from the start of every LM
   scenario.
 - LR data good 102:37:51 at ~37,000 ft (MR); ΔH "minus 2,900" (crew), ~2,800
-  (MR §5.3); BEN70 gives −2,200 as the initial Δh — not used on screen.
+  (MR §5.3); BEN70 gives −2,200 as the initial Δh — not used on screen. In
+  the model the ALT lamp goes out on the first good read (≈102:37:53) and,
+  since the code discards the first good reads after a bad one, DELTAH is
+  first computed a few passes later (≈102:37:56); the crew saw it only when
+  Aldrin keyed V16N68 (102:38:09).
 - DELTAH is only in Noun 68 R3 in Luminary 099 (`PINBALL_NOUN_TABLES.agc:740`;
   research src-landing §0.1). ALSJ's gloss that N68 R3 is velocity is wrong.
 - V57 (`EXTENDED_VERBS.agc:431-435`); MR "Enable radar updates" 102:38:45;

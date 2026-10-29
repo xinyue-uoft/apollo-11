@@ -339,6 +339,7 @@
 .dsky-legend dd {
   margin: 0;
   text-align: right;
+  white-space: nowrap;
 }
 
 .dsky-legend kbd {

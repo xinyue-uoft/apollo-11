@@ -69,12 +69,14 @@ export function lastAlarmShowing(at) {
 export const TIG_A11 = parseGET('102:33:05.01');
 export const READACCS_EPOCH = TIG_A11 - 29.9; // 102:32:35.11
 
-// A scenario that starts in mid-burn makes the computer model start its
-// Average-G cycle at the scenario's first instant (READACCS 2 s later). So
-// that every scenario puts SERVICER on the same 2-s grid as the real flight —
-// and the Executive model therefore sees the same load at the same instants
-// whichever scenario you watch — mid-burn scenarios start at the last grid
-// point at or before the GET they want. Returns "hhh:mm:ss.ss".
+// The computer model puts its Average-G cycle on this grid by itself when a
+// simulation starts in mid-burn (BURNBABY's mid-flight restore calls
+// Workload.alignCycle with TIG − 29.9 s), so SERVICER runs at the same
+// instants — and the Executive model sees the same load — whichever
+// scenario you watch. Starting a mid-burn scenario on a grid point, as this
+// does (the last one at or before the GET wanted), is no longer needed for
+// that; it only makes the first navigation pass coincide with the
+// scenario's first instant. Returns "hhh:mm:ss.ss".
 export function alignedStart(approx) {
   const t = parseGET(approx);
   const k = Math.floor((t - READACCS_EPOCH) / 2 + 1e-9);

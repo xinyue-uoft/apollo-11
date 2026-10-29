@@ -6,6 +6,9 @@
 // this module imports cleanly in Node (the scenario validator and the tests
 // use them). Everything that touches `document` does so only when called.
 
+import { TOUCHDOWN_LIMITS, LM } from '../vehicle/constants.js';
+import { toFps } from '../util/units.js';
+
 // ---------- sanitiser ----------
 
 // Elements a narration body may use. The only attribute that survives is
@@ -174,6 +177,33 @@ export function formatProgram(mode) {
 
 export function formatSpeed(speed) {
   return `${speed}×`;
+}
+
+// A speed in m/s as ft/s (magnitude): one decimal below 100, whole numbers
+// with separators above.
+export function formatFps(mps) {
+  if (!Number.isFinite(mps)) return '?';
+  const v = Math.abs(toFps(mps));
+  return v < 99.95 ? v.toFixed(1) : Math.round(v).toLocaleString('en-US');
+}
+
+// Landing outcome of an interactive flight, from a 'vehicle' bus event
+// (App.watchVehicle): { kind: 'lowLevel'|'depleted'|'touchdown', verdict,
+// vVert, vHoriz (m/s), tilt (deg) }, or the snapshot's vehicle.touchdown.
+export function vehicleEventText(ev) {
+  if (ev?.kind === 'lowLevel') {
+    return `Low-level light: the descent propellant is down to ${(LM.lowLevelFraction * 100).toFixed(1)} %.`;
+  }
+  if (ev?.kind === 'depleted') return 'Descent propellant exhausted: the engine has stopped.';
+  const speeds = `${formatFps(ev?.vVert)} ft/s down, ${formatFps(ev?.vHoriz)} ft/s across`;
+  if (ev?.verdict === 'crash') return `Crash: the LM hit the surface at ${speeds}.`;
+  if (ev?.verdict === 'hard') {
+    const L = TOUCHDOWN_LIMITS;
+    return `Hard landing: ${speeds}${Number.isFinite(ev.tilt) ? `, tilted ${Math.round(ev.tilt)}°` : ''} — `
+      + `beyond the landing gear's limits (${Math.round(toFps(L.maxVertical))} ft/s down, `
+      + `${Math.round(toFps(L.maxHorizontal))} ft/s across, ${L.maxTilt}°).`;
+  }
+  return `Touchdown: a safe landing at ${speeds}.`;
 }
 
 // ---------- DOM helpers (call only in a browser) ----------

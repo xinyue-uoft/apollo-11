@@ -318,6 +318,27 @@ for (const id of ALARM_SCENARIOS) {
   });
 }
 
+// When the crew cleared the PROG lamp of the fifth alarm (102:42:58) is not
+// recorded; every replay must show it the same way (lit, FAILREG 01202),
+// including p66-touchdown, which starts after the alarm.
+test('after the fifth alarm every LM replay shows the same PROG lamp and FAILREG', async (t) => {
+  const rt = await loadRuntime();
+  if (rt.missing) return t.skip(`waiting for: ${rt.missing.join('; ')}`);
+  const at = parseGET('102:43:05');
+  const seen = [];
+  for (const id of ['alarms-1202', 'p64-approach', 'p66-touchdown', 'full-descent']) {
+    const scenario = SCENARIOS.find((s) => s.id === id);
+    const director = new rt.Director({
+      createSim: makeCreateSim(rt), scheduler: () => {}, autoplay: false, autoPause: false, strict: true,
+    });
+    assert.ok(director.load(scenario));
+    await director.seek(at);
+    const snap = director.sim.agc.snapshot();
+    seen.push({ id, prog: snap.dsky.lights.prog, failreg: snap.alarms.failreg });
+  }
+  for (const s of seen) assert.deepEqual({ prog: s.prog, failreg: s.failreg }, { prog: true, failreg: [0o1202, null, null] }, s.id);
+});
+
 test('every scenario replays start → end headless without errors', async (t) => {
   const rt = await loadRuntime();
   if (rt.missing) return t.skip(`waiting for: ${rt.missing.join('; ')}`);

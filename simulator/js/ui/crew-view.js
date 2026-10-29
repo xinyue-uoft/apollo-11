@@ -373,9 +373,9 @@ export function mountCrew(root, ctx) {
     set('rod', model.rodFps === null ? '—' : `${fmtRate(model.rodFps)} ft/s`);
     const { dx, dy, angle, time } = model.lpd;
     set('lpdClicks', `az ${dx > 0 ? '+' : ''}${dx} · el ${dy > 0 ? '+' : ''}${dy}`);
-    // The LPD angle and redesignation time (N64 R1) exist in P64 only; the
-    // guidance keeps the last values afterwards.
-    set('lpdAngle', model.mode !== 64 || angle === null ? 'LPD —' : `LPD ${Math.round(angle)}°${time !== null ? ` · ${Math.max(0, Math.round(time))} s left` : ''}`);
+    // The LPD angle and redesignation time (N64 R1) exist in P64 in flight
+    // only; the guidance keeps the last values afterwards.
+    set('lpdAngle', model.mode !== 64 || model.landed || angle === null ? 'LPD —' : `LPD ${Math.round(angle)}°${time !== null ? ` · ${Math.max(0, Math.round(time))} s left` : ''}`);
     once('pgns', model.pgnsMode, (m) => {
       btn.pgnsAuto.setAttribute('aria-checked', String(m === 'auto'));
       btn.pgnsAtt.setAttribute('aria-checked', String(m === 'attHold'));

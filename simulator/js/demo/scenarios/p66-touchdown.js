@@ -83,7 +83,7 @@ export default defineScenario({
       title: 'ALT and VEL lights',
       body: '<p>At about 240 feet the landing radar briefly loses its signal — a zero-Doppler condition while Armstrong maneuvers (Mission Report) — and the computer lights the DSKY’s <b>ALT</b> and <b>VEL</b> lamps: “no good radar data”. It keeps navigating with its accelerometers. The lamps go out again at 102:44:21.</p>',
     } },
-    { at: '102:44:12', spotlight: 'dsky.light.alt' },
+    { at: '102:44:13', spotlight: 'dsky.light.alt' },
     say('alt-vel-lights'),
     say('220-feet'),
     say('11-forward'),

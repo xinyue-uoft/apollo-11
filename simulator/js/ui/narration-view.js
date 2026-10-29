@@ -2,12 +2,17 @@
 // explanation card (sanitised HTML body + chips that open the real source
 // lines), the "paused so you can read" countdown with Continue, and the
 // collapsible history of earlier explanations. Interactive mode: the
-// preset's description and tips plus a live line saying what the computer
-// model is doing (program, ignition sequence, guidance phase).
+// preset's description and tips plus live lines saying how the flight
+// ended (once it has), what the DSKY shows (the verb and noun decoded from
+// the listing's tables) and what the computer model is doing (program,
+// ignition sequence, guidance phase).
 
 import { formatGET, formatMinSec } from '../util/time.js';
+import { getNoun } from '../agc/nouns.js';
+import { verbTable } from '../agc/verbs.js';
+import { FORMATS } from '../agc/display-format.js';
 import {
-  h, setText, setHtml, setHidden, setStyle, icon, formatOctal, formatProgram,
+  h, setText, setHtml, setHidden, setStyle, toggleClass, icon, formatOctal, formatProgram, vehicleEventText,
 } from './html.js';
 
 // snapshot.agc.burn.phase (§6.9.1) → words.
@@ -29,6 +34,73 @@ const GUIDANCE_PHASES = {
   rod: 'rate-of-descent mode (P66)',
   manual: 'manual control',
 };
+
+// The listing's upper-case names in lower case, keeping register and
+// program names (R1, P20), single letters (delta V, CDU X) and acronyms.
+const ACRONYMS = new Set(['LR', 'RR', 'AGC', 'CSM', 'CM', 'LM', 'LEM', 'IMU', 'CDU', 'DAP', 'VHF', 'TFF', 'VG',
+  'LV', 'DSKY', 'RCS', 'SPS', 'DPS', 'APS', 'TIG', 'PIPA', 'UT', 'GET', 'LOS', 'TPI', 'CSI', 'CDH', 'TPF', 'ADR', 'G+C']);
+function readable(text) {
+  return String(text).trim().replace(/\.$/, '')
+    .replace(/[^\s,()/]+/g, (w) => (ACRONYMS.has(w) || /\d/.test(w) || w.length === 1 ? w : w.toLowerCase()));
+}
+
+// What a flashing VERB/NOUN asks of the crew, by verb kind (PINBALL: a
+// flashing display waits in ENDIDLE for PRO/V33, V34 or V32; a PLEASE verb
+// also takes ENTR; a load verb takes the data and ENTR;
+// Luminary099/PINBALL_GAME_BUTTONS_AND_LIGHTS.agc:2860-2886).
+function flashHint(verb, entry) {
+  if (verb === 37) return 'flashing: key a program number and ENTR';
+  if (entry?.kind === 'please') return 'flashing: PRO to proceed, ENTR for the alternative the program offers, V34E to terminate';
+  if (verb >= 21 && verb <= 25) return 'flashing: key the value(s) and ENTR';
+  return 'flashing: PRO to accept, V34E to terminate (V32E to recycle)';
+}
+
+// One register's digits read with the noun component's scale (decimal
+// display verbs only), e.g. "+30314" in XXXX.X → "+3031.4".
+function registerValue(reg, comp) {
+  const digits = String(reg?.digits ?? '').replace(/\s/g, '');
+  if (!digits || !/^\d+$/.test(digits)) return null;
+  const f = FORMATS[comp.format];
+  const sign = reg.sign === '-' ? '−' : reg.sign === '+' ? '+' : '';
+  if (f?.kind === 'decimal' || f?.kind === 'cdu') {
+    const n = Number(digits) / 10 ** (f.decimals || 0);
+    return `${sign}${n.toFixed(f.decimals || 0)}`;
+  }
+  if (f?.kind === 'minsec' && digits.length === 4) return `${sign}${digits.slice(0, 2)}:${digits.slice(2)}`;
+  return null;
+}
+
+// "V16 N68 — monitor decimal: R1 slant range to landing site 5.3 nmi · …"
+function displayLine(snapshot) {
+  const d = snapshot?.agc?.dsky;
+  if (!d || d.blanked || d.lampTest) return null;
+  const verb = Number.parseInt(d.verb, 10);
+  if (!Number.isFinite(verb)) return null;
+  const software = snapshot.software;
+  const v = verbTable(software)[verb];
+  const noun = Number.parseInt(d.noun, 10);
+  const n = Number.isFinite(noun) ? getNoun(software, noun) : null;
+  const head = `V${d.verb}${Number.isFinite(noun) ? ` N${d.noun}` : ''}`;
+  const parts = [];
+  // "DISPLAY DECIMAL IN R1 OR R1,R2 OR R1,R2,R3": the registers are listed below
+  if (v) parts.push(readable(v.name.replace(/\s+IN R1\b.*$/, '')));
+  // Decimal display and monitor verbs show the noun's components in R1-R3.
+  const decimal = v && (v.kind === 'display' || v.kind === 'monitor')
+    && verbTable(software)[v.kind === 'monitor' ? v.monitorOf : verb]?.octal === false;
+  let regs = '';
+  if (n?.inUse && n.components.length) {
+    regs = n.components.slice(0, 3).map((c, i) => {
+      const value = decimal ? registerValue(d.r[i], c) : null;
+      const unit = c.unit && !['octal', 'position'].includes(c.unit) ? ` ${c.unit}` : '';
+      return `R${i + 1} ${readable(c.label)}${value ? ` ${value}${unit}` : unit ? ` (${unit.trim()})` : ''}`;
+    }).join(' · ');
+  }
+  let text = `Display ${head}${parts.length ? ` — ${parts.join('; ')}` : ''}`;
+  if (n && !n.inUse) text += ' (spare noun)';
+  if (regs) text += `: ${regs}`;
+  if (d.flashVerbNoun) text += ` — ${flashHint(verb, v)}`;
+  return text;
+}
 
 // The anchor registry belongs to the source panel's owner; load it lazily so
 // that a missing or broken registry only costs the chips their pretty names.
@@ -54,7 +126,9 @@ export function mountNarration(root, ctx) {
   root.classList.add('nar');
 
   const counter = h('span', { class: 'nar-counter' });
-  const heading = h('h2', { class: 'panel-title' }, h('span', {}, 'Explanation'), counter);
+  const headingText = h('h2', { id: 'narration-heading' }, 'Explanation');
+  const heading = h('div', { class: 'panel-title' }, headingText, counter);
+  root.setAttribute('aria-labelledby', 'narration-heading');
 
   // ---------- demo ----------
   const chapterEl = h('p', { class: 'nar-chapter' });
@@ -94,12 +168,13 @@ export function mountNarration(root, ctx) {
   const presetTitle = h('h3', { class: 'nar-title' });
   const presetText = h('div', { class: 'nar-text' });
   const tipsList = h('ul', { class: 'nar-tips' });
+  const liveOutcome = h('p', { class: 'nar-live-outcome', hidden: true });
   const liveProgram = h('p', { class: 'nar-live-prog' });
   const liveDetail = h('ul', { class: 'nar-live-list' });
   const interactiveBox = h('div', { class: 'panel-body nar-interactive', hidden: true },
     h('article', { class: 'nar-card' }, presetTitle, presetText, tipsList),
     h('section', { class: 'nar-live', aria: { label: 'What the computer is doing' } },
-      h('h3', { class: 'nar-live-head' }, 'What the computer is doing'), liveProgram, liveDetail),
+      h('h3', { class: 'nar-live-head' }, 'What the computer is doing'), liveOutcome, liveProgram, liveDetail),
     h('p', { class: 'nar-honesty' },
       'A behavioural model of Luminary 099 / Comanche 055 — not an instruction-level emulator of the rope. '
       + 'Displays, timings and the Executive load are modelled from the source and the mission record.'));
@@ -243,9 +318,20 @@ export function mountNarration(root, ctx) {
 
   function liveLines(snapshot) {
     const agc = snapshot?.agc;
-    if (!agc) return { program: 'The computer is not running yet.', details: [] };
+    if (!agc) return { program: 'The computer is not running yet.', details: [], outcome: null };
     const program = `${formatProgram(agc.mode)}${agc.programName ? ` — ${agc.programName}` : ''}`;
     const details = [];
+    // How the flight ended leads, once it has (the toast is gone by now).
+    const vehicle = snapshot.vehicle;
+    const td = vehicle?.touchdown;
+    let outcome = null;
+    if (td) outcome = { verdict: td.verdict, text: vehicleEventText({ kind: 'touchdown', ...td }) };
+    else if (vehicle?.depleted) outcome = { verdict: 'crash', text: vehicleEventText({ kind: 'depleted' }) };
+    const display = displayLine(snapshot);
+    if (display) details.push(display);
+    if (agc.dsky?.lights?.keyRel) {
+      details.push('KEY REL lit: a program display is waiting while you have the keyboard — press KEY REL to let it show');
+    }
     const burn = agc.burn;
     if (burn && burn.phase && burn.phase !== 'done') {
       // Time relative to ignition, from TIG itself so the sign is unambiguous.
@@ -253,11 +339,15 @@ export function mountNarration(root, ctx) {
       const tig = rel === null ? '' : ` (TIG ${formatMinSec(rel)})`;
       details.push(`Ignition sequence (BURNBABY): ${BURN_PHASES[burn.phase] || burn.phase}${tig}`);
     }
+    // Guidance: nothing once on the surface; no time to go in P66 (the
+    // rate-of-descent mode has no target time; the value would be stale).
     const g = agc.guidance;
-    if (g && g.phase) {
-      const ttg = Number.isFinite(g.ttg) ? `, time to go ${Math.round(Math.abs(g.ttg))} s` : '';
+    if (g && g.phase && !td) {
+      const ttg = Number.isFinite(g.ttg) && g.phase !== 'rod' && agc.mode !== 66
+        ? `, time to go ${Math.round(Math.abs(g.ttg))} s` : '';
       details.push(`Guidance: ${GUIDANCE_PHASES[g.phase] || g.phase}${ttg}`);
     }
+    if (vehicle?.lowLevel && !td && !vehicle.depleted) details.push(vehicleEventText({ kind: 'lowLevel' }));
     const load = agc.exec?.load?.total;
     if (Number.isFinite(load)) details.push(`Executive load: ${Math.round(load * 100)} %`);
     const last = agc.alarms?.last;
@@ -265,7 +355,7 @@ export function mountNarration(root, ctx) {
       details.push(`Program alarm ${formatOctal(last.code)}${last.text ? ` — ${last.text}` : ''} at ${formatGET(last.t)}`);
     }
     if (agc.dsky?.lights?.prog) details.push('PROG light on — key V05N09E to read the alarm codes, RSET to clear');
-    return { program, details };
+    return { program, details, outcome };
   }
 
   function renderInteractive(snapshot, ui) {
@@ -278,7 +368,10 @@ export function mountNarration(root, ctx) {
       tipsList.replaceChildren(...tips.map((tip) => h('li', { html: tip })));
       setHidden(tipsList, tips.length === 0);
     }
-    const { program, details } = liveLines(snapshot);
+    const { program, details, outcome } = liveLines(snapshot);
+    setHidden(liveOutcome, !outcome);
+    setText(liveOutcome, outcome?.text ?? '');
+    for (const v of ['safe', 'hard', 'crash']) toggleClass(liveOutcome, `is-${v}`, outcome?.verdict === v);
     setText(liveProgram, program);
     const key = details.join('\n');
     if (liveDetail.__key !== key) {
@@ -293,7 +386,7 @@ export function mountNarration(root, ctx) {
       lastMode = ui.mode;
       setHidden(demoBox, ui.mode !== 'demo');
       setHidden(interactiveBox, ui.mode !== 'interactive');
-      setText(heading.firstChild, ui.mode === 'demo' ? 'Explanation' : 'Interactive');
+      setText(headingText, ui.mode === 'demo' ? 'Explanation' : 'Interactive');
       setText(counter, '');
       lastPreset = undefined;
       dirty = true;

@@ -8,8 +8,7 @@ import { Director } from './demo/director.js';
 import { SCENARIOS } from './demo/scenarios/index.js';
 import { PRESETS } from './data/presets.js';
 import { TRACKS } from './data/tracks.js';
-import { TOUCHDOWN_LIMITS, LM } from './vehicle/constants.js';
-import { toFps } from './util/units.js';
+import { vehicleEventText } from './ui/html.js';
 
 import { mountDsky } from './ui/dsky-view.js';
 import { mountInstruments } from './ui/instruments-view.js';
@@ -37,29 +36,6 @@ const MODE_TITLES = {
   demo: 'Demo: guided replays of Apollo 11, with explanations and the real source code',
   interactive: 'Interactive: key the DSKY and fly it yourself',
 };
-
-// ft/s with one decimal below 100, whole numbers with separators above.
-function fps(mps) {
-  const v = Math.abs(toFps(mps));
-  return v < 100 ? v.toFixed(1) : Math.round(v).toLocaleString('en-US');
-}
-
-// Toast text for a landing-outcome bus event (see App.watchVehicle).
-export function vehicleEventText(ev) {
-  if (ev.kind === 'lowLevel') {
-    return `Low-level light: the descent propellant is down to ${(LM.lowLevelFraction * 100).toFixed(1)} %.`;
-  }
-  if (ev.kind === 'depleted') return 'Descent propellant exhausted: the engine has stopped.';
-  const speeds = `${fps(ev.vVert)} ft/s down, ${fps(ev.vHoriz)} ft/s across`;
-  if (ev.verdict === 'crash') return `CRASH: the LM hit the surface at ${speeds}.`;
-  if (ev.verdict === 'hard') {
-    const L = TOUCHDOWN_LIMITS;
-    return `Hard landing: ${speeds}${Number.isFinite(ev.tilt) ? `, ${Math.round(ev.tilt)}° tilt` : ''}, `
-      + `beyond the landing gear's limits (${Math.round(toFps(L.maxVertical))} ft/s down, `
-      + `${Math.round(toFps(L.maxHorizontal))} ft/s across, ${L.maxTilt}°).`;
-  }
-  return `Touchdown: a safe landing at ${speeds}.`;
-}
 
 export class App {
   constructor(doc = document) {
